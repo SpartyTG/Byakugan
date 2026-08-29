@@ -4,10 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, visiblePlayerIds, normalizeLivePlayers,
+  isPlayerNameHidden, isKnownPartyMember, visiblePlayerIds, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
-  summarizePresence, mapWithConcurrency
+  summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mapWithConcurrency
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -80,6 +80,15 @@ test('keeps other Riot titles online instead of marking them offline', () => {
   assert.equal(normalizeQueueName('spikerush'), 'Spike Rush');
 });
 
+test('treats stale mobile League and detail-less VALORANT presence as offline', () => {
+  const mobileLeague = summarizePresence({ puuid: 'friend-3', product: 'league_of_legends', state: 'mobile' });
+  const staleValorant = summarizePresence({ puuid: 'friend-4', product: 'valorant', state: 'online', private: '' });
+  assert.equal(mobileLeague.state, 'offline');
+  assert.equal(mobileLeague.game, '');
+  assert.equal(staleValorant.state, 'offline');
+  assert.equal(staleValorant.game, '');
+});
+
 test('friend roster joins Riot presences and preserves live activity', async () => {
   const valorantPrivate = Buffer.from(JSON.stringify({ sessionLoopState: 'PREGAME', queueId: 'unrated' })).toString('base64');
   const service = new RiotClientService();
@@ -98,6 +107,16 @@ test('friend roster joins Riot presences and preserves live activity', async () 
   assert.match(friends[0].status, /Agent Select.*Unrated/);
   assert.equal(friends[1].state, 'other');
   assert.equal(friends[1].game, 'League of Legends');
+});
+
+test('friend online flag outranks a stale product presence', async () => {
+  const service = new RiotClientService();
+  service.localRequest = async (endpoint) => endpoint.endsWith('/friends')
+    ? { data: { friends: [{ puuid: 'online-friend', game_name: 'OnlineFriend', is_online: true }] } }
+    : { data: { presences: [{ puuid: 'online-friend', product: 'league_of_legends', state: 'mobile' }] } };
+  const [friend] = await service.fetchFriends();
+  assert.equal(friend.state, 'online');
+  assert.equal(friend.game, 'Riot Client');
 });
 
 test('normalizes a tied competitive match as a draw instead of a loss', () => {
@@ -126,6 +145,37 @@ test('calculates recent statistics and agent pick rate', () => {
   assert.equal(agents[0].name, 'Jett');
   assert.equal(agents[0].mastery, 100);
   assert.equal(agents[0].games, 2);
+});
+
+test('detects dodge RR penalties without counting match losses or AFK penalties', () => {
+  const rows = [
+    { RankedRatingEarned: -3, MatchID: '', Reason: 'Queue Dodge' },
+    { RankedRatingEarned: -6, MatchID: '00000000-0000-0000-0000-000000000000' },
+    { RankedRatingEarned: -18, MatchID: 'competitive-match' },
+    { RankedRatingEarned: -8, MatchID: '', PenaltyReason: 'AFK penalty' },
+    { RankedRatingEarned: 12, MatchID: '' }
+  ];
+  assert.equal(isDodgePenaltyUpdate(rows[0]), true);
+  assert.equal(isDodgePenaltyUpdate(rows[2]), false);
+  assert.equal(isDodgePenaltyUpdate(rows[3]), false);
+  assert.deepEqual(summarizeDodgePenalties(rows), { rrLost: 9, count: 2 });
+});
+
+test('uses competitive update match IDs when an ally history index is private', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.fetchMatchDetail = async (matchId) => ({
+    MatchInfo: { MatchID: matchId, MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [{ Subject: 'friend', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 20, Deaths: 10, Assists: 5 } }],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
+  });
+  const matches = await service.fetchDetailedMatches(null, {
+    Matches: [{ MatchID: 'shared-match', RankedRatingEarned: 17 }]
+  }, 'friend', 50);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].result, 'VICTORY');
+  assert.equal(matches[0].kills, 20);
 });
 
 test('live roster never resolves or exposes Riot-incognito names', () => {
@@ -165,6 +215,24 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('EnemyMustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);
+});
+
+test('historical roster keeps incognito identities hidden and includes match performance', () => {
+  const detail = {
+    Players: [
+      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
+      { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
+      { Subject: 'hidden-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } }
+    ],
+    RoundResults: Array.from({ length: 20 }, () => ({}))
+  };
+  const roster = normalizeHistoricalRoster(detail, 'self', metadata(), { 'visible-enemy': 'Visible#NA1', 'hidden-enemy': 'MustNotAppear#NA1' });
+  assert.equal(roster[0].acs, 200);
+  assert.equal(roster[1].name, 'Visible#NA1');
+  assert.equal(roster[1].inspectable, true);
+  assert.equal(roster[2].name, '');
+  assert.equal(roster[2].inspectable, false);
+  assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
 });
 
 test('selects a roster rank from the active act, then competitive updates', () => {

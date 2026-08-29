@@ -64,9 +64,17 @@ function renderStats(profile) {
     ['WIN / LOSS', `${profile.wins} / ${profile.losses}`, scope],
     ['K/D RATIO', profile.kd, scope],
     ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, scope],
-    ['RANK RATING', `${profile.rr} RR`, 'CURRENT']
+    ['RANK RATING', `${profile.rr} RR`, 'CURRENT'],
+    [
+      'DODGE RR LOST',
+      `−${Number(profile.dodgeRrLost) || 0} RR`,
+      profile.dodgeStatsLoading
+        ? 'LOADING HISTORY'
+        : `${Number(profile.dodgeCount) || 0} DODGE${Number(profile.dodgeCount) === 1 ? '' : 'S'} • ${profile.dodgeStatsScope || 'TRACKED'}`,
+      'penalty'
+    ]
   ];
-  $('#statsGrid').innerHTML = values.map(([label, value, note]) => `<article class="stat-card"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong><em>${escapeHtml(note)}</em></article>`).join('');
+  $('#statsGrid').innerHTML = values.map(([label, value, note, tone = '']) => `<article class="stat-card ${tone}"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong><em>${escapeHtml(note)}</em></article>`).join('');
 }
 
 function matchRow(match, compact = false, full = false) {
@@ -240,6 +248,20 @@ function matchVerdict(match) {
   return ['Balanced performance', 'No single metric dominated this result. Use the round timeline to compare your highest-damage rounds with the rounds where impact dropped.'];
 }
 
+function historicalPlayerRow(player) {
+  const agentImage = safeImage(player.agentImage);
+  const rankImage = safeImage(player.rankImage);
+  const displayName = player.hidden ? player.agent : player.name || 'Riot Player';
+  const detail = player.hidden ? 'IDENTITY HIDDEN' : player.agent;
+  const clickable = Boolean(player.inspectable && player.profileId);
+  return `<div class="history-player ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${clickable ? 'inspectable' : ''}" ${clickable ? `data-player-id="${escapeHtml(player.profileId)}" role="button" tabindex="0"` : ''}>
+    <div class="history-player-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
+    <div class="history-player-name"><strong>${escapeHtml(displayName)}</strong><small>${escapeHtml(detail)}</small></div>
+    <div class="history-player-performance"><small>THIS MATCH</small><strong>${escapeHtml(player.kills)} / ${escapeHtml(player.deaths)} / ${escapeHtml(player.assists)}</strong><em>${escapeHtml(player.acs || 0)} ACS</em></div>
+    <div class="history-player-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>MATCH RANK</small><strong>${escapeHtml(player.rank)}</strong></span></div>
+  </div>`;
+}
+
 function openMatchAutopsy(matchId) {
   const match = (state.snapshot?.matches || []).find((item) => item.id === matchId);
   if (!match) return;
@@ -252,7 +274,11 @@ function openMatchAutopsy(matchId) {
   const rr = Number(match.rr) || 0;
   const context = competitive ? `${match.playlist || 'Competitive'} • ${match.rankName || 'Rank unavailable'}` : match.playlist || 'Unknown Playlist';
   const ratingValue = hasRating ? `${rr > 0 ? '+' : rr < 0 ? '−' : '±'}${Math.abs(rr)}` : competitive ? 'Pending' : match.playlist || '—';
-  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">K/D per round</span></div><div class="round-timeline">${rounds.map((round) => `<div class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></div>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div></div>`;
+  const roster = match.roster || [];
+  const allies = roster.filter((player) => player.side === 'ally');
+  const enemies = roster.filter((player) => player.side === 'enemy');
+  const rosterMarkup = roster.length ? `<div class="postmatch-roster"><section><div class="postmatch-team-title"><span>YOUR TEAM</span><small>${escapeHtml(allies.length)} PLAYERS</small></div>${allies.map(historicalPlayerRow).join('')}</section><section><div class="postmatch-team-title enemy"><span>OPPONENTS</span><small>${escapeHtml(enemies.length)} PLAYERS</small></div>${enemies.map(historicalPlayerRow).join('')}</section></div>` : '<div class="empty-state">Riot did not return the roster for this match.</div>';
+  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">K/D per round</span></div><div class="round-timeline">${rounds.map((round) => `<div class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></div>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div><div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
   $('#matchModal').hidden = false;
 }
 
@@ -342,7 +368,9 @@ async function openPlayerProfile(playerId) {
     const peakImage = safeImage(profile.peakRankImage);
     const stats = profile.stats || {};
     const loadout = profile.loadout || [];
-    $('#playerProfileContent').innerHTML = `<div class="player-profile-hero"><div class="player-profile-avatar">${escapeHtml(initials(profile.gameName))}</div><div><p class="eyebrow">${profile.isSelf ? 'YOUR PROFILE' : 'VISIBLE ALLY PROFILE'}</p><h1 id="playerProfileTitle">${escapeHtml(profile.gameName)} <em>${profile.tagLine ? `#${escapeHtml(profile.tagLine)}` : ''}</em></h1><p>Account level ${escapeHtml(profile.level || '—')} • ${escapeHtml(stats.scope || 'AVAILABLE COMPETITIVE')}</p></div><div class="player-rank-stack">${rankImage ? `<img src="${rankImage}" alt="${escapeHtml(profile.rank)}">` : ''}<span><small>CURRENT RANK</small><strong>${escapeHtml(profile.rank)}</strong><em>${escapeHtml(profile.peakRank)} all-time peak • ${escapeHtml([profile.peakEpisode, profile.peakAct].filter(Boolean).join(' • '))}</em></span></div></div><div class="player-profile-body"><div class="player-stat-grid"><span><small>MATCHES</small><strong>${escapeHtml(stats.games || 0)}</strong></span><span><small>W / L</small><strong>${escapeHtml(stats.wins || 0)} / ${escapeHtml(stats.losses || 0)}</strong></span><span><small>WIN RATE</small><strong>${stats.games ? escapeHtml(((Number(stats.wins || 0) / Number(stats.games)) * 100).toFixed(1)) : '0'}%</strong></span><span><small>K/D</small><strong>${escapeHtml(stats.kd ?? '—')}</strong></span><span><small>HEADSHOT</small><strong>${escapeHtml(stats.headshot ?? 0)}%</strong></span></div><div class="player-profile-section-title"><p class="eyebrow">EQUIPPED COLLECTION</p><h2>Current skins</h2></div><div class="player-loadout-grid">${loadout.map((item) => `<div class="player-loadout-item">${safeImage(item.image) ? `<img src="${safeImage(item.image)}" alt="">` : ''}<small>${escapeHtml(item.slot)}</small><strong>${escapeHtml(item.skin)}</strong></div>`).join('') || '<div class="empty-state">Riot did not expose this player’s equipped loadout.</div>'}</div><p class="player-privacy-note">◉ ${escapeHtml(profile.privacy || 'Private and opponent profiles remain unavailable.')}</p></div>`;
+    const statsAvailable = stats.available !== false;
+    const unavailable = '—';
+    $('#playerProfileContent').innerHTML = `<div class="player-profile-hero"><div class="player-profile-avatar">${escapeHtml(initials(profile.gameName))}</div><div><p class="eyebrow">${profile.isSelf ? 'YOUR PROFILE' : 'VISIBLE ALLY PROFILE'}</p><h1 id="playerProfileTitle">${escapeHtml(profile.gameName)} <em>${profile.tagLine ? `#${escapeHtml(profile.tagLine)}` : ''}</em></h1><p>Account level ${escapeHtml(profile.level || '—')} • ${escapeHtml(stats.scope || 'AVAILABLE COMPETITIVE')}</p></div><div class="player-rank-stack">${rankImage ? `<img src="${rankImage}" alt="${escapeHtml(profile.rank)}">` : ''}<span><small>CURRENT RANK</small><strong>${escapeHtml(profile.rank)}</strong><em>${escapeHtml(profile.peakRank)} all-time peak • ${escapeHtml([profile.peakEpisode, profile.peakAct].filter(Boolean).join(' • '))}</em></span></div></div><div class="player-profile-body"><div class="player-stat-grid"><span><small>MATCHES</small><strong>${statsAvailable ? escapeHtml(stats.games || 0) : unavailable}</strong></span><span><small>W / L</small><strong>${statsAvailable ? `${escapeHtml(stats.wins || 0)} / ${escapeHtml(stats.losses || 0)}` : unavailable}</strong></span><span><small>WIN RATE</small><strong>${statsAvailable && stats.games ? `${escapeHtml(((Number(stats.wins || 0) / Number(stats.games)) * 100).toFixed(1))}%` : unavailable}</strong></span><span><small>K/D</small><strong>${statsAvailable ? escapeHtml(stats.kd ?? unavailable) : unavailable}</strong></span><span><small>HEADSHOT</small><strong>${statsAvailable ? `${escapeHtml(stats.headshot ?? 0)}%` : unavailable}</strong></span></div><div class="player-profile-section-title"><p class="eyebrow">EQUIPPED COLLECTION</p><h2>Current skins</h2></div><div class="player-loadout-grid">${loadout.map((item) => `<div class="player-loadout-item">${safeImage(item.image) ? `<img src="${safeImage(item.image)}" alt="">` : ''}<small>${escapeHtml(item.slot)}</small><strong>${escapeHtml(item.skin)}</strong></div>`).join('') || '<div class="empty-state">Riot keeps this player’s current equipped loadout private.</div>'}</div><p class="player-privacy-note">◉ ${escapeHtml(profile.privacy || 'Private and opponent profiles remain unavailable.')}</p></div>`;
   } catch (error) {
     $('#playerProfileContent').innerHTML = `<div class="player-profile-loading"><div><strong>Profile unavailable</strong><p>${escapeHtml(error.message)}</p></div></div>`;
   }
@@ -653,6 +681,15 @@ function bindEvents() {
   $('#closeMatch').addEventListener('click', closeMatchAutopsy);
   $('#shareMatch').addEventListener('click', exportMatchRecap);
   $('#matchModal').addEventListener('click', (event) => { if (event.target === $('#matchModal')) closeMatchAutopsy(); });
+  $('#matchAutopsyContent').addEventListener('click', (event) => {
+    const row = event.target.closest('[data-player-id]');
+    if (row) openPlayerProfile(row.dataset.playerId);
+  });
+  $('#matchAutopsyContent').addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const row = event.target.closest('[data-player-id]');
+    if (row) { event.preventDefault(); openPlayerProfile(row.dataset.playerId); }
+  });
   $('#allyRoster').addEventListener('click', (event) => {
     const row = event.target.closest('[data-player-id]');
     if (row) openPlayerProfile(row.dataset.playerId);

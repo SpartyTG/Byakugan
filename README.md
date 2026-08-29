@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.10
+## Included in version 0.8.0-beta.11
 
 - Original desktop dashboard and navigation
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -12,6 +12,7 @@ source, brand, or proprietary assets.
 - Local Riot authentication and entitlement-token retrieval
 - Player identity, region, friends, and decoded multi-title Riot presence retrieval
 - Live friend activity for VALORANT menus, agent select, queue type, in-game score, and other Riot titles
+- Riot Client-aligned social presence handling that ignores stale mobile League and detail-less VALORANT records
 - Resolved competitive ranks, maps, agents, weapons, and equipped skin names
 - Competitive-rank emblems on the profile, act peak, live roster, and match history
 - All-time peak rank with the episode and act where that peak was recorded
@@ -19,9 +20,12 @@ source, brand, or proprietary assets.
 - Full Act Journey milestones retained from competitive-rating updates even when an older match-detail call is temporarily unavailable
 - Server performance profiles with matches, W/L, win rate, K/D, headshot rate, average kills, and RR by Riot game pod
 - Click-to-inspect profiles for visible allies and party members, including available competitive stats and equipped skins
+- Party-profile fallback through competitive update match IDs when Riot withholds a player's match-history index
+- Background tracked dodge RR-loss total with normal match losses and identified AFK penalties excluded
 - Strict inspection privacy: live opponents, Riot-incognito players, and hidden identities are never inspectable
 - Party-aware identity handling: current party members remain named and inspectable even when their general in-game incognito setting is enabled
 - Match Autopsy with personal round-by-round impact timelines and PNG recap export
+- Match Autopsy post-game rosters with agents, match ranks, K/D/A, ACS, privacy-preserved names, and visible-player profile links
 - Act Journey RR visualization with rank and match milestones
 - Evidence-based BYAKUGAN Insights with explicit sample sizes
 - Personal challenges, current-session tracking, and post-match summaries
@@ -75,7 +79,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.10-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.11-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -104,10 +108,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.10`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.11`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.10`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.11`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -115,8 +119,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.10
-git push origin v0.8.0-beta.10
+git tag v0.8.0-beta.11
+git push origin v0.8.0-beta.11
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

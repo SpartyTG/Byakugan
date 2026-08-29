@@ -73,8 +73,10 @@ function summarizePresence(presence) {
   const productKey = String(presence.product || presence.productName || (details.sessionLoopState ? 'valorant' : '')).toLowerCase();
   const game = productLabel(productKey);
   const rawState = String(presence.state || presence.availability || '').toLowerCase();
-  const offline = ['offline', 'unavailable'].includes(rawState);
-  const away = ['away', 'mobile'].includes(rawState);
+  // Riot emits stale mobile records for offline friends, especially for
+  // League. The desktop client groups those people under Offline.
+  const offline = ['offline', 'unavailable', 'mobile'].includes(rawState);
+  const away = rawState === 'away';
   const base = {
     id: presence.puuid || presence.PUUID || presence.cid || presence.name || randomUUID(),
     puuid: presence.puuid || presence.PUUID || presence.cid || null,
@@ -86,7 +88,7 @@ function summarizePresence(presence) {
     score: '',
     rank: ''
   };
-  if (offline) return { ...base, status: 'Offline', state: 'offline' };
+  if (offline) return { ...base, product: '', game: '', status: 'Offline', state: 'offline' };
   if (productKey !== 'valorant') {
     return {
       ...base,
@@ -95,7 +97,11 @@ function summarizePresence(presence) {
     };
   }
 
-  const loopState = String(details.sessionLoopState || details.partyOwnerSessionLoopState || 'MENUS').toUpperCase();
+  const presenceLoopState = details.sessionLoopState || details.partyOwnerSessionLoopState;
+  // A VALORANT product record without live session details can linger after
+  // the player closes the game. Do not let it outrank Riot Client presence.
+  if (!presenceLoopState) return { ...base, product: '', game: '', status: 'Offline', state: 'offline' };
+  const loopState = String(presenceLoopState).toUpperCase();
   const queueId = details.queueId || details.queueID || details.partyOwnerQueueId || '';
   const playlist = normalizeQueueName(queueId);
   const rawAlly = details.partyOwnerMatchScoreAllyTeam ?? details.matchScoreAllyTeam;
@@ -381,6 +387,50 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
   });
 }
 
+function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
+  const players = detail?.Players || detail?.players || [];
+  const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
+  const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
+  const roundCount = Math.max(1, (detail?.RoundResults || detail?.roundResults || []).length);
+  return players.map((player) => {
+    const subject = player.Subject || player.subject || player.puuid || '';
+    const teamId = player.TeamID || player.teamId || '';
+    const hidden = isPlayerNameHidden(player, ownPuuid);
+    const isSelf = subject === ownPuuid;
+    const characterId = player.CharacterID || player.characterId;
+    const agent = resolveById(metadata.agents, characterId, {
+      name: 'Unknown agent', role: 'Agent', image: '', color: '#7b67f6'
+    });
+    const tierNumber = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
+    const tier = metadata.tiers.get(tierNumber) || {
+      name: tierNumber ? `Competitive tier ${tierNumber}` : 'Unranked', image: '', color: '#60667b'
+    };
+    const stats = player.PlayerStats || player.playerStats || player.stats || {};
+    const kills = Number(stats.Kills ?? stats.kills ?? 0);
+    const deaths = Number(stats.Deaths ?? stats.deaths ?? 0);
+    const assists = Number(stats.Assists ?? stats.assists ?? 0);
+    const score = Number(stats.Score ?? stats.score ?? 0);
+    return {
+      subject,
+      name: hidden ? '' : isSelf ? 'You' : (names[subject] || 'Riot Player'),
+      hidden,
+      isSelf,
+      side: ownTeam && teamId === ownTeam ? 'ally' : 'enemy',
+      teamId,
+      agent: agent.name,
+      agentImage: agent.image,
+      agentColor: agent.color,
+      rank: tier.name,
+      rankImage: tier.image || '',
+      kills,
+      deaths,
+      assists,
+      acs: score ? Math.round(score / roundCount) : 0,
+      inspectable: Boolean(subject && !hidden)
+    };
+  });
+}
+
 function selectCompetitiveTier({ fallbackTier = 0, mmr = null, activeSeasonId = '', updates = null } = {}) {
   const direct = Number(fallbackTier) || 0;
   if (direct > 0) return direct;
@@ -402,6 +452,40 @@ function updateMatchId(row) {
 
 function updateSeasonId(row) {
   return row?.SeasonID || row?.SeasonId || row?.seasonID || row?.seasonId || '';
+}
+
+function ratingDelta(row) {
+  return Number(row?.RankedRatingEarned ?? row?.rankedRatingEarned ?? 0);
+}
+
+function updateTimestamp(row) {
+  return row?.MatchStartTime ?? row?.matchStartTime ?? row?.MatchStartTimeMillis
+    ?? row?.matchStartTimeMillis ?? row?.Timestamp ?? row?.timestamp ?? '';
+}
+
+function competitiveUpdateKey(row) {
+  if (!row) return '';
+  return [updateMatchId(row), updateSeasonId(row), updateTimestamp(row), ratingDelta(row)].join(':');
+}
+
+function isDodgePenaltyUpdate(row) {
+  if (ratingDelta(row) >= 0) return false;
+  const reason = [
+    row?.Reason, row?.reason, row?.PenaltyReason, row?.penaltyReason,
+    row?.CompetitiveMovement, row?.competitiveMovement, row?.Type, row?.type
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (reason.includes('dodge')) return true;
+  if (reason.includes('afk')) return false;
+  const matchId = String(updateMatchId(row) || '').replaceAll('-', '');
+  return !matchId || /^0+$/.test(matchId);
+}
+
+function summarizeDodgePenalties(rows) {
+  const penalties = (rows || []).filter(isDodgePenaltyUpdate);
+  return {
+    rrLost: penalties.reduce((total, row) => total + Math.abs(ratingDelta(row)), 0),
+    count: penalties.length
+  };
 }
 
 function selectCurrentActUpdates(rows, activeSeasonId) {
@@ -497,7 +581,11 @@ class RiotClientService extends EventEmitter {
     this.matchDetailCache = new Map();
     this.actStatsCache = null;
     this.actStatsPromise = null;
+    this.dodgeStatsCache = null;
+    this.dodgeStatsPromise = null;
     this.inspectablePlayers = new Map();
+    this.historicalPlayers = new Map();
+    this.historicalPlayerIds = new Map();
     this.activeSeason = { id: '', expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
   }
@@ -628,10 +716,10 @@ class RiotClientService extends EventEmitter {
           || options.find((item) => item.product !== 'valorant' && item.game !== 'Riot Client' && item.state !== 'offline')
           || options.find((item) => item.product === 'valorant' && item.state !== 'offline')
           || options.find((item) => item.state !== 'offline')
-          || options[0]
-          || ((friend.is_online || friend.isOnline || ['online', 'away', 'mobile'].includes(String(friend.state || friend.availability || '').toLowerCase()))
+          || ((friend.is_online || friend.isOnline || ['online', 'away'].includes(String(friend.state || friend.availability || '').toLowerCase()))
             ? { status: 'Online in Riot Client', state: 'online', game: 'Riot Client', product: 'riot_client' }
             : null)
+          || options[0]
           || {};
         return {
           id,
@@ -657,8 +745,13 @@ class RiotClientService extends EventEmitter {
       const subject = player.Subject || player.subject || player.puuid;
       if (subject && !visible.has(subject)) this.nameCache.delete(subject);
     }
-    const missing = [...visible].filter((puuid) => !this.nameCache.has(puuid));
-    if (!missing.length) return Object.fromEntries([...visible].map((puuid) => [puuid, this.nameCache.get(puuid)]));
+    return this.lookupNames([...visible]);
+  }
+
+  async lookupNames(puuids) {
+    const requested = [...new Set((puuids || []).filter(Boolean))];
+    const missing = requested.filter((puuid) => !this.nameCache.has(puuid));
+    if (!missing.length) return Object.fromEntries(requested.map((puuid) => [puuid, this.nameCache.get(puuid)]));
     try {
       const response = await this.localRequest('/player-account/lookup/v2/namesets-for-puuids', {
         method: 'POST',
@@ -667,13 +760,28 @@ class RiotClientService extends EventEmitter {
       for (const entry of response.data?.namesets || response.data?.Namesets || []) {
         const alias = entry.alias || entry.Alias || {};
         const puuid = entry.puuid || entry.PUUID || entry.subject;
-        if (!puuid || !visible.has(puuid) || !alias.gameName) continue;
+        if (!puuid || !requested.includes(puuid) || !alias.gameName) continue;
         this.nameCache.set(puuid, alias.tagLine ? `${alias.gameName}#${alias.tagLine}` : alias.gameName);
       }
-      return Object.fromEntries([...visible].map((puuid) => [puuid, this.nameCache.get(puuid)]));
+      return Object.fromEntries(requested.map((puuid) => [puuid, this.nameCache.get(puuid)]));
     } catch {
-      return Object.fromEntries([...visible].map((puuid) => [puuid, this.nameCache.get(puuid)]));
+      return Object.fromEntries(requested.map((puuid) => [puuid, this.nameCache.get(puuid)]));
     }
+  }
+
+  rememberHistoricalPlayer(player) {
+    if (!player?.subject || !player.inspectable) return '';
+    let id = this.historicalPlayerIds.get(player.subject);
+    if (!id) {
+      id = `history-${randomUUID()}`;
+      this.historicalPlayerIds.set(player.subject, id);
+    }
+    this.historicalPlayers.set(id, {
+      puuid: player.subject,
+      name: player.name || 'Riot Player',
+      isSelf: player.isSelf
+    });
+    return id;
   }
 
   async fetchActiveSeasonId() {
@@ -853,17 +961,37 @@ class RiotClientService extends EventEmitter {
   }
 
   async fetchDetailedMatches(history, ratingUpdates, subject = this.identity.puuid, limit = 10) {
-    const rows = history?.History || history?.history || [];
+    const historyRows = history?.History || history?.history || [];
     const updateRows = ratingUpdates?.Matches || ratingUpdates?.matches || [];
     const updatesByMatch = new Map(updateRows.map((row) => [row.MatchID || row.matchId, row]));
-    const details = await mapWithConcurrency(rows.slice(0, limit), 5, async (row) => {
+    // Riot may withhold another player's history index while still exposing
+    // their competitive updates and the details of matches visible to us.
+    const sourceRows = historyRows.length ? historyRows : updateRows;
+    const detailRows = await mapWithConcurrency(sourceRows.slice(0, limit), 5, async (row) => {
       const matchId = row.MatchID || row.matchId;
       if (!matchId) return null;
       const detail = await this.fetchMatchDetail(matchId);
-      return detail ? normalizeMatchDetail(detail, subject, this.metadata, row, updatesByMatch.get(matchId)) : null;
+      return detail ? { detail, row, ratingUpdate: updatesByMatch.get(matchId) } : null;
     });
-    const normalized = details.filter(Boolean);
-    return normalized.length ? normalized : normalizeMatchHistory(history);
+    const availableDetails = detailRows.filter(Boolean);
+    const visibleSubjects = availableDetails.flatMap(({ detail }) => (detail?.Players || detail?.players || [])
+      .filter((player) => !isPlayerNameHidden(player, subject))
+      .map((player) => player.Subject || player.subject || player.puuid)
+      .filter(Boolean));
+    const names = await this.lookupNames(visibleSubjects);
+    const normalized = availableDetails.map(({ detail, row, ratingUpdate }) => {
+      const match = normalizeMatchDetail(detail, subject, this.metadata, row, ratingUpdate);
+      if (!match) return null;
+      const roster = normalizeHistoricalRoster(detail, subject, this.metadata, names).map((player) => {
+        const profileId = this.rememberHistoricalPlayer(player);
+        const { subject: _subject, ...publicPlayer } = player;
+        return { ...publicPlayer, profileId };
+      });
+      return { ...match, roster };
+    }).filter(Boolean);
+    if (normalized.length) return normalized;
+    if (historyRows.length) return normalizeMatchHistory(history);
+    return updateRows.slice(0, limit).filter((row) => updateMatchId(row)).map((row) => normalizeRatingUpdate(row, this.metadata));
   }
 
   async fetchMatchDetail(matchId) {
@@ -932,6 +1060,51 @@ class RiotClientService extends EventEmitter {
     return data;
   }
 
+  async fetchDodgeStats(initialUpdates) {
+    if (!initialUpdates) return null;
+    const initialRows = initialUpdates?.Matches || initialUpdates?.matches || [];
+    const newestUpdateKey = competitiveUpdateKey(initialRows[0]);
+    if (this.dodgeStatsCache?.newestUpdateKey === newestUpdateKey && this.dodgeStatsCache.expiresAt > Date.now()) {
+      return this.dodgeStatsCache.data;
+    }
+
+    const initialPageSize = 20;
+    const pageSize = 50;
+    const maximumUpdates = 1000;
+    const penalties = initialRows.filter(isDodgePenaltyUpdate);
+    let scanned = initialRows.length;
+    let complete = initialRows.length < initialPageSize;
+    let startIndex = initialRows.length;
+
+    while (!complete && startIndex < maximumUpdates) {
+      const endIndex = Math.min(startIndex + pageSize, maximumUpdates);
+      const next = await this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=${startIndex}&endIndex=${endIndex}&queue=competitive`);
+      if (!next) break;
+      const nextRows = next?.Matches || next?.matches || [];
+      penalties.push(...nextRows.filter(isDodgePenaltyUpdate));
+      scanned += nextRows.length;
+      if (nextRows.length < endIndex - startIndex) {
+        complete = true;
+        break;
+      }
+      startIndex = endIndex;
+    }
+
+    const summary = summarizeDodgePenalties(penalties);
+    const data = {
+      ...summary,
+      scanned,
+      complete,
+      scope: complete ? 'TRACKED HISTORY' : `LAST ${scanned} UPDATES`
+    };
+    this.dodgeStatsCache = {
+      newestUpdateKey,
+      data,
+      expiresAt: Date.now() + 30 * 60_000
+    };
+    return data;
+  }
+
   startActStatsHydration(initialUpdates, activeSeasonId) {
     if (!initialUpdates || !activeSeasonId || this.actStatsPromise) return;
     this.actStatsPromise = this.fetchActStats(initialUpdates, activeSeasonId)
@@ -944,7 +1117,19 @@ class RiotClientService extends EventEmitter {
       .finally(() => { this.actStatsPromise = null; });
   }
 
-  async buildSnapshot({ hydrateAct = true } = {}) {
+  startDodgeStatsHydration(initialUpdates) {
+    if (!initialUpdates || this.dodgeStatsPromise) return;
+    this.dodgeStatsPromise = this.fetchDodgeStats(initialUpdates)
+      .then(async () => {
+        if (!this.lockfile) return;
+        this.lastSnapshot = await this.buildSnapshot({ hydrateAct: false, hydrateDodge: false });
+        this.emit('snapshot', this.lastSnapshot);
+      })
+      .catch((error) => this.emit('warning', `Dodge history tracking: ${error.message}`))
+      .finally(() => { this.dodgeStatsPromise = null; });
+  }
+
+  async buildSnapshot({ hydrateAct = true, hydrateDodge = true } = {}) {
     this.diagnostics = [];
     this.metadata = await fetchMetadata();
     const puuid = this.identity.puuid;
@@ -971,6 +1156,17 @@ class RiotClientService extends EventEmitter {
       ? this.actStatsCache.data
       : null;
     if (!actData && hydrateAct) this.startActStatsHydration(ratingUpdates, activeSeasonId);
+    const newestUpdateKey = competitiveUpdateKey(initialRows[0]);
+    const cachedDodgeData = this.dodgeStatsCache?.newestUpdateKey === newestUpdateKey
+      && this.dodgeStatsCache?.expiresAt > Date.now()
+      ? this.dodgeStatsCache.data
+      : null;
+    const initialDodgeData = summarizeDodgePenalties(initialRows);
+    const dodgeData = cachedDodgeData || {
+      ...initialDodgeData,
+      scope: 'LOADING HISTORY'
+    };
+    if (!cachedDodgeData && hydrateDodge) this.startDodgeStatsHydration(ratingUpdates);
 
     const tier = mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID;
     const latestSeason = tier?.[activeSeasonId] || (tier ? Object.values(tier).at(-1) : null);
@@ -1012,6 +1208,10 @@ class RiotClientService extends EventEmitter {
         wins: stats.wins, losses: stats.losses, kd: stats.kd, headshot: stats.headshot,
         statsScope: stats.scope,
         actStatsLoading: !actData?.complete,
+        dodgeRrLost: dodgeData.rrLost,
+        dodgeCount: dodgeData.count,
+        dodgeStatsScope: dodgeData.scope,
+        dodgeStatsLoading: !cachedDodgeData,
         card: { initials: this.identity.gameName.slice(0, 2).toUpperCase(), color: rank.color || '#735cff' }
       },
       live,
@@ -1025,7 +1225,8 @@ class RiotClientService extends EventEmitter {
   }
 
   async inspectPlayer(playerId) {
-    const target = this.inspectablePlayers.get(String(playerId || ''));
+    const key = String(playerId || '');
+    const target = this.inspectablePlayers.get(key) || this.historicalPlayers.get(key);
     if (!target) throw new Error('This profile is private or is not available for inspection.');
     const subject = target.puuid;
     const activeSeasonId = await this.fetchActiveSeasonId();
@@ -1038,6 +1239,8 @@ class RiotClientService extends EventEmitter {
     ]);
     const matches = await this.fetchDetailedMatches(history, updates, subject, 50);
     const completedMatches = matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result));
+    const updateRows = updates?.Matches || updates?.matches || [];
+    const statsAvailable = completedMatches.length > 0;
     const stats = calculateStats(completedMatches);
     const rankNumber = selectCompetitiveTier({ mmr, activeSeasonId, updates });
     const rank = this.metadata.tiers.get(rankNumber) || { name: rankNumber ? `Competitive tier ${rankNumber}` : 'Unrated', image: '' };
@@ -1056,15 +1259,23 @@ class RiotClientService extends EventEmitter {
       peakAct: allTimePeak.act,
       peakEpisode: allTimePeak.episode,
       stats: {
+        available: statsAvailable,
         games: completedMatches.length,
         wins: stats.wins,
         losses: stats.losses,
         kd: stats.kd,
         headshot: stats.headshot,
-        scope: completedMatches.length >= 50 ? 'LAST 50 COMPETITIVE' : `${completedMatches.length} AVAILABLE COMPETITIVE`
+        scope: completedMatches.length >= 50
+          ? 'LAST 50 COMPETITIVE'
+          : statsAvailable
+            ? `${completedMatches.length} AVAILABLE COMPETITIVE`
+            : updateRows.length
+              ? `${updateRows.length} RATING UPDATES • MATCH DETAILS PRIVATE`
+              : 'COMPETITIVE HISTORY PRIVATE'
       },
       loadout: normalizeLoadout(loadout, this.metadata),
-      privacy: 'Visible ally or party member. Opponent and incognito profiles are never inspected.'
+      loadoutAvailable: Boolean(loadout),
+      privacy: 'Visible ally or party member. Riot may still keep another player’s match details or equipped loadout private. Opponents are never inspected.'
     };
   }
 
@@ -1119,7 +1330,11 @@ class RiotClientService extends EventEmitter {
     this.matchDetailCache.clear();
     this.actStatsCache = null;
     this.actStatsPromise = null;
+    this.dodgeStatsCache = null;
+    this.dodgeStatsPromise = null;
     this.inspectablePlayers.clear();
+    this.historicalPlayers.clear();
+    this.historicalPlayerIds.clear();
     this.activeSeason = { id: '', expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
   }
@@ -1203,10 +1418,13 @@ module.exports = {
   isKnownPartyMember,
   visiblePlayerIds,
   normalizeLivePlayers,
+  normalizeHistoricalRoster,
   normalizeServer,
   selectCompetitiveTier,
   selectAllTimePeak,
   normalizeRatingUpdate,
   selectCurrentActUpdates,
+  isDodgePenaltyUpdate,
+  summarizeDodgePenalties,
   mapWithConcurrency
 };
