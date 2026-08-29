@@ -532,9 +532,11 @@ function renderUpdateStatus(status = {}) {
     $('#updateDownloadState').hidden = !busy && !failed;
     $('#updateConfirmationNote').hidden = busy || failed;
     $('#updateReleaseNotes').hidden = busy || failed;
-    $('#updateLaterButton').disabled = busy;
+    $('#updateLaterButton').hidden = Boolean(status.mandatory);
+    $('#updateLaterButton').disabled = busy || Boolean(status.mandatory);
     $('#updateLaterButton').textContent = failed ? 'Close' : 'Later';
-    $('#confirmUpdateButton').disabled = busy || failed;
+    $('#confirmUpdateButton').disabled = busy;
+    $('#confirmUpdateButton').textContent = failed ? 'Try again' : 'Download and restart';
     $('#updateProgressBar').style.width = `${percent}%`;
     text('#updateProgressPercent', `${Math.round(percent)}%`);
     text('#updateProgressLabel', phase === 'installing' ? 'Applying update…' : phase === 'downloaded' ? 'Preparing restart…' : phase === 'error' ? 'Update failed' : 'Downloading update…');
@@ -543,25 +545,32 @@ function renderUpdateStatus(status = {}) {
       : status.total ? `${formatBytes(status.transferred)} of ${formatBytes(status.total)} • BYAKUGAN will restart automatically.`
         : 'BYAKUGAN will restart automatically when the update is ready.');
   }
+  if (phase === 'available' && status.mandatory && $('#updateModal').hidden) openUpdateDialog();
 }
 
 function openUpdateDialog() {
   const status = state.updateStatus || {};
   if (status.state !== 'available') return;
-  text('#updateDialogTitle', status.releaseName || 'Update available');
+  text('#updateDialogTitle', status.mandatory ? 'Update required' : (status.releaseName || 'Update available'));
   text('#updateCurrentVersion', `Current ${status.currentVersion || '—'}`);
   text('#updateNextVersion', `New ${status.version || '—'}`);
   text('#updateReleaseNotes', status.releaseNotes || 'This beta update contains improvements and fixes.');
   $('#updateReleaseNotes').hidden = false;
   $('#updateDownloadState').hidden = true;
+  text('#updateConfirmationNote', status.mandatory
+    ? 'A newer BYAKUGAN build was detected during startup. Install it now to continue using the application.'
+    : 'BYAKUGAN will download the update, close, install it, and reopen automatically.');
   $('#updateConfirmationNote').hidden = false;
-  $('#updateLaterButton').disabled = false;
+  $('#updateLaterButton').hidden = Boolean(status.mandatory);
+  $('#updateLaterButton').disabled = Boolean(status.mandatory);
   $('#updateLaterButton').textContent = 'Later';
   $('#confirmUpdateButton').disabled = false;
+  $('#confirmUpdateButton').textContent = status.mandatory ? 'Update now' : 'Download and restart';
   $('#updateModal').hidden = false;
 }
 
 function closeUpdateDialog() {
+  if (state.updateStatus?.mandatory) return;
   if (['downloading', 'downloaded', 'installing'].includes(state.updateStatus?.state)) return;
   $('#updateModal').hidden = true;
 }
@@ -689,7 +698,7 @@ function bindEvents() {
       renderUpdateStatus(await window.companion.downloadAndInstallUpdate());
     } catch (error) {
       renderUpdateStatus({ ...state.updateStatus, state: 'error', message: error.message });
-      $('#updateLaterButton').disabled = false;
+      $('#updateLaterButton').disabled = Boolean(state.updateStatus?.mandatory);
     }
   });
   $('#checkForUpdatesButton').addEventListener('click', async () => {

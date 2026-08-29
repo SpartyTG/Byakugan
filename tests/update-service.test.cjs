@@ -41,9 +41,20 @@ test('update availability is normalized for the renderer', () => {
   assert.deepEqual(service.status(), {
     state: 'available', currentVersion: '0.7.0-beta.1', version: '0.7.0-beta.2',
     releaseName: 'Beta 2', releaseNotes: 'Fixes live ranks.\nImproves the overlay.',
-    percent: 0, transferred: 0, total: 0, bytesPerSecond: 0,
+    percent: 0, transferred: 0, total: 0, bytesPerSecond: 0, mandatory: false,
     message: 'BYAKUGAN 0.7.0-beta.2 is available.', checkedAt: service.status().checkedAt
   });
+});
+
+test('an update found during the startup check is mandatory', async () => {
+  const updater = new FakeUpdater();
+  const service = new UpdateService({ app: packagedApp, updater, feedConfigured: true });
+  service.initialize({ schedule: false });
+  await service.check(false, true);
+  updater.emit('update-available', { version: '0.7.0-beta.2' });
+  assert.equal(service.status().state, 'available');
+  assert.equal(service.status().mandatory, true);
+  assert.match(service.status().message, /required before continuing/);
 });
 
 test('confirmed updates download, install, and request an app restart', async () => {

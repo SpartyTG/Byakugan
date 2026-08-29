@@ -2,7 +2,7 @@
 
 const { EventEmitter } = require('node:events');
 
-const CHECK_DELAY_MS = 20_000;
+const CHECK_DELAY_MS = 2_500;
 const CHECK_INTERVAL_MS = 4 * 60 * 60_000;
 
 function cleanMessage(value, fallback = '') {
@@ -27,6 +27,7 @@ class UpdateService extends EventEmitter {
     this.intervalTimer = null;
     this.installTimer = null;
     this.installApproved = false;
+    this.pendingMandatory = false;
     this.started = false;
     this.data = {
       state: 'idle',
@@ -38,6 +39,7 @@ class UpdateService extends EventEmitter {
       transferred: 0,
       total: 0,
       bytesPerSecond: 0,
+      mandatory: false,
       message: '',
       checkedAt: ''
     };
@@ -74,17 +76,24 @@ class UpdateService extends EventEmitter {
     if ('autoInstallEvent' in this.updater) this.updater.autoInstallEvent = 'manual';
 
     this.updater.on('checking-for-update', () => this.setState('checking', { message: 'Checking for a beta update…' }));
-    this.updater.on('update-available', (info = {}) => this.setState('available', {
-      version: cleanMessage(info.version),
-      releaseName: cleanMessage(info.releaseName || `BYAKUGAN ${info.version || ''}`),
-      releaseNotes: releaseNotes(info.releaseNotes),
-      percent: 0,
-      message: `BYAKUGAN ${cleanMessage(info.version, 'update')} is available.`,
-      checkedAt: new Date().toISOString()
-    }));
+    this.updater.on('update-available', (info = {}) => {
+      const mandatory = this.pendingMandatory;
+      this.pendingMandatory = false;
+      this.setState('available', {
+        version: cleanMessage(info.version),
+        releaseName: cleanMessage(info.releaseName || `BYAKUGAN ${info.version || ''}`),
+        releaseNotes: releaseNotes(info.releaseNotes),
+        percent: 0,
+        mandatory,
+        message: mandatory
+          ? `BYAKUGAN ${cleanMessage(info.version, 'update')} is required before continuing.`
+          : `BYAKUGAN ${cleanMessage(info.version, 'update')} is available.`,
+        checkedAt: new Date().toISOString()
+      });
+    });
     this.updater.on('update-not-available', () => this.setState('up-to-date', {
       version: '', releaseName: '', releaseNotes: '', percent: 0,
-      message: 'BYAKUGAN is up to date.', checkedAt: new Date().toISOString()
+      mandatory: false, message: 'BYAKUGAN is up to date.', checkedAt: new Date().toISOString()
     }));
     this.updater.on('download-progress', (progress = {}) => this.setState('downloading', {
       percent: Math.max(0, Math.min(100, Number(progress.percent) || 0)),
@@ -109,28 +118,30 @@ class UpdateService extends EventEmitter {
     }));
 
     if (schedule) {
-      this.checkTimer = setTimeout(() => this.check(false), this.checkDelayMs);
+      this.checkTimer = setTimeout(() => this.check(false, true), this.checkDelayMs);
       this.checkTimer.unref?.();
-      this.intervalTimer = setInterval(() => this.check(false), this.checkIntervalMs);
+      this.intervalTimer = setInterval(() => this.check(false, false), this.checkIntervalMs);
       this.intervalTimer.unref?.();
     }
     return this.status();
   }
 
-  async check(manual = true) {
+  async check(manual = true, mandatory = false) {
     if (!this.app?.isPackaged || !this.feedConfigured || !this.updater) return this.status();
     if (['checking', 'downloading', 'downloaded', 'installing'].includes(this.data.state)) return this.status();
     try {
+      this.pendingMandatory = Boolean(mandatory);
       if (manual) this.setState('checking', { message: 'Checking for a beta update…' });
       await this.updater.checkForUpdates();
     } catch (error) {
+      this.pendingMandatory = false;
       this.setState('error', { message: cleanMessage(error?.message, 'Unable to check for updates.') });
     }
     return this.status();
   }
 
   async downloadAndInstall() {
-    if (this.data.state !== 'available') throw new Error('No update is ready to download.');
+    if (!['available', 'error'].includes(this.data.state) || !this.data.version) throw new Error('No update is ready to download.');
     this.installApproved = true;
     this.setState('downloading', { percent: 0, message: 'Downloading the update…' });
     try {
