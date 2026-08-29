@@ -5,6 +5,7 @@ const state = {
   settings: null,
   currentView: 'dashboard',
   matchFilter: 'ALL',
+  matchPlaylist: 'ALL',
   refreshTimer: null,
   busy: false,
   openMatchId: '',
@@ -46,16 +47,12 @@ function initials(name) {
   return String(name || '?').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 }
 
-function onlineFriends() {
-  return (state.snapshot?.friends || []).filter((friend) => friend.state !== 'offline');
-}
-
 function setConnection(connection) {
   const connected = connection?.status === 'connected';
   $('#statusPill').classList.toggle('disconnected', !connected);
   $('#miniDot').classList.toggle('error', !connected);
   text('#statusText', connected ? connection.label : 'Disconnected');
-  text('#statusSubtext', connected ? `${connection.region} • ${connection.mode === 'mock' ? 'Demo' : 'Live'}` : 'Riot Client unavailable');
+  text('#statusSubtext', connected ? `${connection.region} • Live` : 'Riot Client unavailable');
   text('#miniStatus', connected ? connection.label : 'Disconnected');
   text('#miniRegion', connected ? `${connection.region} region` : 'Retry connection');
   text('#connectButton', connected ? 'Reconnect' : 'Connect');
@@ -75,47 +72,73 @@ function renderStats(profile) {
 function matchRow(match, compact = false, full = false) {
   const defeat = match.result === 'DEFEAT';
   const rr = Number(match.rr) || 0;
+  const playlist = match.playlist || 'Unknown Playlist';
+  const competitive = match.isCompetitive === true || String(match.queueId || '').toLowerCase() === 'competitive';
+  const hasRating = competitive && (match.hasRating === true || (match.hasRating === undefined && match.rr !== null && match.rr !== undefined));
+  const rating = hasRating ? `${rr > 0 ? '+' : rr < 0 ? '−' : '±'}${Math.abs(rr)} RR` : competitive ? 'RR pending' : '—';
   const rankImage = safeImage(match.rankImage);
   if (!full) {
     return `<div class="match-row ${defeat ? 'defeat' : ''}" data-match-id="${escapeHtml(match.id)}">
-      <span class="match-stripe"></span><span class="result">${escapeHtml(match.result)}</span>
+      <span class="match-stripe"></span><span class="result"><strong>${escapeHtml(match.result)}</strong><small>${escapeHtml(playlist)}</small></span>
       <span class="match-map">${safeImage(match.agentImage) ? `<img src="${safeImage(match.agentImage)}" alt="">` : ''}<span><strong>${escapeHtml(match.map)}</strong><small>${escapeHtml(match.agent)}</small></span></span>
       <span class="score">${escapeHtml(match.score)}</span><span class="kda">${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</span>
-      <span class="rr-change ${rr < 0 ? 'negative' : ''}">${rr > 0 ? '+' : ''}${rr || '—'}${rr ? ' RR' : ''}</span>
+      <span class="rr-change ${rr < 0 ? 'negative' : ''} ${hasRating ? '' : 'unrated'}">${escapeHtml(rating)}</span>
     </div>`;
   }
   return `<div class="match-row ${defeat ? 'defeat' : ''} ${compact ? 'compact' : ''}" data-match-id="${escapeHtml(match.id)}">
-    <span class="result">${escapeHtml(match.result)}</span>
+    <span class="result"><strong>${escapeHtml(match.result)}</strong><small>${escapeHtml(playlist)}</small></span>
     <span class="match-map">${safeImage(match.agentImage) ? `<img src="${safeImage(match.agentImage)}" alt="">` : ''}<span><strong>${escapeHtml(match.map)}</strong><small>${escapeHtml(match.agent)}</small></span></span>
     <span class="score">${escapeHtml(match.score)}</span>
     <span class="kda">${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</span>
     <span>${escapeHtml(match.kd)}</span>
-    <span class="match-rating">${rankImage ? `<img src="${rankImage}" alt="${escapeHtml(match.rankName || 'Competitive rank')}">` : ''}<span class="rr-change ${rr < 0 ? 'negative' : ''}">${rr > 0 ? '+' : ''}${rr || '—'}${rr ? ' RR' : ''}</span></span>
+    <span class="match-rating">${competitive && rankImage ? `<img src="${rankImage}" alt="${escapeHtml(match.rankName || 'Competitive rank')}">` : ''}<span class="rr-change ${rr < 0 ? 'negative' : ''} ${hasRating ? '' : 'unrated'}">${escapeHtml(rating)}</span></span>
     <span class="match-time">${escapeHtml(match.ago)}</span>
   </div>`;
 }
 
 function friendRow(friend) {
+  const activity = friend.score || (friend.state === 'ingame' ? 'LIVE' : friend.state === 'pregame' ? 'SELECT' : friend.state === 'offline' ? 'OFFLINE' : friend.state === 'away' ? 'AWAY' : 'ONLINE');
   return `<div class="friend-row">
     <div class="friend-avatar">${escapeHtml(initials(friend.name))}<i class="${escapeHtml(friend.state)}"></i></div>
     <div class="friend-name"><strong>${escapeHtml(friend.name)} <em>#${escapeHtml(friend.tag)}</em></strong><small>${escapeHtml(friend.status)}</small></div>
-    <span class="friend-rank">${escapeHtml(friend.rank)}</span>
+    <span class="friend-activity ${escapeHtml(friend.state)}"><small>${escapeHtml(friend.game || 'RIOT')}</small><strong>${escapeHtml(activity)}</strong></span>
   </div>`;
 }
 
 function renderMatches() {
   const matches = state.snapshot?.matches || [];
   $('#dashboardMatches').innerHTML = matches.slice(0, 4).map((match) => matchRow(match)).join('') || '<div class="empty-state">No recent matches returned.</div>';
-  const filtered = state.matchFilter === 'ALL' ? matches : matches.filter((match) => match.result === state.matchFilter);
+  const playlistSelect = $('#matchPlaylistFilter');
+  const playlists = new Map([
+    ['competitive', 'Competitive'], ['unrated', 'Unrated'], ['swiftplay', 'Swiftplay'],
+    ['spikerush', 'Spike Rush'], ['deathmatch', 'Deathmatch'], ['hurm', 'Team Deathmatch'],
+    ['ggteam', 'Escalation'], ['onefa', 'Replication'], ['premier', 'Premier'], ['custom', 'Custom Game']
+  ]);
+  for (const match of matches) playlists.set(String(match.queueId || match.playlist || 'unknown').toLowerCase(), match.playlist || 'Unknown Playlist');
+  const preferred = ['competitive', 'unrated', 'swiftplay', 'spikerush', 'deathmatch', 'hurm', 'premier'];
+  const playlistRows = [...playlists].sort((left, right) => {
+    const leftIndex = preferred.indexOf(left[0]);
+    const rightIndex = preferred.indexOf(right[0]);
+    if (leftIndex >= 0 || rightIndex >= 0) return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex);
+    return left[1].localeCompare(right[1]);
+  });
+  playlistSelect.innerHTML = `<option value="ALL">All playlists</option>${playlistRows.map(([key, label]) => `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('')}`;
+  if (!playlists.has(state.matchPlaylist)) state.matchPlaylist = 'ALL';
+  playlistSelect.value = state.matchPlaylist;
+  const byResult = state.matchFilter === 'ALL' ? matches : matches.filter((match) => match.result === state.matchFilter);
+  const filtered = state.matchPlaylist === 'ALL' ? byResult : byResult.filter((match) => String(match.queueId || match.playlist || 'unknown').toLowerCase() === state.matchPlaylist);
   $('#fullMatchList').innerHTML = filtered.map((match) => matchRow(match, state.settings?.compactMatches, true)).join('') || '<div class="empty-state">No matches in this filter.</div>';
-  text('#matchSummary', `${filtered.length} ${filtered.length === 1 ? 'match' : 'matches'}`);
+  const selectedPlaylist = state.matchPlaylist === 'ALL' ? 'all playlists' : playlists.get(state.matchPlaylist) || 'playlist';
+  text('#matchSummary', `${filtered.length} ${filtered.length === 1 ? 'match' : 'matches'} • ${selectedPlaylist}`);
 }
 
 function renderFriends() {
   const friends = state.snapshot?.friends || [];
-  const online = onlineFriends();
+  const priority = { ingame: 0, pregame: 1, online: 2, other: 3, away: 4, offline: 5 };
+  const ordered = [...friends].sort((left, right) => (priority[left.state] ?? 4) - (priority[right.state] ?? 4) || String(left.name).localeCompare(String(right.name)));
+  const online = ordered.filter((friend) => friend.state !== 'offline');
   $('#dashboardFriends').innerHTML = online.slice(0, 5).map(friendRow).join('') || '<div class="empty-state">No friends online.</div>';
-  $('#socialFriends').innerHTML = friends.map(friendRow).join('') || '<div class="empty-state">No friends returned by Riot Client.</div>';
+  $('#socialFriends').innerHTML = ordered.map(friendRow).join('') || '<div class="empty-state">No friends returned by Riot Client.</div>';
   text('#friendsCount', `${online.length} online`);
   text('#onlineBadge', online.length);
   text('#socialCount', `${friends.length} contacts`);
@@ -213,7 +236,7 @@ function matchVerdict(match) {
   if (match.result === 'VICTORY' && Number(match.kd) >= 1.3) return ['High-impact victory', 'You combined a positive result with strong personal efficiency. Review the highlighted multikill and opening-duel rounds to reinforce what worked.'];
   if (openings < 0) return ['First contact created pressure', `You finished ${Math.abs(openings)} opening duel${Math.abs(openings) === 1 ? '' : 's'} negative. Prioritize survival, trading distance, and a safer first engagement next match.`];
   if (Number(match.kd) < 1) return ['Low-survival match', 'Deaths outpaced kills. The round timeline identifies where early deaths and low-damage rounds clustered.'];
-  if (match.result === 'DEFEAT') return ['Competitive individual performance', 'Your personal output remained stable despite the loss. Focus on converting the strongest rounds into repeatable team advantages.'];
+  if (match.result === 'DEFEAT') return ['Positive individual performance', 'Your personal output remained stable despite the loss. Focus on converting the strongest rounds into repeatable team advantages.'];
   return ['Balanced performance', 'No single metric dominated this result. Use the round timeline to compare your highest-damage rounds with the rounds where impact dropped.'];
 }
 
@@ -224,7 +247,12 @@ function openMatchAutopsy(matchId) {
   const [verdictTitle, verdictBody] = matchVerdict(match);
   const report = match.report || {};
   const rounds = report.rounds || [];
-  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(match.rankName || 'Competitive')} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>RR</small><strong>${match.rr > 0 ? '+' : ''}${escapeHtml(match.rr || 0)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">K/D per round</span></div><div class="round-timeline">${rounds.map((round) => `<div class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></div>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div></div>`;
+  const competitive = match.isCompetitive === true || String(match.queueId || '').toLowerCase() === 'competitive';
+  const hasRating = competitive && match.hasRating === true;
+  const rr = Number(match.rr) || 0;
+  const context = competitive ? `${match.playlist || 'Competitive'} • ${match.rankName || 'Rank unavailable'}` : match.playlist || 'Unknown Playlist';
+  const ratingValue = hasRating ? `${rr > 0 ? '+' : rr < 0 ? '−' : '±'}${Math.abs(rr)}` : competitive ? 'Pending' : match.playlist || '—';
+  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">K/D per round</span></div><div class="round-timeline">${rounds.map((round) => `<div class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></div>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div></div>`;
   $('#matchModal').hidden = false;
 }
 
@@ -262,7 +290,7 @@ function exportMatchRecap() {
   context.fillText(`${match.result}  ${match.score}`, 72, 225);
   context.fillStyle = '#979db3';
   context.font = '500 24px Segoe UI';
-  context.fillText(`${match.agent} • ${match.rankName || 'Competitive'}`, 72, 274);
+  context.fillText(`${match.agent} • ${match.playlist || 'Unknown Playlist'}${match.isCompetitive ? ` • ${match.rankName || 'Rank unavailable'}` : ''}`, 72, 274);
   const metrics = [['K / D / A', `${match.kills} / ${match.deaths} / ${match.assists}`], ['K/D', String(match.kd)], ['RR', `${match.rr > 0 ? '+' : ''}${match.rr || 0}`], ['OPENINGS', `${match.report?.openingKills || 0} / ${match.report?.openingDeaths || 0}`]];
   metrics.forEach(([label, value], index) => {
     const x = 70 + index * 265;
@@ -454,8 +482,6 @@ function navigate(view) {
 
 function syncSettingsForm() {
   const settings = state.settings;
-  const selected = $(`input[name="dataMode"][value="${settings.dataMode}"]`);
-  if (selected) selected.checked = true;
   $('#autoRefresh').checked = Boolean(settings.autoRefresh);
   $('#launchAtStartup').checked = Boolean(settings.launchAtStartup);
   $('#privacyMode').checked = Boolean(settings.privacyMode);
@@ -650,19 +676,9 @@ function bindEvents() {
     $$('#matchFilters button').forEach((item) => item.classList.toggle('active', item === button));
     renderMatches();
   }));
-
-  $('#saveDataMode').addEventListener('click', async () => {
-    const selected = $('input[name="dataMode"]:checked')?.value || 'mock';
-    setLoading(true, selected === 'live' ? 'Connecting securely to Riot Client…' : 'Loading demonstration data…');
-    try {
-      await saveSettingsPatch({ dataMode: selected }, false);
-      const snapshot = await window.companion.connect();
-      renderSnapshot(snapshot);
-      toast('Data source changed', snapshot.connection.label);
-      navigate('dashboard');
-    } catch (error) {
-      toast('Could not connect', error.message, 'error');
-    } finally { setLoading(false); }
+  $('#matchPlaylistFilter').addEventListener('change', (event) => {
+    state.matchPlaylist = event.target.value;
+    renderMatches();
   });
 
   $('#autoRefresh').addEventListener('change', (event) => saveSettingsPatch({ autoRefresh: event.target.checked }, false));
@@ -760,7 +776,7 @@ async function initialize() {
     scheduleRefresh();
   } catch (error) {
     state.settings = await window.companion.getSettings().catch(() => ({
-      dataMode: 'mock', autoRefresh: false, refreshSeconds: 30,
+      autoRefresh: false, refreshSeconds: 30,
       launchAtStartup: false, privacyMode: false, compactMatches: false,
       streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,

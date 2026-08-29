@@ -179,10 +179,13 @@
 
       <section class="view" id="view-matches">
         <div class="filter-row">
-          <div class="segmented" id="matchFilters">
-            <button class="active" data-filter="ALL">All</button>
-            <button data-filter="VICTORY">Wins</button>
-            <button data-filter="DEFEAT">Losses</button>
+          <div class="match-filter-controls">
+            <div class="segmented" id="matchFilters">
+              <button class="active" data-filter="ALL">All</button>
+              <button data-filter="VICTORY">Wins</button>
+              <button data-filter="DEFEAT">Losses</button>
+            </div>
+            <label class="playlist-filter"><span>Playlist</span><select id="matchPlaylistFilter"><option value="ALL">All playlists</option></select></label>
           </div>
           <span class="muted" id="matchSummary">Last 10 matches</span>
         </div>
@@ -267,13 +270,6 @@
 
       <section class="view" id="view-settings">
         <div class="settings-grid">
-          <article class="glass settings-card">
-            <div class="settings-heading"><span class="setting-icon">⌁</span><div><h2>Data source</h2><p>Choose how BYAKUGAN gets its information.</p></div></div>
-            <label class="radio-card"><input type="radio" name="dataMode" value="mock"><span><strong>Demo mode</strong><small>Complete sample data; Riot Client is not required.</small></span><i></i></label>
-            <label class="radio-card"><input type="radio" name="dataMode" value="live"><span><strong>Live Riot Client</strong><small>Connect locally on a Windows PC running Riot Client.</small></span><i></i></label>
-            <button class="primary-button" id="saveDataMode">Save and reconnect</button>
-          </article>
-
           <article class="glass settings-card">
             <div class="settings-heading"><span class="setting-icon">↻</span><div><h2>Refresh</h2><p>Control background updates.</p></div></div>
             <label class="toggle-row"><span><strong>Automatic refresh</strong><small>Keep profile and history data current.</small></span><input type="checkbox" id="autoRefresh"><i></i></label>

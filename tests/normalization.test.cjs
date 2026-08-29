@@ -3,10 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
+  RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
   isPlayerNameHidden, isKnownPartyMember, visiblePlayerIds, normalizeLivePlayers,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
-  normalizeRatingUpdate, normalizeServer, mapWithConcurrency
+  normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
+  summarizePresence, mapWithConcurrency
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -33,9 +34,70 @@ test('normalizes a Riot match-detail response for the current player', () => {
   assert.equal(result.score, '13 – 8');
   assert.equal(result.kd, 2);
   assert.equal(result.rr, 18);
+  assert.equal(result.playlist, 'Competitive');
+  assert.equal(result.isCompetitive, true);
+  assert.equal(result.hasRating, true);
   assert.equal(result.shots.headshots, 3);
   assert.equal(result.rankName, 'Ascendant 1');
   assert.equal(result.rankImage, 'https://media.valorant-api.com/tiers/21.png');
+});
+
+test('normalizes non-competitive playlists without showing RR', () => {
+  const detail = {
+    MatchInfo: { MatchID: 'match-unrated', QueueID: 'unrated', MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [{ Subject: 'player-1', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 12, Deaths: 10, Assists: 3 } }],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 9 }]
+  };
+  const result = normalizeMatchDetail(detail, 'player-1', metadata());
+  assert.equal(result.playlist, 'Unrated');
+  assert.equal(result.queueId, 'unrated');
+  assert.equal(result.isCompetitive, false);
+  assert.equal(result.hasRating, false);
+  assert.equal(result.rr, null);
+});
+
+test('decodes VALORANT friend presence with playlist and live score', () => {
+  const details = {
+    sessionLoopState: 'INGAME', queueId: 'competitive',
+    partyOwnerMatchScoreAllyTeam: 7, partyOwnerMatchScoreEnemyTeam: 5
+  };
+  const encoded = Buffer.from(JSON.stringify(details)).toString('base64');
+  assert.deepEqual(decodePresencePrivate(encoded), details);
+  const presence = summarizePresence({ puuid: 'friend-1', product: 'valorant', state: 'online', private: encoded });
+  assert.equal(presence.state, 'ingame');
+  assert.equal(presence.game, 'VALORANT');
+  assert.equal(presence.playlist, 'Competitive');
+  assert.equal(presence.score, '7–5');
+  assert.match(presence.status, /Competitive.*7–5/);
+});
+
+test('keeps other Riot titles online instead of marking them offline', () => {
+  const presence = summarizePresence({ puuid: 'friend-2', product: 'league_of_legends', state: 'online' });
+  assert.equal(presence.state, 'other');
+  assert.equal(presence.game, 'League of Legends');
+  assert.equal(presence.status, 'Playing League of Legends');
+  assert.equal(normalizeQueueName('hurm'), 'Team Deathmatch');
+  assert.equal(normalizeQueueName('spikerush'), 'Spike Rush');
+});
+
+test('friend roster joins Riot presences and preserves live activity', async () => {
+  const valorantPrivate = Buffer.from(JSON.stringify({ sessionLoopState: 'PREGAME', queueId: 'unrated' })).toString('base64');
+  const service = new RiotClientService();
+  service.localRequest = async (endpoint) => endpoint.endsWith('/friends')
+    ? { data: { friends: [
+      { puuid: 'valorant-friend', game_name: 'ValFriend', game_tag: 'NA1' },
+      { puuid: 'league-friend', game_name: 'LeagueFriend', game_tag: 'NA1' }
+    ] } }
+    : { data: { presences: [
+      { puuid: 'valorant-friend', product: 'valorant', state: 'online', private: valorantPrivate },
+      { puuid: 'league-friend', product: 'league_of_legends', state: 'online' }
+    ] } };
+  const friends = await service.fetchFriends();
+  assert.equal(friends[0].state, 'pregame');
+  assert.equal(friends[0].playlist, 'Unrated');
+  assert.match(friends[0].status, /Agent Select.*Unrated/);
+  assert.equal(friends[1].state, 'other');
+  assert.equal(friends[1].game, 'League of Legends');
 });
 
 test('normalizes a tied competitive match as a draw instead of a loss', () => {

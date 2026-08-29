@@ -34,18 +34,82 @@ function decodeJwtPayload(token) {
   }
 }
 
+const QUEUE_LABELS = new Map(Object.entries({
+  competitive: 'Competitive', unrated: 'Unrated', swiftplay: 'Swiftplay',
+  spikerush: 'Spike Rush', deathmatch: 'Deathmatch', hurm: 'Team Deathmatch',
+  ggteam: 'Escalation', onefa: 'Replication', snowball: 'Snowball Fight',
+  premier: 'Premier', custom: 'Custom Game', newmap: 'New Map'
+}));
+
+const PRODUCT_LABELS = new Map(Object.entries({
+  valorant: 'VALORANT', league_of_legends: 'League of Legends', league: 'League of Legends',
+  lor: 'Legends of Runeterra', bacon: 'Legends of Runeterra', wildrift: 'Wild Rift',
+  riot_client: 'Riot Client', keystone: 'Riot Client'
+}));
+
+function normalizeQueueName(queueId) {
+  const key = String(queueId || '').trim().toLowerCase();
+  if (!key) return 'Unknown Playlist';
+  return QUEUE_LABELS.get(key) || key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function decodePresencePrivate(value) {
+  if (value && typeof value === 'object') return value;
+  const raw = String(value || '').trim();
+  if (!raw) return {};
+  for (const candidate of [raw, Buffer.from(raw, 'base64').toString('utf8')]) {
+    try { return JSON.parse(candidate.replace(/\u0000+$/g, '')); } catch {}
+  }
+  return {};
+}
+
+function productLabel(value) {
+  const key = String(value || '').trim().toLowerCase();
+  return PRODUCT_LABELS.get(key) || (key ? key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Riot Client');
+}
+
 function summarizePresence(presence) {
-  const product = String(presence.product || presence.productName || '').toLowerCase();
-  if (product && product !== 'valorant') return null;
-  return {
-    id: presence.puuid || presence.cid || presence.name || randomUUID(),
-    puuid: presence.puuid || presence.cid || null,
-    name: presence.game_name || presence.name || 'Riot friend',
-    tag: presence.game_tag || '',
-    status: presence.private ? 'In VALORANT' : (presence.status || 'Online'),
-    state: presence.state === 'mobile' ? 'away' : 'online',
+  const details = decodePresencePrivate(presence.private);
+  const productKey = String(presence.product || presence.productName || (details.sessionLoopState ? 'valorant' : '')).toLowerCase();
+  const game = productLabel(productKey);
+  const rawState = String(presence.state || presence.availability || '').toLowerCase();
+  const offline = ['offline', 'unavailable'].includes(rawState);
+  const away = ['away', 'mobile'].includes(rawState);
+  const base = {
+    id: presence.puuid || presence.PUUID || presence.cid || presence.name || randomUUID(),
+    puuid: presence.puuid || presence.PUUID || presence.cid || null,
+    name: presence.game_name || presence.gameName || presence.name || 'Riot friend',
+    tag: presence.game_tag || presence.gameTag || '',
+    product: productKey || 'riot_client',
+    game,
+    playlist: '',
+    score: '',
     rank: ''
   };
+  if (offline) return { ...base, status: 'Offline', state: 'offline' };
+  if (productKey !== 'valorant') {
+    return {
+      ...base,
+      status: game === 'Riot Client' ? 'Online in Riot Client' : `Playing ${game}`,
+      state: away ? 'away' : 'other'
+    };
+  }
+
+  const loopState = String(details.sessionLoopState || details.partyOwnerSessionLoopState || 'MENUS').toUpperCase();
+  const queueId = details.queueId || details.queueID || details.partyOwnerQueueId || '';
+  const playlist = normalizeQueueName(queueId);
+  const rawAlly = details.partyOwnerMatchScoreAllyTeam ?? details.matchScoreAllyTeam;
+  const rawEnemy = details.partyOwnerMatchScoreEnemyTeam ?? details.matchScoreEnemyTeam;
+  const ally = rawAlly === '' || rawAlly === null || rawAlly === undefined ? NaN : Number(rawAlly);
+  const enemy = rawEnemy === '' || rawEnemy === null || rawEnemy === undefined ? NaN : Number(rawEnemy);
+  const score = Number.isFinite(ally) && Number.isFinite(enemy) ? `${ally}–${enemy}` : '';
+  if (['INGAME', 'CORE_GAME'].includes(loopState)) {
+    return { ...base, playlist, score, status: `VALORANT • ${playlist}${score ? ` • ${score}` : ' • Score unavailable'}`, state: 'ingame' };
+  }
+  if (loopState === 'PREGAME') {
+    return { ...base, playlist, status: `VALORANT • Agent Select${queueId ? ` • ${playlist}` : ''}`, state: 'pregame' };
+  }
+  return { ...base, status: away ? 'VALORANT • Away' : 'VALORANT • In menus', state: away ? 'away' : 'online' };
 }
 
 function formatAgo(timestamp) {
@@ -170,6 +234,10 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
   const agent = resolveById(metadata.agents, characterId, { name: 'Unknown agent', role: 'Agent', image: '', color: '#7b67f6' });
   const competitiveTier = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
   const matchRank = metadata.tiers.get(competitiveTier) || { name: competitiveTier ? `Competitive tier ${competitiveTier}` : 'Unrated', image: '' };
+  const queueId = String(info.QueueID || info.queueId || historyRow.QueueID || historyRow.queueId || (ratingUpdate ? 'competitive' : 'unknown')).toLowerCase();
+  const playlist = normalizeQueueName(queueId);
+  const isCompetitive = queueId === 'competitive';
+  const hasRating = Boolean(isCompetitive && ratingUpdate);
 
   let headshots = 0;
   let bodyshots = 0;
@@ -186,7 +254,7 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
   }
 
   const start = info.GameStartMillis || info.gameStartMillis || historyRow.GameStartTime || historyRow.gameStartTime;
-  const rr = Number(ratingUpdate?.RankedRatingEarned ?? ratingUpdate?.rankedRatingEarned ?? 0);
+  const rr = hasRating ? Number(ratingUpdate?.RankedRatingEarned ?? ratingUpdate?.rankedRatingEarned ?? 0) : null;
   const players = detail?.Players || detail?.players || [];
   const teammateIds = players
     .filter((entry) => (entry.TeamID || entry.teamId) === teamId && (entry.Subject || entry.subject || entry.puuid) !== puuid)
@@ -197,6 +265,10 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
   return {
     id: info.MatchID || info.matchId || historyRow.MatchID || historyRow.matchId,
     result: won ? 'VICTORY' : lost ? 'DEFEAT' : 'DRAW',
+    queueId,
+    playlist,
+    isCompetitive,
+    hasRating,
     map: map.name,
     mapImage: map.image,
     server: server.name,
@@ -225,12 +297,15 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
 
 function normalizeMatchHistory(data) {
   const rows = data?.History || data?.history || [];
-  return rows.map((row, index) => ({
-    id: row.MatchID || row.matchId || `match-${index}`,
-    result: 'MATCH', map: 'Details unavailable', score: '—', agent: '—',
-    kills: '—', deaths: '—', assists: '—', kd: '—', rr: 0,
-    ago: formatAgo(row.GameStartTime || row.gameStartTime)
-  }));
+  return rows.map((row, index) => {
+    const queueId = String(row.QueueID || row.queueId || 'unknown').toLowerCase();
+    return {
+      id: row.MatchID || row.matchId || `match-${index}`,
+      result: 'MATCH', queueId, playlist: normalizeQueueName(queueId), isCompetitive: queueId === 'competitive', hasRating: false,
+      map: 'Details unavailable', score: '—', agent: '—', kills: '—', deaths: '—', assists: '—', kd: '—', rr: null,
+      ago: formatAgo(row.GameStartTime || row.gameStartTime)
+    };
+  });
 }
 
 function playerIdentity(player) {
@@ -351,6 +426,10 @@ function normalizeRatingUpdate(row, metadata) {
   return {
     id: updateMatchId(row),
     result: 'RATING',
+    queueId: 'competitive',
+    playlist: 'Competitive',
+    isCompetitive: true,
+    hasRating: true,
     map: 'Competitive match',
     agent: 'Details loading',
     competitiveTier: tierNumber,
@@ -534,16 +613,36 @@ class RiotClientService extends EventEmitter {
       ]);
       const friends = friendsResponse.data?.friends || [];
       const presences = presencesResponse.data?.presences || [];
-      const presenceById = new Map(presences.map((item) => [item.puuid || item.cid, item]));
+      const presenceById = new Map();
+      for (const item of presences) {
+        const id = item.puuid || item.PUUID || item.cid;
+        if (!id) continue;
+        const rows = presenceById.get(id) || [];
+        rows.push(item);
+        presenceById.set(id, rows);
+      }
       return friends.slice(0, 80).map((friend) => {
-        const rawPresence = presenceById.get(friend.puuid);
-        const presence = rawPresence ? (summarizePresence(rawPresence) || {}) : {};
+        const id = friend.puuid || friend.PUUID || friend.cid || friend.id;
+        const options = (presenceById.get(id) || []).map(summarizePresence);
+        const presence = options.find((item) => item.state === 'ingame' || item.state === 'pregame')
+          || options.find((item) => item.product !== 'valorant' && item.game !== 'Riot Client' && item.state !== 'offline')
+          || options.find((item) => item.product === 'valorant' && item.state !== 'offline')
+          || options.find((item) => item.state !== 'offline')
+          || options[0]
+          || ((friend.is_online || friend.isOnline || ['online', 'away', 'mobile'].includes(String(friend.state || friend.availability || '').toLowerCase()))
+            ? { status: 'Online in Riot Client', state: 'online', game: 'Riot Client', product: 'riot_client' }
+            : null)
+          || {};
         return {
-          id: friend.puuid,
-          name: friend.game_name || presence.name || 'Riot friend',
-          tag: friend.game_tag || presence.tag || '',
+          id,
+          name: friend.game_name || friend.gameName || friend.name || presence.name || 'Riot friend',
+          tag: friend.game_tag || friend.gameTag || presence.tag || '',
           status: presence.status || 'Offline',
           state: presence.state || 'offline',
+          game: presence.game || '',
+          product: presence.product || '',
+          playlist: presence.playlist || '',
+          score: presence.score || '',
           rank: ''
         };
       });
@@ -732,10 +831,11 @@ class RiotClientService extends EventEmitter {
     ]);
     const roster = normalizeLivePlayers(rankedPlayers, puuid, this.metadata || { agents: new Map(), tiers: new Map() }, names);
     this.rememberInspectablePlayers(rankedPlayers, roster, names);
-    const queue = match?.MatchmakingData?.QueueID || match?.matchmakingData?.queueId || match?.QueueID || match?.queueId || session.queueId || session.QueueID || 'VALORANT';
+    const queueId = match?.MatchmakingData?.QueueID || match?.matchmakingData?.queueId || match?.QueueID || match?.queueId || session.queueId || session.QueueID || '';
     return {
       state: loopState,
-      queue,
+      queue: normalizeQueueName(queueId || 'valorant'),
+      queueId: String(queueId || '').toLowerCase(),
       map: map.name,
       mapImage: map.image || '',
       partySize: party.players.length || session.partySize || session.PartySize || 1,
@@ -879,7 +979,7 @@ class RiotClientService extends EventEmitter {
     const rr = Number(newestUpdate?.RankedRatingAfterUpdate ?? newestUpdate?.rankedRatingAfterUpdate ?? latestSeason?.RankedRating ?? 0);
     const level = xp?.Progress?.Level || 0;
     const rank = this.metadata.tiers.get(rankNumber) || { name: rankNumber ? `Competitive tier ${rankNumber}` : 'Unrated', color: '#735cff' };
-    const recentStats = calculateStats(matches);
+    const recentStats = calculateStats(matches.filter((match) => match.isCompetitive || match.queueId === 'competitive'));
     const stats = actData?.stats || { ...recentStats, scope: 'LOADING FULL ACT STATS' };
     const allTimePeak = selectAllTimePeak(mmr, this.metadata);
     if (!this.session.initialized) {
@@ -1092,6 +1192,9 @@ module.exports = {
   decodeJwtPayload,
   normalizeMatchHistory,
   normalizeMatchDetail,
+  normalizeQueueName,
+  decodePresencePrivate,
+  summarizePresence,
   normalizeLoadout,
   calculateStats,
   buildAgentMastery,

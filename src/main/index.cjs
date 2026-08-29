@@ -4,7 +4,6 @@ const path = require('node:path');
 const { app, BrowserWindow, clipboard, ipcMain, shell } = require('electron');
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
-const { MockService } = require('./services/mock-data.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
@@ -46,9 +45,9 @@ async function syncOverlay() {
   return overlayServer.status();
 }
 
-function createService(mode) {
+function createService() {
   service?.disconnect?.();
-  service = mode === 'live' ? new RiotClientService() : new MockService();
+  service = new RiotClientService();
 
   if (service.on) {
     service.on('live-state', (state) => {
@@ -66,11 +65,8 @@ function createService(mode) {
   return service;
 }
 
-async function connectCurrentMode() {
-  const mode = settings.get().dataMode;
-  if (!service || (mode === 'mock' && !(service instanceof MockService)) || (mode === 'live' && !(service instanceof RiotClientService))) {
-    createService(mode);
-  }
+async function connectRiotClient() {
+  if (!service || !(service instanceof RiotClientService)) createService();
   snapshot = await service.connect();
   overlayServer?.publish();
   return snapshot;
@@ -78,7 +74,7 @@ async function connectCurrentMode() {
 
 function registerIpc() {
   ipcMain.handle('app:bootstrap', async () => {
-    if (!snapshot) snapshot = await connectCurrentMode();
+    if (!snapshot) snapshot = await connectRiotClient();
     return {
       snapshot,
       settings: settings.get(),
@@ -88,9 +84,9 @@ function registerIpc() {
     };
   });
 
-  ipcMain.handle('riot:connect', connectCurrentMode);
+  ipcMain.handle('riot:connect', connectRiotClient);
   ipcMain.handle('riot:refresh', async () => {
-    if (!service) return connectCurrentMode();
+    if (!service) return connectRiotClient();
     snapshot = await service.refresh();
     overlayServer?.publish();
     return snapshot;
@@ -110,11 +106,6 @@ function registerIpc() {
   ipcMain.handle('settings:update', async (_event, patch) => {
     const before = settings.get();
     const after = settings.update(patch);
-
-    if (before.dataMode !== after.dataMode) {
-      snapshot = null;
-      createService(after.dataMode);
-    }
 
     if (process.platform === 'win32' && before.launchAtStartup !== after.launchAtStartup) {
       app.setLoginItemSettings({ openAtLogin: Boolean(after.launchAtStartup), args: ['--hidden'] });
@@ -237,7 +228,7 @@ app.whenReady().then(() => {
     getHost: () => settings.get().streamOverlayLanEnabled ? findLanHost() : LOOPBACK_HOST,
     assetDirectory: path.join(__dirname, '..', 'overlay')
   });
-  createService(settings.get().dataMode);
+  createService();
   createUpdateService();
   registerIpc();
   createWindow();

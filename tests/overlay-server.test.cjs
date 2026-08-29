@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
-const { snapshot } = require('../src/main/services/mock-data.cjs');
+const { snapshot } = require('./fixtures/mock-data.cjs');
 const {
   LOOPBACK_HOST,
   OverlayServer,

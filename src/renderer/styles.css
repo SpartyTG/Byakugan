@@ -164,12 +164,15 @@ button { color: inherit; }
 .count-badge, .feature-chip { border: 1px solid rgba(35,212,184,.18); background: rgba(35,212,184,.08); color: var(--teal); border-radius: 20px; padding: 6px 9px; font-size: 8px; letter-spacing: .08em; font-weight: 800; }
 
 .match-list { display: flex; flex-direction: column; }
-.match-row { display: grid; grid-template-columns: 72px minmax(145px, 1fr) 72px 116px 55px 58px 75px; align-items: center; gap: 8px; min-height: 63px; border-top: 1px solid var(--border); }
-.match-list .match-row { grid-template-columns: 10px 70px minmax(135px,1fr) 73px 68px 58px; min-height: 65px; }
+.match-row { display: grid; grid-template-columns: 92px minmax(145px, 1fr) 72px 116px 55px 90px 75px; align-items: center; gap: 8px; min-height: 63px; border-top: 1px solid var(--border); }
+.match-list .match-row { grid-template-columns: 10px 88px minmax(135px,1fr) 73px 68px 76px; min-height: 65px; }
 .match-stripe { width: 3px; height: 30px; border-radius: 4px; background: var(--teal); box-shadow: 0 0 9px rgba(35,212,184,.4); }
 .defeat .match-stripe { background: var(--red); box-shadow: 0 0 9px rgba(238,92,120,.35); }
 .result { font-size: 8px; letter-spacing: .1em; color: var(--teal); font-weight: 900; }
+.result strong, .result small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result small { margin-top: 5px; color: var(--muted); font-size: 7px; font-weight: 750; letter-spacing: .03em; text-transform: none; }
 .defeat .result { color: var(--red); }
+.defeat .result small { color: var(--muted); }
 .match-map { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .match-map img { width: 31px; height: 31px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,.04); }
 .match-map strong, .match-map small { display: block; }
@@ -179,6 +182,7 @@ button { color: inherit; }
 .kda { color: var(--muted); font-size: 10px; }
 .rr-change { font-size: 10px; color: var(--teal); font-weight: 750; }
 .rr-change.negative { color: var(--red); }
+.rr-change.unrated { color: var(--muted-2); font-size: 8px; }
 .match-time { color: var(--muted-2); font-size: 9px; text-align: right; }
 
 .friends-list { display: flex; flex-direction: column; }
@@ -190,18 +194,29 @@ button { color: inherit; }
 .friend-avatar i.away { background: var(--amber); }
 .friend-avatar i.offline { background: var(--muted-2); }
 .friend-name strong, .friend-name small { display: block; }
+.friend-name { min-width: 0; }
 .friend-name strong { font-size: 10px; }
 .friend-name strong em { color: var(--muted-2); font-style: normal; font-weight: 500; }
-.friend-name small { color: var(--muted); font-size: 8px; margin-top: 4px; }
-.friend-rank { color: var(--muted); font-size: 8px; }
+.friend-name small { overflow: hidden; color: var(--muted); font-size: 8px; margin-top: 4px; text-overflow: ellipsis; white-space: nowrap; }
+.friend-activity { min-width: 54px; text-align: right; }
+.friend-activity small, .friend-activity strong { display: block; }
+.friend-activity small { overflow: hidden; max-width: 88px; color: var(--muted-2); font-size: 6px; text-overflow: ellipsis; white-space: nowrap; }
+.friend-activity strong { margin-top: 4px; color: var(--teal); font-size: 8px; letter-spacing: .05em; }
+.friend-activity.ingame strong { color: var(--red); }
+.friend-activity.pregame strong, .friend-activity.away strong { color: var(--amber); }
+.friend-activity.offline strong { color: var(--muted-2); }
 
 .filter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.match-filter-controls { display: flex; align-items: center; gap: 10px; }
 .segmented { display: flex; padding: 4px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255,255,255,.02); }
 .segmented button { border: 0; background: transparent; border-radius: 8px; min-width: 70px; height: 31px; color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 700; }
 .segmented button.active { color: white; background: rgba(123,103,246,.17); }
 .muted { color: var(--muted); font-size: 10px; }
 .match-table { border-radius: var(--radius); overflow: hidden; }
-.match-table-head { display: grid; grid-template-columns: 72px minmax(145px,1fr) 72px 116px 55px 58px 75px; gap: 8px; padding: 14px 20px; background: rgba(255,255,255,.025); color: var(--muted-2); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
+.playlist-filter { display: flex; align-items: center; gap: 8px; color: var(--muted-2); font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.playlist-filter select { min-width: 145px; height: 39px; border: 1px solid var(--border); border-radius: 10px; padding: 0 31px 0 11px; background: #121522; color: white; font-size: 9px; outline: none; }
+.playlist-filter select:focus { border-color: rgba(139,108,255,.55); }
+.match-table-head { display: grid; grid-template-columns: 92px minmax(145px,1fr) 72px 116px 55px 90px 75px; gap: 8px; padding: 14px 20px; background: rgba(255,255,255,.025); color: var(--muted-2); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
 .match-table .match-row { padding: 0 20px; }
 .match-table .match-row:hover { background: rgba(255,255,255,.018); }
 .match-table .match-row.compact { min-height: 49px; }
@@ -294,14 +309,6 @@ button { color: inherit; }
 .settings-heading h2 { margin: 1px 0 5px; font-size: 16px; }
 .settings-heading p { margin: 0; color: var(--muted); font-size: 10px; }
 .setting-icon { width: 35px; height: 35px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; background: rgba(123,103,246,.12); color: var(--violet-light); }
-.radio-card { display: grid; grid-template-columns: 1fr auto; border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; margin: 9px 0; cursor: pointer; }
-.radio-card:has(input:checked) { border-color: rgba(123,103,246,.55); background: rgba(123,103,246,.07); }
-.radio-card input { position: absolute; opacity: 0; }
-.radio-card strong, .radio-card small { display: block; }
-.radio-card strong { font-size: 11px; }
-.radio-card small { color: var(--muted); font-size: 9px; margin-top: 5px; }
-.radio-card i { width: 17px; height: 17px; border-radius: 50%; border: 1px solid var(--border-strong); margin-top: 5px; }
-.radio-card input:checked ~ i { border: 5px solid var(--violet); }
 .settings-card > .primary-button { margin-top: 12px; }
 .toggle-row, .range-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); min-height: 65px; }
 .toggle-row strong, .toggle-row small { display: block; }

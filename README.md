@@ -4,13 +4,14 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.8
+## Included in version 0.8.0-beta.10
 
 - Original desktop dashboard and navigation
-- Live/mock mode switch
+- Live Riot Client connection with automatic migration from retired Demo Mode settings
 - Riot Client lockfile discovery and validation
 - Local Riot authentication and entitlement-token retrieval
-- Player identity, region, friends, and presence retrieval
+- Player identity, region, friends, and decoded multi-title Riot presence retrieval
+- Live friend activity for VALORANT menus, agent select, queue type, in-game score, and other Riot titles
 - Resolved competitive ranks, maps, agents, weapons, and equipped skin names
 - Competitive-rank emblems on the profile, act peak, live roster, and match history
 - All-time peak rank with the episode and act where that peak was recorded
@@ -46,14 +47,15 @@ source, brand, or proprietary assets.
 - Cached roster-rank fallback when the live match payload omits competitive tiers
 - Regional profile, account XP, competitive data, loadout, and match-history calls
 - Live menu/pregame/in-game state polling
-- Match history, social, loadout, agent-mastery, diagnostics, and settings screens
+- Match history with playlist filtering, playlist labels, and competitive-only RR gain/loss
+- Social, loadout, agent-mastery, diagnostics, and settings screens
 - Strict IPC boundary and remote-host allowlist
 - Windows NSIS packaging configuration
 - Automated unit tests for lockfile and region parsing
 
-The app starts in **Demo mode**, so the complete interface can be developed on
-any computer. Switch to **Live Riot Client** in Settings on a Windows computer
-with Riot Client running.
+BYAKUGAN now runs exclusively from the local Riot Client on Windows. Riot Client
+must be running for account and match data to populate; Demo Mode is not included
+in production builds.
 
 ## Development
 
@@ -73,7 +75,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.8-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.10-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -102,10 +104,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.8`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.10`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.8`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.10`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -113,8 +115,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.8
-git push origin v0.8.0-beta.8
+git tag v0.8.0-beta.10
+git push origin v0.8.0-beta.10
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -164,7 +166,6 @@ Renderer UI
     │ secure contextBridge
 Electron main process
     ├── SettingsStore
-    ├── MockService
     ├── local/private-network OBS overlay server
     └── RiotClientService
           ├── Riot lockfile / localhost API
@@ -190,8 +191,8 @@ Electron main process
 
 ## Suggested next milestones
 
-1. Test live mode on the target Windows PC.
+1. Continue live Riot-data testing on the target Windows PC.
 2. Convert the BYAKUGAN eye artwork into signed Windows icon assets.
-3. Normalize real match-detail payloads into the richer demo cards.
+3. Continue normalizing real match-detail payloads into richer cards.
 4. Add post-match overlay animations and configurable stream themes.
 5. Add account-backed sync only after selecting a backend and privacy model.
