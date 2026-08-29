@@ -1,0 +1,56 @@
+name: Publish BYAKUGAN Beta
+
+on:
+  push:
+    tags:
+      - "v*-beta.*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-beta:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version v$version"
+          }
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build update-enabled installer
+        run: npm run release:win
+        env:
+          BYAKUGAN_GH_OWNER: SpartyTG
+          BYAKUGAN_GH_REPO: Byakugan
+
+      - name: Publish prerelease and updater files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = @()
+          $files += (Get-ChildItem "release/BYAKUGAN-Setup-*.exe").FullName
+          $files += (Get-ChildItem "release/BYAKUGAN-Setup-*.exe.blockmap").FullName
+          $files += (Resolve-Path "release/beta.yml").Path
+          gh release create $env:GITHUB_REF_NAME @files `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --title "BYAKUGAN $env:GITHUB_REF_NAME" `
+            --generate-notes `
+            --prerelease

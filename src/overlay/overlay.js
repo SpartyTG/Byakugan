@@ -1,0 +1,92 @@
+'use strict';
+
+const overlay = document.querySelector('#overlay');
+const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at(-1) || '');
+let staleTimer = null;
+
+function markAlive() {
+  overlay.classList.remove('is-loading', 'is-offline');
+  document.querySelector('#connectionDot').title = 'BYAKUGAN connected';
+  clearTimeout(staleTimer);
+  staleTimer = setTimeout(() => overlay.classList.add('is-offline'), 45_000);
+}
+
+function text(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) element.textContent = String(value ?? '—');
+}
+
+function initials(value) {
+  return String(value || '—').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function setImage(selector, fallbackSelector, url, fallback) {
+  const image = document.querySelector(selector);
+  const fallbackElement = document.querySelector(fallbackSelector);
+  if (url) {
+    image.src = url;
+    image.hidden = false;
+    fallbackElement.hidden = true;
+  } else {
+    image.removeAttribute('src');
+    image.hidden = true;
+    fallbackElement.hidden = false;
+    fallbackElement.textContent = fallback;
+  }
+}
+
+function signed(value, suffix = '') {
+  const number = Number(value) || 0;
+  return `${number > 0 ? '+' : number < 0 ? '−' : '±'}${Math.abs(number)}${suffix}`;
+}
+
+function render(data) {
+  const player = data.player || {};
+  const session = data.session || {};
+  const live = data.live || {};
+  const preferences = data.preferences || {};
+
+  overlay.className = `overlay layout-${data.layout || 'horizontal'}`;
+  overlay.classList.toggle('hide-identity', !preferences.showIdentity);
+  overlay.classList.toggle('hide-agent-map', !preferences.showAgentMap);
+  overlay.classList.toggle('hide-rr', !preferences.showRR);
+  overlay.classList.toggle('rr-positive', Number(session.rrChange) > 0);
+  overlay.classList.toggle('rr-negative', Number(session.rrChange) < 0);
+
+  text('#playerName', player.name || 'PLAYER');
+  text('#playerRank', player.rank || 'Unrated');
+  text('#playerRR', `${Number(player.rr) || 0} RR`);
+  setImage('#rankImage', '#rankFallback', player.rankImage, initials(player.rank));
+
+  text('#sessionRecord', `${Number(session.wins) || 0}–${Number(session.losses) || 0}`);
+  text('#sessionGames', `${Number(session.games) || 0} ${(Number(session.games) || 0) === 1 ? 'GAME' : 'GAMES'}`);
+  text('#sessionKd', Number(session.kd || 0).toFixed(2));
+  text('#sessionRR', signed(session.rrChange));
+  text('#rankMovement', session.startingRank && session.currentRank && session.startingRank !== session.currentRank
+    ? `${session.startingRank} → ${session.currentRank}`
+    : session.currentRank || 'NO CHANGE');
+
+  text('#liveLabel', live.label || 'IN MENUS');
+  text('#liveMap', live.map || '—');
+  text('#liveAgent', live.agent || live.queue || '—');
+  setImage('#agentImage', '#agentFallback', live.agentImage, initials(live.agent));
+
+  markAlive();
+}
+
+function setOffline() {
+  overlay.classList.add('is-offline');
+  document.querySelector('#connectionDot').title = 'Reconnecting to BYAKUGAN';
+}
+
+fetch(`/snapshot?token=${encodeURIComponent(token)}`, { cache: 'no-store' })
+  .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unauthorized overlay URL')))
+  .then(render)
+  .catch(setOffline);
+
+const events = new EventSource(`/events?token=${encodeURIComponent(token)}`);
+events.addEventListener('session', (event) => {
+  try { render(JSON.parse(event.data)); } catch { setOffline(); }
+});
+events.addEventListener('ping', markAlive);
+events.addEventListener('error', setOffline);

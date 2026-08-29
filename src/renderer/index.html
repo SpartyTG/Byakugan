@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://media.valorant-api.com; style-src 'self'; script-src 'self'; connect-src 'none'; font-src 'self'">
+  <title>BYAKUGAN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <header class="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-mark"></span>
+      <span>BYAKUGAN</span>
+      <span class="version" id="versionLabel">v0.1.0</span>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span></span></div>
+        <div>
+          <strong>BYAKUGAN</strong>
+          <small>TACTICAL</small>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="nav-item active" data-view="dashboard"><i>⌂</i><span>Overview</span></button>
+        <button class="nav-item" data-view="live"><i>◈</i><span>Live match</span><b id="liveBadge">LIVE</b></button>
+        <button class="nav-item" data-view="matches"><i>◫</i><span>Match history</span></button>
+        <button class="nav-item" data-view="journey"><i>⌁</i><span>Act journey</span></button>
+        <button class="nav-item" data-view="insights"><i>◎</i><span>Insights & goals</span></button>
+        <button class="nav-item" data-view="loadout"><i>◇</i><span>Loadout</span></button>
+        <button class="nav-item" data-view="agents"><i>✦</i><span>Agents</span></button>
+        <button class="nav-item" data-view="maps"><i>⬡</i><span>Map lab</span></button>
+        <button class="nav-item" data-view="servers"><i>⌖</i><span>Servers</span></button>
+        <button class="nav-item" data-view="social"><i>◉</i><span>Social</span><b id="onlineBadge">0</b></button>
+        <div class="nav-divider"></div>
+        <button class="nav-item" data-view="settings"><i>⚙</i><span>Settings</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-mini">
+          <span class="pulse-dot" id="miniDot"></span>
+          <div>
+            <strong id="miniStatus">Starting…</strong>
+            <small id="miniRegion">Detecting region</small>
+          </div>
+        </div>
+        <button class="ghost-button full" id="sidebarRefresh">↻ Refresh data</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <p class="eyebrow" id="pageEyebrow">COMMAND CENTER</p>
+          <h1 id="pageTitle">Overview</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="status-pill" id="statusPill">
+            <span class="pulse-dot"></span>
+            <div><strong id="statusText">Connecting</strong><small id="statusSubtext">Please wait</small></div>
+          </div>
+          <button class="icon-button" id="privacyButton" title="Toggle privacy mode">◌</button>
+          <button class="primary-button" id="connectButton">Connect</button>
+        </div>
+      </div>
+
+      <aside class="update-banner" id="updateBanner" hidden aria-live="polite">
+        <div class="update-orbit"><span></span></div>
+        <div class="update-banner-copy"><small>BETA UPDATE AVAILABLE</small><strong id="updateBannerTitle">A newer BYAKUGAN build is ready</strong><p id="updateBannerMessage">Review the update before downloading.</p></div>
+        <div class="update-banner-progress" id="updateBannerProgress" hidden><span><i id="updateBannerProgressBar"></i></span><small id="updateBannerPercent">0%</small></div>
+        <button class="primary-button" id="reviewUpdateButton">Review update</button>
+      </aside>
+
+      <section class="view active" id="view-dashboard">
+        <div class="hero-grid">
+          <article class="profile-card glass">
+            <div class="profile-card-top">
+              <div class="avatar" id="profileAvatar">NO</div>
+              <div class="profile-identity">
+                <span class="online-label"><i></i> ONLINE</span>
+                <h2><span id="profileName">Nova</span><em id="profileTag">#0420</em></h2>
+                <p>Account level <strong id="profileLevel">187</strong></p>
+              </div>
+              <button class="more-button" aria-label="Profile options">•••</button>
+            </div>
+            <div class="rank-panel">
+              <div class="rank-gem"><img id="profileRankImage" alt="" hidden><span id="profileRankFallback"></span></div>
+              <div>
+                <small>CURRENT RANK</small>
+                <h3 id="profileRank">Ascendant 2</h3>
+                <p><strong id="profileRR">72</strong> / 100 RR</p>
+              </div>
+              <div class="peak-rank"><img id="peakRankImage" alt="" hidden><div><small>ALL-TIME PEAK</small><strong id="peakRank">Immortal 1</strong><em id="peakSeason">Episode 8 • Act 2</em></div></div>
+            </div>
+            <div class="rank-progress"><span id="rankProgress"></span></div>
+          </article>
+
+          <article class="live-card glass">
+            <div class="live-background"></div>
+            <div class="live-content">
+              <div class="live-header"><span><i></i> LIVE SESSION</span><em id="liveElapsed">00:42</em></div>
+              <p id="liveState">AGENT SELECT</p>
+              <h2 id="liveMap">Ascent</h2>
+              <div class="live-meta">
+                <span><small>MODE</small><strong id="liveQueue">Competitive</strong></span>
+                <span><small>PARTY</small><strong id="liveParty">3 players</strong></span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="act-loading-notice glass" id="actLoadingNotice" hidden><span class="loading-ring"></span><div><strong>Loading full act stats</strong><p>BYAKUGAN is tracking older competitive matches in the background. W/L, K/D, server splits, and the full Act Journey may take a few minutes to finish.</p></div></div>
+
+        <div class="overview-intel-grid">
+          <article class="glass insight-feature" id="primaryInsight">
+            <div class="insight-orbit"><span></span><i></i></div>
+            <div><p class="eyebrow">BYAKUGAN INSIGHT</p><h2>Reading your competitive pattern…</h2><p>Complete competitive matches to unlock evidence-based observations.</p></div>
+            <button class="text-button" data-jump="insights">All insights <span>→</span></button>
+          </article>
+          <article class="glass trajectory-card">
+            <div class="panel-heading"><div><p class="eyebrow">ACT TRAJECTORY</p><h2>Rank movement</h2></div><strong id="trajectoryDelta">— RR</strong></div>
+            <div class="mini-trajectory" id="miniTrajectory"></div>
+          </article>
+          <article class="glass session-mini" id="sessionMini"></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="glass panel matches-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">LATEST RESULTS</p><h2>Recent matches</h2></div>
+              <button class="text-button" data-jump="matches">View all <span>→</span></button>
+            </div>
+            <div class="match-list" id="dashboardMatches"></div>
+          </article>
+
+          <article class="glass panel friends-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">YOUR SQUAD</p><h2>Friends</h2></div>
+              <span class="count-badge" id="friendsCount">0 online</span>
+            </div>
+            <div class="friends-list" id="dashboardFriends"></div>
+            <button class="ghost-button full" data-jump="social">Open social hub</button>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-live">
+        <article class="live-match-hero glass">
+          <img id="liveMapBackdrop" class="live-map-backdrop" alt="">
+          <div class="live-match-overlay"></div>
+          <div class="live-match-heading">
+            <div><p class="eyebrow">ACTIVE SESSION</p><h2 id="rosterMap">Waiting for match</h2><p id="rosterStatus">Open VALORANT and enter a match to populate the roster.</p></div>
+            <div class="live-match-meta"><span><small>STATE</small><strong id="rosterState">MENUS</strong></span><span><small>MODE</small><strong id="rosterQueue">—</strong></span></div>
+          </div>
+        </article>
+
+        <div class="roster-grid">
+          <article class="glass roster-panel ally-roster">
+            <div class="roster-heading"><div><p class="eyebrow">ATTACK / DEFENSE</p><h2>Your team</h2></div><span class="team-count" id="allyCount">0 / 5</span></div>
+            <div class="live-player-list" id="allyRoster"></div>
+          </article>
+          <article class="glass roster-panel enemy-roster">
+            <div class="roster-heading"><div><p class="eyebrow enemy">OPPOSITION</p><h2>Enemy team</h2></div><span class="team-count enemy" id="enemyCount">0 / 5</span></div>
+            <div class="live-player-list" id="enemyRoster"></div>
+          </article>
+        </div>
+
+        <div class="privacy-notice glass"><span>◉</span><div><strong>Privacy-safe player inspection</strong><p>Visible allies and party members can be inspected. Hidden identities and opponents stay unavailable; enemy cards show only agent and rank.</p></div></div>
+      </section>
+
+      <section class="view" id="view-matches">
+        <div class="filter-row">
+          <div class="segmented" id="matchFilters">
+            <button class="active" data-filter="ALL">All</button>
+            <button data-filter="VICTORY">Wins</button>
+            <button data-filter="DEFEAT">Losses</button>
+          </div>
+          <span class="muted" id="matchSummary">Last 10 matches</span>
+        </div>
+        <div class="match-table glass">
+          <div class="match-table-head"><span>Result</span><span>Map / agent</span><span>Score</span><span>K / D / A</span><span>K/D</span><span>Rating</span><span>Played</span></div>
+          <div id="fullMatchList"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-journey">
+        <div class="section-intro journey-intro glass">
+          <div><p class="eyebrow">ACT JOURNEY</p><h2>Your climb, match by match</h2><p>Follow RR movement, rank changes, streaks, maps, and agents across the current act.</p></div>
+          <div class="journey-current"><img id="journeyRankImage" alt="" hidden><span><small>CURRENT</small><strong id="journeyRank">—</strong><em id="journeyRR">— RR</em></span></div>
+        </div>
+        <article class="glass journey-chart-card">
+          <div class="panel-heading"><div><p class="eyebrow">RATING SIGNAL</p><h2>Competitive trajectory</h2></div><span class="feature-chip" id="journeyScope">THIS ACT</span></div>
+          <div class="journey-chart" id="journeyChart"></div>
+        </article>
+        <div class="journey-events" id="journeyEvents"></div>
+      </section>
+
+      <section class="view" id="view-insights">
+        <div class="section-intro glass insight-intro">
+          <div><p class="eyebrow">ENHANCED VISION</p><h2>Insights & goals</h2><p>Personal findings grounded in your own competitive matches and clearly labeled sample sizes.</p></div>
+          <div class="feature-chip">POST-MATCH ONLY</div>
+        </div>
+        <div class="insight-grid" id="insightGrid"></div>
+        <div class="analytics-split">
+          <article class="glass panel"><div class="panel-heading"><div><p class="eyebrow">PERSONAL MISSIONS</p><h2>Active challenges</h2></div></div><div class="challenge-grid" id="challengeGrid"></div></article>
+          <article class="glass panel session-card" id="sessionCard"></article>
+        </div>
+        <article class="glass panel synergy-panel"><div class="panel-heading"><div><p class="eyebrow">SQUAD SIGNAL</p><h2>Friend synergy</h2></div><span class="muted">Known friends only</span></div><div id="synergyList"></div></article>
+      </section>
+
+      <section class="view" id="view-loadout">
+        <div class="section-intro glass">
+          <div><p class="eyebrow">COLLECTION</p><h2>Equipped loadout</h2><p>Read-only view of the cosmetics currently equipped on your Riot account.</p></div>
+          <div class="feature-chip">LIVE SYNC READY</div>
+        </div>
+        <div class="loadout-grid" id="loadoutGrid"></div>
+      </section>
+
+      <section class="view" id="view-agents">
+        <div class="section-intro glass">
+          <div><p class="eyebrow">MASTERY</p><h2>Agent command</h2><p>Your preferred agents and role coverage. Game-changing automation is disabled in this build.</p></div>
+          <div class="feature-chip safe">READ ONLY</div>
+        </div>
+        <div class="agent-grid" id="agentGrid"></div>
+      </section>
+
+      <section class="view" id="view-maps">
+        <div class="section-intro glass map-intro">
+          <div><p class="eyebrow">MAP LAB</p><h2>Your battleground profile</h2><p>Act-level win rate, K/D, precision, and agent performance for every competitive map.</p></div>
+          <div class="feature-chip safe">PERSONAL DATA</div>
+        </div>
+        <div class="map-lab-grid" id="mapLabGrid"></div>
+      </section>
+
+      <section class="view" id="view-servers">
+        <div class="section-intro glass server-intro">
+          <div><p class="eyebrow">NETWORK PROFILE</p><h2>Server performance</h2><p>See where you play most and compare current-act W/L, win rate, K/D, precision, and RR movement by Riot game server.</p></div>
+          <div class="feature-chip safe">PERSONAL MATCHES</div>
+        </div>
+        <div class="server-grid" id="serverGrid"></div>
+      </section>
+
+      <section class="view" id="view-social">
+        <div class="social-layout">
+          <article class="glass panel">
+            <div class="panel-heading"><div><p class="eyebrow">RIOT SOCIAL</p><h2>Friends list</h2></div><span class="count-badge" id="socialCount">0 contacts</span></div>
+            <div class="friends-list expanded" id="socialFriends"></div>
+          </article>
+          <article class="glass party-card">
+            <p class="eyebrow">PARTY</p>
+            <h2>Ready when you are</h2>
+            <div class="party-orbit"><div class="avatar small">YO</div><span></span><span></span><span></span></div>
+            <p>Party invitations and voice tools can be added as a separate, permission-gated module.</p>
+            <button class="primary-button full" disabled>Invite tools — coming next</button>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="settings-grid">
+          <article class="glass settings-card">
+            <div class="settings-heading"><span class="setting-icon">⌁</span><div><h2>Data source</h2><p>Choose how BYAKUGAN gets its information.</p></div></div>
+            <label class="radio-card"><input type="radio" name="dataMode" value="mock"><span><strong>Demo mode</strong><small>Complete sample data; Riot Client is not required.</small></span><i></i></label>
+            <label class="radio-card"><input type="radio" name="dataMode" value="live"><span><strong>Live Riot Client</strong><small>Connect locally on a Windows PC running Riot Client.</small></span><i></i></label>
+            <button class="primary-button" id="saveDataMode">Save and reconnect</button>
+          </article>
+
+          <article class="glass settings-card">
+            <div class="settings-heading"><span class="setting-icon">↻</span><div><h2>Refresh</h2><p>Control background updates.</p></div></div>
+            <label class="toggle-row"><span><strong>Automatic refresh</strong><small>Keep profile and history data current.</small></span><input type="checkbox" id="autoRefresh"><i></i></label>
+            <label class="range-row"><span>Refresh interval</span><select id="refreshSeconds"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select></label>
+          </article>
+
+          <article class="glass settings-card">
+            <div class="settings-heading"><span class="setting-icon">◐</span><div><h2>Application</h2><p>Desktop behavior and privacy.</p></div></div>
+            <label class="toggle-row"><span><strong>Launch at startup</strong><small>Start minimized when Windows signs in.</small></span><input type="checkbox" id="launchAtStartup"><i></i></label>
+            <label class="toggle-row"><span><strong>Privacy mode</strong><small>Hide Riot names and tags on screen.</small></span><input type="checkbox" id="privacyMode"><i></i></label>
+            <label class="toggle-row"><span><strong>Compact match rows</strong><small>Show more history at once.</small></span><input type="checkbox" id="compactMatches"><i></i></label>
+            <div class="app-update-row">
+              <span><strong>Beta updates</strong><small id="settingsUpdateStatus">Checking is available after installation.</small></span>
+              <button class="ghost-button" id="checkForUpdatesButton">Check now</button>
+            </div>
+          </article>
+
+          <article class="glass settings-card stream-overlay-card">
+            <div class="settings-heading"><span class="setting-icon">◉</span><div><h2>OBS stream overlay</h2><p>Broadcast your personal BYAKUGAN session as a transparent Browser Source.</p></div><span class="overlay-status" id="overlayStatus">OFF</span></div>
+            <div class="overlay-preview" aria-hidden="true">
+              <div class="preview-eye"><span></span></div>
+              <div><small>BYAKUGAN</small><strong>SESSION VISION</strong></div>
+              <span><small>W / L</small><strong>4–2</strong></span>
+              <span><small>K/D</small><strong>1.24</strong></span>
+              <span><small>RR</small><strong>+38</strong></span>
+            </div>
+            <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs privately on this PC at 127.0.0.1.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
+            <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
+            <label class="toggle-row"><span><strong>Show Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>
+            <label class="toggle-row"><span><strong>Show current agent and map</strong><small>Displays only your own active-match selection.</small></span><input type="checkbox" id="streamOverlayShowAgentMap"><i></i></label>
+            <label class="toggle-row"><span><strong>Show RR</strong><small>Include current RR and session change.</small></span><input type="checkbox" id="streamOverlayShowRR"><i></i></label>
+            <div class="overlay-url-row">
+              <div><small>PRIVATE OBS URL</small><strong id="overlayUrl">Enable the overlay to create your URL.</strong></div>
+              <button class="primary-button" id="copyOverlayUrl" disabled>Copy OBS URL</button>
+              <button class="ghost-button" id="regenerateOverlayUrl" disabled>Regenerate</button>
+            </div>
+            <p class="overlay-security-note">The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.</p>
+          </article>
+
+          <article class="glass settings-card about-card">
+            <div class="brand-mark large"><span></span></div>
+            <h2>BYAKUGAN</h2>
+            <p>Tactical match intelligence in an original, editable VALORANT companion.</p>
+            <div class="about-meta"><span>Build</span><strong id="aboutVersion">0.1.0</strong></div>
+            <div class="about-meta"><span>Connector</span><strong>Read-only</strong></div>
+          </article>
+
+          <article class="glass settings-card diagnostics-card">
+            <div class="settings-heading"><span class="setting-icon">✓</span><div><h2>Connector health</h2><p>Safe status details with credentials removed.</p></div></div>
+            <div id="diagnosticList" class="diagnostic-list"><div class="diagnostic-ok">All requested data sources responded.</div></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+  <div class="modal-backdrop" id="matchModal" hidden>
+    <article class="match-autopsy glass" role="dialog" aria-modal="true" aria-labelledby="autopsyTitle">
+      <div class="autopsy-actions"><button class="ghost-button" id="shareMatch">Export recap</button><button class="icon-button" id="closeMatch" aria-label="Close match details">×</button></div>
+      <div id="matchAutopsyContent"></div>
+    </article>
+  </div>
+  <div class="modal-backdrop" id="playerModal" hidden>
+    <article class="player-profile-dialog glass" role="dialog" aria-modal="true" aria-labelledby="playerProfileTitle">
+      <button class="icon-button player-profile-close" id="closePlayerProfile" aria-label="Close player profile">×</button>
+      <div id="playerProfileContent"></div>
+    </article>
+  </div>
+  <div class="modal-backdrop" id="updateModal" hidden>
+    <article class="update-dialog glass" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle">
+      <div class="update-dialog-mark"><div class="brand-mark large"><span></span></div><i>UPDATE</i></div>
+      <p class="eyebrow">BYAKUGAN BETA CHANNEL</p>
+      <h2 id="updateDialogTitle">Update available</h2>
+      <p class="update-version-line"><span id="updateCurrentVersion">Current —</span><i>→</i><strong id="updateNextVersion">New —</strong></p>
+      <div class="update-release-notes" id="updateReleaseNotes">This beta update contains improvements and fixes.</div>
+      <div class="update-download-state" id="updateDownloadState" hidden>
+        <div><strong id="updateProgressLabel">Downloading update…</strong><span id="updateProgressPercent">0%</span></div>
+        <span><i id="updateProgressBar"></i></span>
+        <small id="updateProgressDetails">BYAKUGAN will restart automatically when the update is ready.</small>
+      </div>
+      <p class="update-confirmation-note" id="updateConfirmationNote">BYAKUGAN will download the update, close, install it, and reopen automatically.</p>
+      <div class="update-dialog-actions"><button class="ghost-button" id="updateLaterButton">Later</button><button class="primary-button" id="confirmUpdateButton">Download and restart</button></div>
+    </article>
+  </div>
+  <div class="loading-overlay" id="loadingOverlay"><div class="loader-mark"><span></span></div><p id="loadingText">Awakening BYAKUGAN…</p></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

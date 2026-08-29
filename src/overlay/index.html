@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYAKUGAN Session Overlay</title>
+  <link rel="stylesheet" href="/overlay.css">
+</head>
+<body>
+  <main class="overlay layout-horizontal is-loading" id="overlay">
+    <section class="brand-block">
+      <div class="eye-mark" aria-hidden="true"><span></span></div>
+      <div class="brand-copy"><strong>BYAKUGAN</strong><small>SESSION VISION</small></div>
+      <i class="connection-dot" id="connectionDot"></i>
+    </section>
+
+    <section class="player-block">
+      <div class="rank-emblem"><img id="rankImage" alt="" hidden><span id="rankFallback"></span></div>
+      <div class="player-copy">
+        <small id="playerName">PLAYER</small>
+        <strong id="playerRank">UNRATED</strong>
+        <em id="playerRR">0 RR</em>
+      </div>
+    </section>
+
+    <section class="metrics-block">
+      <div class="metric"><small>SESSION</small><strong id="sessionRecord">0–0</strong><em id="sessionGames">0 GAMES</em></div>
+      <div class="metric"><small>K/D</small><strong id="sessionKd">0.00</strong><em>CURRENT RUN</em></div>
+      <div class="metric rr-metric"><small>RR CHANGE</small><strong id="sessionRR">±0</strong><em id="rankMovement">NO CHANGE</em></div>
+    </section>
+
+    <section class="live-block">
+      <div class="live-agent"><img id="agentImage" alt="" hidden><span id="agentFallback">—</span></div>
+      <div class="live-copy">
+        <span><i></i><small id="liveLabel">IN MENUS</small></span>
+        <strong id="liveMap">—</strong>
+        <em id="liveAgent">—</em>
+      </div>
+    </section>
+
+    <div class="offline-message" id="offlineMessage">WAITING FOR BYAKUGAN</div>
+  </main>
+  <script src="/overlay.js"></script>
+</body>
+</html>

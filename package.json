@@ -1,0 +1,69 @@
+{
+  "name": "byakugan",
+  "version": "0.8.0-beta.2",
+  "description": "BYAKUGAN — a clean-room, extensible desktop companion for VALORANT.",
+  "main": "src/main/index.cjs",
+  "author": "Tyler",
+  "license": "UNLICENSED",
+  "private": true,
+  "updateFeedConfigured": true,
+  "updateRepository": {
+    "provider": "github",
+    "owner": "SpartyTG",
+    "repo": "Byakugan",
+    "channel": "beta"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SpartyTG/Byakugan.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test tests/*.test.cjs",
+    "check": "node --check src/main/index.cjs && node --check src/main/preload.cjs && node --check src/main/services/riot-client.cjs && node --check src/main/services/overlay-server.cjs && node --check src/main/services/update-service.cjs && node --check src/renderer/app.js && node --check src/overlay/overlay.js && node --check scripts/prepare-release.cjs && node --check scripts/verify-release.cjs",
+    "dist:win": "node scripts/prepare-release.cjs && electron-builder --win nsis --x64 --config release-config.json --publish never && node scripts/verify-release.cjs",
+    "release:win": "node scripts/prepare-release.cjs --require-feed && electron-builder --win nsis --x64 --config release-config.json --publish never && node scripts/verify-release.cjs --require-feed",
+    "dist:dir": "node scripts/prepare-release.cjs && electron-builder --dir --config release-config.json"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "26.15.7"
+  },
+  "build": {
+    "appId": "com.tyler.byakugan",
+    "productName": "BYAKUGAN",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "verifyUpdateCodeSignature": false,
+      "artifactName": "BYAKUGAN-Setup-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
