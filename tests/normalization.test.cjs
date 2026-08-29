@@ -378,6 +378,43 @@ test('hydrates only newly played matches when a complete act cache already exist
   assert.deepEqual(result.matches.map((match) => match.id), ['new-match', 'old-match']);
 });
 
+test('resumes an interrupted act scan without reloading completed cached matches', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.actStatsCache = {
+    seasonId: 'current-act', newestMatchId: 'new-match', expiresAt: 0,
+    data: {
+      complete: false, progress: { loaded: 1, total: 2 }, stats: {}, observedProfiles: {},
+      matches: [{
+        id: 'old-match', result: 'VICTORY', queueId: 'competitive', isCompetitive: true,
+        kills: 15, deaths: 10, shots: { headshots: 2, bodyshots: 7, legshots: 1 }, competitiveTier: 21
+      }]
+    }
+  };
+  const requested = [];
+  const progress = [];
+  service.on('act-progress', (event) => progress.push(event));
+  service.fetchMatchDetail = async (matchId) => {
+    requested.push(matchId);
+    return {
+      MatchInfo: { MatchID: matchId, QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+      Players: [{ Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerStats: { Kills: 20, Deaths: 10, Assists: 4 } }],
+      Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
+    };
+  };
+
+  const result = await service.fetchActStats({ Matches: [
+    { MatchID: 'new-match', SeasonID: 'current-act', RankedRatingEarned: 18 },
+    { MatchID: 'old-match', SeasonID: 'current-act', RankedRatingEarned: 15 },
+    { MatchID: 'previous-match', SeasonID: 'old-act', RankedRatingEarned: 12 }
+  ] }, 'current-act');
+  assert.deepEqual(requested, ['new-match']);
+  assert.equal(result.complete, true);
+  assert.equal(result.stats.games, 2);
+  assert.equal(progress.some((event) => event.loaded === 2 && event.total === 2), true);
+});
+
 test('player inspection falls back to observed shared matches when Riot history is private', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self', gameName: 'Self', tagLine: 'NA1' };

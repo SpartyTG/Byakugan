@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
     ipcRenderer.on('riot:snapshot', handler);
     return () => ipcRenderer.removeListener('riot:snapshot', handler);
   },
+  onActProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('riot:act-progress', handler);
+    return () => ipcRenderer.removeListener('riot:act-progress', handler);
+  },
   onWarning: (callback) => {
     const handler = (_event, message) => callback(message);
     ipcRenderer.on('app:warning', handler);

@@ -477,6 +477,12 @@ function renderSnapshot(snapshot) {
   text('#peakRank', profile.peakRank);
   text('#peakSeason', [profile.peakEpisode, profile.peakAct].filter(Boolean).join(' • ') || 'Peak act unavailable');
   $('#actLoadingNotice').hidden = !profile.actStatsLoading;
+  const actLoaded = Number(profile.actStatsLoaded) || 0;
+  const actTotal = Number(profile.actStatsTotal) || 0;
+  text('#actLoadingTitle', actTotal ? `Loading full act stats • ${actLoaded}/${actTotal}` : 'Loading full act stats');
+  text('#actLoadingDetail', actTotal
+    ? 'Completed matches are saved as they load. You can close BYAKUGAN and continue later.'
+    : 'Finding current-act competitive matches…');
   const rankImage = safeImage(profile.rankImage);
   const peakRankImage = safeImage(profile.peakRankImage);
   const rankImageElement = $('#profileRankImage');
@@ -846,6 +852,28 @@ function bindEvents() {
   window.companion.onSnapshot((snapshot) => {
     renderSnapshot(snapshot);
     toast('Full act stats updated', 'BYAKUGAN finished another pass through your current-act history.');
+  });
+  window.companion.onActProgress((progress) => {
+    const loaded = Number(progress.loaded) || 0;
+    const total = Number(progress.total) || 0;
+    $('#actLoadingNotice').hidden = progress.loading === false;
+    text('#actLoadingTitle', total ? `Loading full act stats • ${loaded}/${total}` : 'Loading full act stats');
+    text('#actLoadingDetail', total
+      ? 'Completed matches are saved as they load. You can close BYAKUGAN and continue later.'
+      : 'Finding current-act competitive matches…');
+    if (state.snapshot?.profile && progress.stats) {
+      Object.assign(state.snapshot.profile, {
+        wins: progress.stats.wins,
+        losses: progress.stats.losses,
+        kd: progress.stats.kd,
+        headshot: progress.stats.headshot,
+        statsScope: progress.stats.scope,
+        actStatsLoading: progress.loading !== false,
+        actStatsLoaded: loaded,
+        actStatsTotal: total
+      });
+      renderStats(state.snapshot.profile);
+    }
   });
   window.companion.onWarning((message) => toast('Connector notice', message, 'error'));
   window.companion.onUpdateStatus(renderUpdateStatus);

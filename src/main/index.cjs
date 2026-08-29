@@ -60,6 +60,21 @@ function createService() {
       overlayServer?.publish();
       mainWindow?.webContents.send('riot:snapshot', nextSnapshot);
     });
+    service.on('act-progress', (progress) => {
+      if (snapshot?.profile) {
+        snapshot.profile.actStatsLoading = progress.loading !== false;
+        snapshot.profile.actStatsLoaded = progress.loaded || 0;
+        snapshot.profile.actStatsTotal = progress.total || 0;
+        if (progress.stats) {
+          snapshot.profile.wins = progress.stats.wins;
+          snapshot.profile.losses = progress.stats.losses;
+          snapshot.profile.kd = progress.stats.kd;
+          snapshot.profile.headshot = progress.stats.headshot;
+          snapshot.profile.statsScope = progress.stats.scope;
+        }
+      }
+      mainWindow?.webContents.send('riot:act-progress', progress);
+    });
     service.on('warning', (message) => mainWindow?.webContents.send('app:warning', message));
   }
   return service;
