@@ -415,6 +415,29 @@ test('resumes an interrupted act scan without reloading completed cached matches
   assert.equal(progress.some((event) => event.loaded === 2 && event.total === 2), true);
 });
 
+test('discovers current-act matches from history when rating pagination stops at 20', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.metadata.seasons = new Map();
+  service.metadata.seasons.set('current-act', { startTime: '2026-08-01T00:00:00Z' });
+  const requests = [];
+  service.safeRemote = async (endpoint) => {
+    requests.push(endpoint);
+    if (endpoint.includes('startIndex=0')) return { History: [
+      { MatchID: 'newest', GameStartTime: Date.parse('2026-08-20T00:00:00Z') },
+      { MatchID: 'older', GameStartTime: Date.parse('2026-08-05T00:00:00Z') }
+    ] };
+    return { History: [{ MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }] };
+  };
+
+  const result = await service.fetchCurrentActHistory('current-act');
+  assert.equal(result.complete, true);
+  assert.deepEqual(result.rows.map((row) => row.MatchID), ['newest', 'older']);
+  assert.equal(requests.length, 2);
+  assert.match(requests[1], /startIndex=2/);
+});
+
 test('player inspection falls back to observed shared matches when Riot history is private', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self', gameName: 'Self', tagLine: 'NA1' };

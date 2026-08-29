@@ -56,7 +56,7 @@ function setConnection(connection) {
   text('#statusSubtext', connected ? `${connection.region} • Live` : 'Riot Client unavailable');
   text('#miniStatus', connected ? connection.label : 'Disconnected');
   text('#miniRegion', connected ? `${connection.region} region` : 'Retry connection');
-  text('#connectButton', connected ? 'Reconnect' : 'Connect');
+  text('#connectButton', connected ? 'Reconnect Riot' : 'Connect Riot');
 }
 
 function renderStats(profile) {
@@ -706,6 +706,20 @@ async function refresh(showFeedback = true) {
   } finally { state.busy = false; }
 }
 
+async function reconnect(showFeedback = true) {
+  if (state.busy) return;
+  state.busy = true;
+  setConnection({ status: 'disconnected' });
+  try {
+    const snapshot = await window.companion.reconnect();
+    renderSnapshot(snapshot);
+    if (showFeedback) toast('Riot reconnected', 'Connection, authentication, and live Riot data were restarted.');
+  } catch (error) {
+    setConnection({ status: 'disconnected' });
+    toast('Reconnection failed', error.message || 'Could not reconnect to Riot Client.', 'error');
+  } finally { state.busy = false; }
+}
+
 async function saveSettingsPatch(patch, feedback = true) {
   state.settings = await window.companion.updateSettings(patch);
   syncSettingsForm();
@@ -720,7 +734,7 @@ function bindEvents() {
   $$('.nav-item').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.view)));
   $$('[data-jump]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.jump)));
   $('#sidebarRefresh').addEventListener('click', () => refresh(true));
-  $('#connectButton').addEventListener('click', () => refresh(true));
+  $('#connectButton').addEventListener('click', () => reconnect(true));
   $('#privacyButton').addEventListener('click', () => saveSettingsPatch({ privacyMode: !state.settings.privacyMode }, false));
   ['#dashboardMatches', '#fullMatchList'].forEach((selector) => $(selector).addEventListener('click', (event) => {
     const row = event.target.closest('[data-match-id]');

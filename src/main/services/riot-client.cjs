@@ -597,6 +597,13 @@ function newestCompetitiveMatchId(rows) {
   return (rows || []).map(updateMatchId).find(Boolean) || '';
 }
 
+function timestampMillis(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+  const parsed = Date.parse(value || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function isDodgePenaltyUpdate(row) {
   if (ratingDelta(row) >= 0) return false;
   const reason = [
@@ -719,7 +726,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayers = new Map();
     this.historicalPlayerIds = new Map();
     this.friendIds = new Set();
-    this.activeSeason = { id: '', expiresAt: 0 };
+    this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
   }
 
@@ -936,6 +943,7 @@ class RiotClientService extends EventEmitter {
   async fetchActiveSeasonId() {
     if (this.activeSeason.expiresAt > Date.now()) return this.activeSeason.id;
     let id = '';
+    let startTime = 0;
     try {
       const response = await this.remoteRequest(this.sharedUrl('/content-service/v3/content'));
       const seasons = response.data?.Seasons || response.data?.seasons || [];
@@ -950,8 +958,9 @@ class RiotClientService extends EventEmitter {
         return type.includes('act') && start <= now && now < end;
       }) || seasons.find((season) => Boolean(season.IsActive ?? season.isActive));
       id = active?.ID || active?.id || '';
+      startTime = timestampMillis(active?.StartTime || active?.startTime);
     } catch {}
-    this.activeSeason = { id, expiresAt: Date.now() + (id ? 60 * 60_000 : 2 * 60_000) };
+    this.activeSeason = { id, startTime, expiresAt: Date.now() + (id ? 60 * 60_000 : 2 * 60_000) };
     return id;
   }
 
@@ -1162,7 +1171,7 @@ class RiotClientService extends EventEmitter {
     this.actStatsDiskLoadedFor = accountKey;
     try {
       const cached = JSON.parse(fs.readFileSync(this.actStatsCacheFile, 'utf8'));
-      const valid = cached?.schema === 2
+      const valid = cached?.schema === 3
         && cached.puuid === this.identity.puuid
         && cached.seasonId === activeSeasonId
         && typeof cached.newestMatchId === 'string'
@@ -1191,7 +1200,7 @@ class RiotClientService extends EventEmitter {
       fs.mkdirSync(path.dirname(this.actStatsCacheFile), { recursive: true });
       const temporary = `${this.actStatsCacheFile}.tmp`;
       fs.writeFileSync(temporary, JSON.stringify({
-        schema: 2,
+        schema: 3,
         puuid: this.identity.puuid,
         seasonId: cache.seasonId,
         newestMatchId: cache.newestMatchId,
@@ -1200,6 +1209,44 @@ class RiotClientService extends EventEmitter {
       }), 'utf8');
       fs.renameSync(temporary, this.actStatsCacheFile);
     } catch {}
+  }
+
+  async fetchCurrentActHistory(activeSeasonId) {
+    const season = this.metadata?.seasons?.get(String(activeSeasonId || '').toLowerCase()) || {};
+    const actStart = timestampMillis(season.startTime) || Number(this.activeSeason.startTime) || 0;
+    if (!this.identity?.puuid || !actStart) return { rows: [], complete: false };
+
+    const pageSize = 100;
+    const maximumMatches = 1000;
+    const rows = [];
+    const seen = new Set();
+    let startIndex = 0;
+    let complete = false;
+    while (startIndex < maximumMatches) {
+      const endIndex = Math.min(startIndex + pageSize, maximumMatches);
+      const page = await this.safeRemote(`/match-history/v1/history/${this.identity.puuid}?startIndex=${startIndex}&endIndex=${endIndex}&queue=competitive`);
+      if (!page) break;
+      const pageRows = page?.History || page?.history || [];
+      if (!pageRows.length) { complete = true; break; }
+      let reachedActStart = false;
+      let added = 0;
+      for (const row of pageRows) {
+        const startedAt = timestampMillis(row.GameStartTime ?? row.gameStartTime ?? row.MatchStartTime ?? row.matchStartTime);
+        if (startedAt && startedAt < actStart) {
+          reachedActStart = true;
+          break;
+        }
+        const matchId = updateMatchId(row);
+        if (!matchId || seen.has(matchId)) continue;
+        seen.add(matchId);
+        rows.push({ ...row, SeasonID: activeSeasonId, MatchStartTime: startedAt || updateTimestamp(row) });
+        added += 1;
+      }
+      if (reachedActStart) { complete = true; break; }
+      if (!added) break;
+      startIndex += pageRows.length;
+    }
+    return { rows, complete };
   }
 
   async fetchActStats(initialUpdates, activeSeasonId) {
@@ -1252,6 +1299,21 @@ class RiotClientService extends EventEmitter {
       startIndex += nextRows.length;
     }
     if (!reachedCachedData && !page.reachedPreviousAct && startIndex >= maximumMatches) complete = false;
+
+    // Competitive-update pagination is occasionally limited to the first 20
+    // records by Riot. Match history provides an independent, timestamp-based
+    // index so older current-act matches are still discovered.
+    if (!reachedCachedData) {
+      const historyIndex = await this.fetchCurrentActHistory(activeSeasonId);
+      const updatesById = new Map(updates.map((row) => [updateMatchId(row), row]));
+      for (const row of historyIndex.rows) {
+        const matchId = updateMatchId(row);
+        if (!matchId || seen.has(matchId)) continue;
+        seen.add(matchId);
+        updates.push(updatesById.get(matchId) || row);
+      }
+      if (historyIndex.complete) complete = true;
+    }
 
     const hydrated = [];
     const batchSize = 36;
@@ -1637,7 +1699,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayers.clear();
     this.historicalPlayerIds.clear();
     this.friendIds.clear();
-    this.activeSeason = { id: '', expiresAt: 0 };
+    this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
   }
 }

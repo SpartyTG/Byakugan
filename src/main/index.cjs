@@ -45,9 +45,12 @@ async function syncOverlay() {
   return overlayServer.status();
 }
 
-function createService() {
+function createService({ preserveSession = false } = {}) {
+  const previousSession = preserveSession ? service?.session : null;
+  service?.removeAllListeners?.();
   service?.disconnect?.();
   service = new RiotClientService({ cacheDirectory: app.getPath('userData') });
+  if (previousSession) service.session = previousSession;
 
   if (service.on) {
     service.on('live-state', (state) => {
@@ -87,6 +90,13 @@ async function connectRiotClient() {
   return snapshot;
 }
 
+async function reconnectRiotClient() {
+  createService({ preserveSession: true });
+  snapshot = await service.connect();
+  overlayServer?.publish();
+  return snapshot;
+}
+
 function registerIpc() {
   ipcMain.handle('app:bootstrap', async () => {
     if (!snapshot) snapshot = await connectRiotClient();
@@ -100,6 +110,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('riot:connect', connectRiotClient);
+  ipcMain.handle('riot:reconnect', reconnectRiotClient);
   ipcMain.handle('riot:refresh', async () => {
     if (!service) return connectRiotClient();
     snapshot = await service.refresh();
