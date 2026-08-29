@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, visiblePlayerIds, normalizeLivePlayers,
+  isPlayerNameHidden, isKnownPartyMember, visiblePlayerIds, normalizeLivePlayers,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, mapWithConcurrency
 } = require('../src/main/services/riot-client.cjs');
@@ -70,30 +70,36 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   const players = [
     { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
     { Subject: 'visible', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
+    { Subject: 'party-hidden-in-game', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANPartyMember: true },
     { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
     { Subject: 'hidden', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true } },
     { Subject: 'unknown-privacy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21 }
   ];
 
-  assert.equal(isPlayerNameHidden(players[3], 'self'), true);
+  assert.equal(isKnownPartyMember(players[2]), true);
+  assert.equal(isPlayerNameHidden(players[2], 'self'), false);
   assert.equal(isPlayerNameHidden(players[4], 'self'), true);
-  assert.deepEqual(visiblePlayerIds(players, 'self'), ['self', 'visible']);
+  assert.equal(isPlayerNameHidden(players[5], 'self'), true);
+  assert.deepEqual(visiblePlayerIds(players, 'self'), ['self', 'visible', 'party-hidden-in-game']);
 
   const roster = normalizeLivePlayers(players, 'self', metadata(), {
-    self: 'MyName#NA1', visible: 'VisibleName#NA1', 'visible-enemy': 'EnemyMustNotAppear#NA1', hidden: 'MustNotAppear#NA1',
+    self: 'MyName#NA1', visible: 'VisibleName#NA1', 'party-hidden-in-game': 'MyPartyFriend#NA1', 'visible-enemy': 'EnemyMustNotAppear#NA1', hidden: 'MustNotAppear#NA1',
     'unknown-privacy': 'MustNotAppearEither#NA1'
   });
   assert.equal(roster[0].name, 'You');
   assert.equal(roster[1].name, 'VisibleName#NA1');
+  assert.equal(roster[2].name, 'MyPartyFriend#NA1');
+  assert.equal(roster[2].partyMember, true);
+  assert.equal(roster[2].inspectable, true);
   assert.equal(roster[0].inspectable, true);
   assert.equal(roster[1].inspectable, true);
-  assert.equal(roster[2].inspectable, false);
   assert.equal(roster[3].inspectable, false);
-  assert.equal(roster[2].name, '');
+  assert.equal(roster[4].inspectable, false);
   assert.equal(roster[3].name, '');
   assert.equal(roster[4].name, '');
-  assert.equal(roster[2].rank, 'Ascendant 1');
-  assert.equal(roster[2].agent, 'Jett');
+  assert.equal(roster[5].name, '');
+  assert.equal(roster[3].rank, 'Ascendant 1');
+  assert.equal(roster[3].agent, 'Jett');
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('EnemyMustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);

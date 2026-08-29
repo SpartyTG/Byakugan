@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.2
+## Included in version 0.8.0-beta.3
 
 - Original desktop dashboard and navigation
 - Live/mock mode switch
@@ -19,6 +19,7 @@ source, brand, or proprietary assets.
 - Server performance profiles with matches, W/L, win rate, K/D, headshot rate, average kills, and RR by Riot game pod
 - Click-to-inspect profiles for visible allies and party members, including available competitive stats and equipped skins
 - Strict inspection privacy: live opponents, Riot-incognito players, and hidden identities are never inspectable
+- Party-aware identity handling: current party members remain named and inspectable even when their general in-game incognito setting is enabled
 - Match Autopsy with personal round-by-round impact timelines and PNG recap export
 - Act Journey RR visualization with rank and match milestones
 - Evidence-based BYAKUGAN Insights with explicit sample sizes
@@ -68,7 +69,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.2-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.3-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -97,10 +98,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.2`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.3`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.3`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.4`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -108,8 +109,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.2
-git push origin v0.8.0-beta.2
+git tag v0.8.0-beta.3
+git push origin v0.8.0-beta.3
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

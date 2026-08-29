@@ -237,9 +237,17 @@ function playerIdentity(player) {
   return player?.PlayerIdentity || player?.playerIdentity || player?.Identity || player?.identity || {};
 }
 
+function isKnownPartyMember(player) {
+  return Boolean(player?.BYAKUGANPartyMember || player?.byakuganPartyMember || player?.PartyMember || player?.partyMember);
+}
+
 function isPlayerNameHidden(player, ownPuuid) {
   const subject = player?.Subject || player?.subject || player?.puuid;
   if (subject === ownPuuid) return false;
+  // A current party member is already explicitly known to the signed-in
+  // player. Preserve that relationship even when Riot's in-match incognito
+  // flag hides the same person from non-party participants.
+  if (isKnownPartyMember(player)) return false;
   const identity = playerIdentity(player);
   const privacyFlag = identity.Incognito ?? identity.incognito ?? identity.IsIncognito ?? identity.isIncognito;
   // Privacy-first: only resolve another player's name when Riot explicitly
@@ -285,6 +293,7 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       isSelf,
       side: isAlly ? 'ally' : 'enemy',
       inspectable: Boolean(isAlly && !hidden),
+      partyMember: Boolean(isAlly && isKnownPartyMember(player)),
       teamId,
       agent: agent.name,
       agentImage: agent.image,
@@ -660,6 +669,7 @@ class RiotClientService extends EventEmitter {
         TeamID: 'Party',
         CompetitiveTier: member.CompetitiveTier ?? member.competitiveTier ?? 0,
         PlayerIdentity: member.PlayerIdentity || member.playerIdentity || { Incognito: true },
+        BYAKUGANPartyMember: true,
         CharacterID: ''
       })).filter((member) => member.Subject)
     };
@@ -705,10 +715,15 @@ class RiotClientService extends EventEmitter {
     const mapId = match?.MapID || match?.mapId || session.map || session.MapID;
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
     let players = match?.Players || match?.players || match?.AllyTeam?.Players || match?.allyTeam?.players || [];
-    let partyId = '';
-    if (!players.length && loopState === 'MENUS') {
-      const party = await this.fetchPartyPlayers(puuid);
-      partyId = party.id;
+    const party = await this.fetchPartyPlayers(puuid);
+    const partyId = party.id;
+    const partyIds = new Set(party.players.map((player) => player.Subject));
+    if (players.length && partyIds.size) {
+      players = players.map((player) => ({
+        ...player,
+        BYAKUGANPartyMember: partyIds.has(player.Subject || player.subject || player.puuid)
+      }));
+    } else if (!players.length && loopState === 'MENUS') {
       players = party.players;
     }
     const [names, rankedPlayers] = await Promise.all([
@@ -723,7 +738,7 @@ class RiotClientService extends EventEmitter {
       queue,
       map: map.name,
       mapImage: map.image || '',
-      partySize: players.length || session.partySize || session.PartySize || 1,
+      partySize: party.players.length || session.partySize || session.PartySize || 1,
       matchId: matchId || partyId,
       elapsed: 'Live',
       players: roster,
@@ -1082,6 +1097,7 @@ module.exports = {
   buildAgentMastery,
   formatAgo,
   isPlayerNameHidden,
+  isKnownPartyMember,
   visiblePlayerIds,
   normalizeLivePlayers,
   normalizeServer,

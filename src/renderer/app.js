@@ -294,7 +294,7 @@ function livePlayerRow(player) {
   const rankImage = safeImage(player.rankImage);
   const identity = player.side === 'enemy'
     ? `<strong>${escapeHtml(player.agent)}</strong><small>ENEMY AGENT${player.locked ? ' • LOCKED' : ''}</small>`
-    : `<strong class="live-player-name">${player.hidden ? '◌ ' : ''}${escapeHtml(player.name)}</strong><small>${escapeHtml(player.agent)}${player.locked ? ' • LOCKED' : ''}</small>`;
+    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.hidden ? '◌ ' : ''}${escapeHtml(player.name)}</strong><small>${escapeHtml(player.agent)}${player.partyMember ? ' • PARTY' : ''}${player.locked ? ' • LOCKED' : ''}</small>`;
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
     <div class="live-player-identity">${identity}</div>
