@@ -175,7 +175,13 @@ function buildSynergy(matches, friends) {
       groups.set(id, current);
     }
   }
-  return [...groups.values()].map((group) => ({ ...group, ...summarize(group.matches), matches: undefined }))
+  return [...groups.values()].map((group) => ({
+    id: group.id,
+    name: group.name,
+    tag: group.tag,
+    ...summarize(group.matches),
+    matchIds: group.matches.map((match) => match.id).filter(Boolean)
+  }))
     .sort((a, b) => b.games - a.games || b.winRate - a.winRate).slice(0, 8);
 }
 

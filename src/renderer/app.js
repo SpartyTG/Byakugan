@@ -10,6 +10,7 @@ const state = {
   busy: false,
   openMatchId: '',
   openPlayerId: '',
+  selectedSynergyFriendId: '',
   overlayStatus: null,
   updateStatus: null
 };
@@ -217,6 +218,44 @@ function renderJourney() {
   $('#journeyEvents').innerHTML = events.map((event) => `<article class="journey-event ${event.result === 'VICTORY' ? 'win' : event.result === 'DEFEAT' ? 'loss' : ''}"><small>${escapeHtml(event.result)}</small><strong>${escapeHtml(event.map)} • ${escapeHtml(event.agent)}</strong><span>${escapeHtml(event.rank)} • ${escapeHtml(event.rr)} RR • ${event.rrChange > 0 ? '+' : ''}${escapeHtml(event.rrChange)} RR</span></article>`).join('') || '<div class="empty-state glass">No current-act competitive journey is available.</div>';
 }
 
+function findMatchById(matchId) {
+  return [...(state.snapshot?.matches || []), ...(state.snapshot?.synergyMatches || [])]
+    .find((match) => match.id === matchId);
+}
+
+function synergyMatchRow(match) {
+  const defeat = match.result === 'DEFEAT';
+  const rr = Number(match.rr) || 0;
+  const agentImage = safeImage(match.agentImage);
+  const rating = match.hasRating === true ? `${rr > 0 ? '+' : rr < 0 ? '−' : '±'}${Math.abs(rr)} RR` : 'RR pending';
+  return `<button type="button" class="synergy-match-row ${defeat ? 'defeat' : ''}" data-synergy-match-id="${escapeHtml(match.id)}">
+    <span class="synergy-match-result"><i></i><span><strong>${escapeHtml(match.result)}</strong><small>${escapeHtml(match.ago || 'Tracked match')}</small></span></span>
+    <span class="synergy-match-map">${agentImage ? `<img src="${agentImage}" alt="">` : ''}<span><strong>${escapeHtml(match.map)}</strong><small>${escapeHtml(match.agent)} • ${escapeHtml(match.playlist || 'Competitive')}</small></span></span>
+    <span class="synergy-match-score"><small>SCORE</small><strong>${escapeHtml(match.score)}</strong></span>
+    <span class="synergy-match-kda"><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></span>
+    <span class="synergy-match-rr ${rr < 0 ? 'negative' : ''}">${escapeHtml(rating)}</span>
+    <span class="synergy-match-open">View →</span>
+  </button>`;
+}
+
+function renderSynergy(analytics = state.snapshot?.analytics || {}) {
+  const synergy = analytics.synergy || [];
+  if (!synergy.length) {
+    state.selectedSynergyFriendId = '';
+    $('#synergyList').innerHTML = '<div class="empty-state">No visible Riot friends appeared in tracked competitive matches.</div>';
+    $('#synergyDetail').innerHTML = '<div class="synergy-detail-empty"><strong>No shared history yet</strong><p>Shared matches appear after full-act tracking identifies a visible Riot friend on your team.</p></div>';
+    return;
+  }
+  if (!synergy.some((friend) => friend.id === state.selectedSynergyFriendId)) {
+    state.selectedSynergyFriendId = synergy[0].id;
+  }
+  $('#synergyList').innerHTML = synergy.map((friend) => `<button type="button" class="synergy-friend-option ${friend.id === state.selectedSynergyFriendId ? 'active' : ''}" data-synergy-id="${escapeHtml(friend.id)}"><span class="synergy-friend-avatar">${escapeHtml(initials(friend.name))}</span><span><strong>${escapeHtml(friend.name)}${friend.tag ? ` <em>#${escapeHtml(friend.tag)}</em>` : ''}</strong><small>${escapeHtml(friend.games)} shared ${Number(friend.games) === 1 ? 'match' : 'matches'} • ${escapeHtml(friend.winRate)}% win rate</small></span><i>›</i></button>`).join('');
+  const friend = synergy.find((item) => item.id === state.selectedSynergyFriendId) || synergy[0];
+  const matchesById = new Map((state.snapshot?.synergyMatches || []).map((match) => [match.id, match]));
+  const matches = (friend.matchIds || []).map((id) => matchesById.get(id) || findMatchById(id)).filter(Boolean);
+  $('#synergyDetail').innerHTML = `<div class="synergy-detail-head"><div><p class="eyebrow">DUO HISTORY</p><h3>${escapeHtml(friend.name)}${friend.tag ? ` <em>#${escapeHtml(friend.tag)}</em>` : ''}</h3><p>${escapeHtml(friend.games)} tracked current-act competitive ${Number(friend.games) === 1 ? 'match' : 'matches'} together.</p></div><span class="feature-chip">${escapeHtml(friend.winRate)}% WIN RATE</span></div><div class="synergy-summary-grid"><span><small>W / L</small><strong>${escapeHtml(friend.wins)} / ${escapeHtml(friend.losses)}</strong></span><span><small>YOUR K/D</small><strong>${escapeHtml(friend.kd)}</strong></span><span><small>YOUR RR</small><strong>${friend.rr > 0 ? '+' : ''}${escapeHtml(friend.rr)}</strong></span><span><small>GAMES</small><strong>${escapeHtml(friend.games)}</strong></span></div><div class="synergy-match-heading"><span>SHARED MATCH HISTORY</span><small>Click a match for the full Match Autopsy</small></div><div class="synergy-match-list">${matches.map(synergyMatchRow).join('') || '<div class="empty-state">Shared match details are still loading.</div>'}</div>`;
+}
+
 function renderInsights() {
   const analytics = state.snapshot?.analytics || {};
   const insights = analytics.insights || [];
@@ -225,8 +264,7 @@ function renderInsights() {
   $('#challengeGrid').innerHTML = challenges.map((challenge) => `<div class="challenge-row"><div><h3>${escapeHtml(challenge.title)}</h3><p>${escapeHtml(challenge.description)}</p></div><div class="challenge-progress"><span><i style="width:${Math.max(0, Math.min(100, Number(challenge.current) || 0))}%"></i></span><strong>${escapeHtml(challenge.target)}</strong></div></div>`).join('') || '<div class="empty-state">Challenges appear after competitive matches load.</div>';
   const session = analytics.session || {};
   $('#sessionCard').innerHTML = `<div class="panel-heading"><div><p class="eyebrow">SESSION MODE</p><h2>Current run</h2></div><span class="feature-chip">LIVE</span></div><p class="muted">Tracking from when BYAKUGAN connected.</p><div class="session-score"><div><small>MATCHES</small><strong>${escapeHtml(session.games || 0)}</strong></div><div><small>WIN / LOSS</small><strong>${escapeHtml(session.wins || 0)} / ${escapeHtml(session.losses || 0)}</strong></div><div><small>SESSION K/D</small><strong>${escapeHtml(session.kd ?? '—')}</strong></div><div><small>RR MOVEMENT</small><strong>${session.rrChange > 0 ? '+' : ''}${escapeHtml(session.rrChange || 0)}</strong></div></div>`;
-  const synergy = analytics.synergy || [];
-  $('#synergyList').innerHTML = synergy.map((player) => `<div class="synergy-row"><div><strong>${escapeHtml(player.name)} <small>#${escapeHtml(player.tag)}</small></strong><small>${escapeHtml(player.games)} shared act matches</small></div><span class="synergy-stat"><small>WIN RATE</small>${escapeHtml(player.winRate)}%</span><span class="synergy-stat"><small>W / L</small>${escapeHtml(player.wins)} / ${escapeHtml(player.losses)}</span><span class="synergy-stat"><small>K/D</small>${escapeHtml(player.kd)}</span><span class="synergy-stat"><small>RR</small>${player.rr > 0 ? '+' : ''}${escapeHtml(player.rr)}</span></div>`).join('') || '<div class="empty-state">No known Riot friends appeared in the analyzed competitive matches.</div>';
+  renderSynergy(analytics);
 }
 
 function renderMaps() {
@@ -263,7 +301,7 @@ function historicalPlayerRow(player) {
 }
 
 function openMatchAutopsy(matchId) {
-  const match = (state.snapshot?.matches || []).find((item) => item.id === matchId);
+  const match = findMatchById(matchId);
   if (!match) return;
   state.openMatchId = matchId;
   const [verdictTitle, verdictBody] = matchVerdict(match);
@@ -288,7 +326,7 @@ function closeMatchAutopsy() {
 }
 
 function exportMatchRecap() {
-  const match = (state.snapshot?.matches || []).find((item) => item.id === state.openMatchId);
+  const match = findMatchById(state.openMatchId);
   if (!match) return;
   const canvas = document.createElement('canvas');
   canvas.width = 1200;
@@ -346,9 +384,9 @@ function exportMatchRecap() {
 function livePlayerRow(player) {
   const agentImage = safeImage(player.agentImage);
   const rankImage = safeImage(player.rankImage);
-  const identity = player.side === 'enemy'
+  const identity = player.side === 'enemy' && !player.friend
     ? `<strong>${escapeHtml(player.agent)}</strong><small>ENEMY AGENT${player.locked ? ' • LOCKED' : ''}</small>`
-    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.hidden ? '◌ ' : ''}${escapeHtml(player.name)}</strong><small>${escapeHtml(player.agent)}${player.partyMember ? ' • PARTY' : ''}${player.locked ? ' • LOCKED' : ''}</small>`;
+    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : player.hidden ? '◌ ' : ''}${escapeHtml(player.name)}</strong><small>${escapeHtml(player.agent)}${player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}</small>`;
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
     <div class="live-player-identity">${identity}</div>
@@ -678,6 +716,16 @@ function bindEvents() {
     const row = event.target.closest('[data-match-id]');
     if (row) openMatchAutopsy(row.dataset.matchId);
   }));
+  $('#synergyList').addEventListener('click', (event) => {
+    const option = event.target.closest('[data-synergy-id]');
+    if (!option) return;
+    state.selectedSynergyFriendId = option.dataset.synergyId;
+    renderSynergy();
+  });
+  $('#synergyDetail').addEventListener('click', (event) => {
+    const row = event.target.closest('[data-synergy-match-id]');
+    if (row) openMatchAutopsy(row.dataset.synergyMatchId);
+  });
   $('#closeMatch').addEventListener('click', closeMatchAutopsy);
   $('#shareMatch').addEventListener('click', exportMatchRecap);
   $('#matchModal').addEventListener('click', (event) => { if (event.target === $('#matchModal')) closeMatchAutopsy(); });

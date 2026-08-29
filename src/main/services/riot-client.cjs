@@ -38,7 +38,8 @@ const QUEUE_LABELS = new Map(Object.entries({
   competitive: 'Competitive', unrated: 'Unrated', swiftplay: 'Swiftplay',
   spikerush: 'Spike Rush', deathmatch: 'Deathmatch', hurm: 'Team Deathmatch',
   ggteam: 'Escalation', onefa: 'Replication', snowball: 'Snowball Fight',
-  premier: 'Premier', custom: 'Custom Game', newmap: 'New Map'
+  premier: 'Premier', custom: 'Custom Game', newmap: 'New Map',
+  range: 'The Range', practice: 'The Range', shootingrange: 'The Range'
 }));
 
 const PRODUCT_LABELS = new Map(Object.entries({
@@ -53,14 +54,55 @@ function normalizeQueueName(queueId) {
   return QUEUE_LABELS.get(key) || key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function decodePresencePrivate(value) {
-  if (value && typeof value === 'object') return value;
-  const raw = String(value || '').trim();
+function decodePresencePrivate(value, depth = 0) {
+  if (depth > 3 || value === null || value === undefined) return {};
+  if (value && typeof value === 'object' && !Buffer.isBuffer(value)) return value;
+  const raw = (Buffer.isBuffer(value) ? value.toString('utf8') : String(value)).trim();
   if (!raw) return {};
-  for (const candidate of [raw, Buffer.from(raw, 'base64').toString('utf8')]) {
-    try { return JSON.parse(candidate.replace(/\u0000+$/g, '')); } catch {}
+  const candidates = [raw];
+  try { candidates.push(Buffer.from(raw, 'base64').toString('utf8')); } catch {}
+  if (raw.includes('%')) {
+    try { candidates.push(decodeURIComponent(raw)); } catch {}
+  }
+  for (const candidate of candidates) {
+    const cleaned = candidate.replace(/^\uFEFF/, '').replace(/\u0000+$/g, '').trim();
+    if (!cleaned) continue;
+    try {
+      const parsed = JSON.parse(cleaned);
+      return typeof parsed === 'string' ? decodePresencePrivate(parsed, depth + 1) : parsed;
+    } catch {}
   }
   return {};
+}
+
+function presenceSources(presence) {
+  const privateValue = presence.private ?? presence.Private ?? presence.privateData ?? presence.private_data;
+  const decoded = decodePresencePrivate(privateValue);
+  const sources = [];
+  const seen = new Set();
+  const visit = (value, depth) => {
+    if (!value || typeof value !== 'object' || seen.has(value) || depth > 4) return;
+    seen.add(value);
+    sources.push(value);
+    for (const nested of Object.values(value)) {
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) visit(nested, depth + 1);
+    }
+  };
+  visit(decoded, 0);
+  visit(presence, 0);
+  return sources;
+}
+
+function pickPresenceValue(sources, names) {
+  const wanted = new Set(names.map((name) => name.toLowerCase().replace(/[^a-z0-9]/g, '')));
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (wanted.has(key.toLowerCase().replace(/[^a-z0-9]/g, '')) && value !== '' && value !== null && value !== undefined) {
+        return value;
+      }
+    }
+  }
+  return undefined;
 }
 
 function productLabel(value) {
@@ -69,8 +111,15 @@ function productLabel(value) {
 }
 
 function summarizePresence(presence) {
-  const details = decodePresencePrivate(presence.private);
-  const productKey = String(presence.product || presence.productName || (details.sessionLoopState ? 'valorant' : '')).toLowerCase();
+  const sources = presenceSources(presence);
+  const presenceLoopState = pickPresenceValue(sources, [
+    'sessionLoopState', 'partyOwnerSessionLoopState', 'loopState', 'sessionState', 'partyOwnerSessionState'
+  ]);
+  const resource = String(presence.resource || presence.Resource || '').toLowerCase();
+  const inferredValorant = presenceLoopState || resource.includes('valorant') || resource.includes('ares');
+  const productKey = String(
+    presence.product || presence.Product || presence.productName || presence.product_name || (inferredValorant ? 'valorant' : '')
+  ).toLowerCase();
   const game = productLabel(productKey);
   const rawState = String(presence.state || presence.availability || '').toLowerCase();
   // Riot emits stale mobile records for offline friends, especially for
@@ -97,15 +146,24 @@ function summarizePresence(presence) {
     };
   }
 
-  const presenceLoopState = details.sessionLoopState || details.partyOwnerSessionLoopState;
-  // A VALORANT product record without live session details can linger after
-  // the player closes the game. Do not let it outrank Riot Client presence.
-  if (!presenceLoopState) return { ...base, product: '', game: '', status: 'Offline', state: 'offline' };
-  const loopState = String(presenceLoopState).toUpperCase();
-  const queueId = details.queueId || details.queueID || details.partyOwnerQueueId || '';
+  const queueId = pickPresenceValue(sources, [
+    'queueId', 'queueID', 'queue', 'partyOwnerQueueId', 'partyOwnerQueueID'
+  ]) || '';
+  const provisioningFlow = String(pickPresenceValue(sources, [
+    'provisioningFlow', 'partyOwnerProvisioningFlow', 'gameMode', 'mode'
+  ]) || '').toLowerCase();
+  let loopState = String(presenceLoopState || '').toUpperCase().replace(/[\s-]+/g, '_');
+  const rawAlly = pickPresenceValue(sources, [
+    'partyOwnerMatchScoreAllyTeam', 'matchScoreAllyTeam', 'allyTeamScore', 'allyScore', 'teamScore'
+  ]);
+  const rawEnemy = pickPresenceValue(sources, [
+    'partyOwnerMatchScoreEnemyTeam', 'matchScoreEnemyTeam', 'enemyTeamScore', 'enemyScore', 'opponentScore'
+  ]);
+  const hasScoreFields = rawAlly !== undefined && rawEnemy !== undefined;
+  if (!loopState && (hasScoreFields || provisioningFlow.includes('shootingrange') || provisioningFlow.includes('matchmaking'))) {
+    loopState = 'INGAME';
+  }
   const playlist = normalizeQueueName(queueId);
-  const rawAlly = details.partyOwnerMatchScoreAllyTeam ?? details.matchScoreAllyTeam;
-  const rawEnemy = details.partyOwnerMatchScoreEnemyTeam ?? details.matchScoreEnemyTeam;
   const ally = rawAlly === '' || rawAlly === null || rawAlly === undefined ? NaN : Number(rawAlly);
   const enemy = rawEnemy === '' || rawEnemy === null || rawEnemy === undefined ? NaN : Number(rawEnemy);
   const score = Number.isFinite(ally) && Number.isFinite(enemy) ? `${ally}–${enemy}` : '';
@@ -115,7 +173,12 @@ function summarizePresence(presence) {
   if (loopState === 'PREGAME') {
     return { ...base, playlist, status: `VALORANT • Agent Select${queueId ? ` • ${playlist}` : ''}`, state: 'pregame' };
   }
-  return { ...base, status: away ? 'VALORANT • Away' : 'VALORANT • In menus', state: away ? 'away' : 'online' };
+  const knownMenus = ['MENUS', 'MENU', 'IDLE'].includes(loopState);
+  return {
+    ...base,
+    status: away ? 'VALORANT • Away' : knownMenus ? 'VALORANT • In menus' : 'VALORANT • Online',
+    state: away ? 'away' : 'online'
+  };
 }
 
 function formatAgo(timestamp) {
@@ -263,7 +326,9 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
   const rr = hasRating ? Number(ratingUpdate?.RankedRatingEarned ?? ratingUpdate?.rankedRatingEarned ?? 0) : null;
   const players = detail?.Players || detail?.players || [];
   const teammateIds = players
-    .filter((entry) => (entry.TeamID || entry.teamId) === teamId && (entry.Subject || entry.subject || entry.puuid) !== puuid)
+    .filter((entry) => (entry.TeamID || entry.teamId) === teamId
+      && (entry.Subject || entry.subject || entry.puuid) !== puuid
+      && !isPlayerNameHidden(entry, puuid))
     .map((entry) => entry.Subject || entry.subject || entry.puuid)
     .filter(Boolean);
   const report = analyzeRounds(detail, puuid, teamId);
@@ -322,13 +387,17 @@ function isKnownPartyMember(player) {
   return Boolean(player?.BYAKUGANPartyMember || player?.byakuganPartyMember || player?.PartyMember || player?.partyMember);
 }
 
+function isKnownFriend(player) {
+  return Boolean(player?.BYAKUGANFriend || player?.byakuganFriend || player?.KnownFriend || player?.knownFriend);
+}
+
 function isPlayerNameHidden(player, ownPuuid) {
   const subject = player?.Subject || player?.subject || player?.puuid;
   if (subject === ownPuuid) return false;
   // A current party member is already explicitly known to the signed-in
   // player. Preserve that relationship even when Riot's in-match incognito
   // flag hides the same person from non-party participants.
-  if (isKnownPartyMember(player)) return false;
+  if (isKnownPartyMember(player) || isKnownFriend(player)) return false;
   const identity = playerIdentity(player);
   const privacyFlag = identity.Incognito ?? identity.incognito ?? identity.IsIncognito ?? identity.isIncognito;
   // Privacy-first: only resolve another player's name when Riot explicitly
@@ -342,7 +411,7 @@ function visiblePlayerIds(players, ownPuuid) {
   return players
     .filter((player) => {
       const teamId = player.TeamID || player.teamId;
-      return (!ownTeam || teamId === ownTeam) && !isPlayerNameHidden(player, ownPuuid);
+      return (!ownTeam || teamId === ownTeam || isKnownFriend(player)) && !isPlayerNameHidden(player, ownPuuid);
     })
     .map((player) => player.Subject || player.subject || player.puuid)
     .filter(Boolean);
@@ -358,6 +427,8 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
     const isSelf = subject === ownPuuid;
     const teamId = player.TeamID || player.teamId || ownTeam;
     const isAlly = teamId === ownTeam;
+    const friend = isKnownFriend(player);
+    const canShowIdentity = isAlly || friend;
     const characterId = player.CharacterID || player.characterId;
     const tierNumber = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
     const agent = resolveById(metadata.agents, characterId, {
@@ -369,11 +440,12 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
 
     return {
       id: `player-${index}`,
-      name: isAlly ? (hidden ? 'Hidden Player' : isSelf ? 'You' : (names[subject] || 'Riot Player')) : '',
-      hidden: isAlly ? hidden : true,
+      name: canShowIdentity ? (hidden ? 'Hidden Player' : isSelf ? 'You' : (names[subject] || 'Riot Player')) : '',
+      hidden: canShowIdentity ? hidden : true,
       isSelf,
       side: isAlly ? 'ally' : 'enemy',
-      inspectable: Boolean(isAlly && !hidden),
+      inspectable: Boolean(canShowIdentity && !hidden),
+      friend,
       partyMember: Boolean(isAlly && isKnownPartyMember(player)),
       teamId,
       agent: agent.name,
@@ -586,6 +658,7 @@ class RiotClientService extends EventEmitter {
     this.inspectablePlayers = new Map();
     this.historicalPlayers = new Map();
     this.historicalPlayerIds = new Map();
+    this.friendIds = new Set();
     this.activeSeason = { id: '', expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
   }
@@ -709,7 +782,7 @@ class RiotClientService extends EventEmitter {
         rows.push(item);
         presenceById.set(id, rows);
       }
-      return friends.slice(0, 80).map((friend) => {
+      const normalizedFriends = friends.slice(0, 80).map((friend) => {
         const id = friend.puuid || friend.PUUID || friend.cid || friend.id;
         const options = (presenceById.get(id) || []).map(summarizePresence);
         const presence = options.find((item) => item.state === 'ingame' || item.state === 'pregame')
@@ -734,9 +807,25 @@ class RiotClientService extends EventEmitter {
           rank: ''
         };
       });
+      this.friendIds = new Set(friends.map((friend) => friend.puuid || friend.PUUID || friend.cid || friend.id).filter(Boolean));
+      return normalizedFriends;
     } catch {
+      this.friendIds.clear();
       return [];
     }
+  }
+
+  markKnownFriends(players) {
+    return (players || []).map((player) => {
+      const subject = player.Subject || player.subject || player.puuid;
+      return subject && this.friendIds.has(subject) ? { ...player, BYAKUGANFriend: true } : player;
+    });
+  }
+
+  markKnownFriendsInDetail(detail) {
+    if (!detail) return detail;
+    const players = detail.Players || detail.players || [];
+    return players.length ? { ...detail, Players: this.markKnownFriends(players) } : detail;
   }
 
   async lookupVisibleNames(players) {
@@ -857,7 +946,7 @@ class RiotClientService extends EventEmitter {
       // Never query an opponent's profile to fill a missing rank. If Riot
       // supplies a tier in the active roster we can display it; otherwise the
       // opponent stays Unrated/Unavailable.
-      CompetitiveTier: ownTeam && (player.TeamID || player.teamId) !== ownTeam
+      CompetitiveTier: ownTeam && (player.TeamID || player.teamId) !== ownTeam && !isKnownFriend(player)
         ? Number(player.CompetitiveTier ?? player.competitiveTier ?? 0)
         : await this.fetchRosterTier(player, activeSeasonId)
     }));
@@ -933,6 +1022,7 @@ class RiotClientService extends EventEmitter {
     } else if (!players.length && loopState === 'MENUS') {
       players = party.players;
     }
+    players = this.markKnownFriends(players);
     const [names, rankedPlayers] = await Promise.all([
       this.lookupVisibleNames(players),
       this.hydrateRosterTiers(players)
@@ -951,9 +1041,9 @@ class RiotClientService extends EventEmitter {
       elapsed: 'Live',
       players: roster,
       rosterStatus: loopState === 'MENUS' && roster.length
-        ? 'Visible party members can be inspected. Private identities remain unavailable.'
+        ? 'Party members and Riot friends can be inspected. Unknown private identities remain unavailable.'
         : loopState === 'PREGAME'
-        ? 'Opponent information remains hidden during agent select.'
+        ? 'Unknown opponents remain hidden during agent select. Riot friends stay visible.'
         : roster.length
           ? 'Roster supplied by the active Riot match session.'
           : 'Waiting for Riot to expose the active roster.'
@@ -970,7 +1060,7 @@ class RiotClientService extends EventEmitter {
     const detailRows = await mapWithConcurrency(sourceRows.slice(0, limit), 5, async (row) => {
       const matchId = row.MatchID || row.matchId;
       if (!matchId) return null;
-      const detail = await this.fetchMatchDetail(matchId);
+      const detail = this.markKnownFriendsInDetail(await this.fetchMatchDetail(matchId));
       return detail ? { detail, row, ratingUpdate: updatesByMatch.get(matchId) } : null;
     });
     const availableDetails = detailRows.filter(Boolean);
@@ -1039,7 +1129,7 @@ class RiotClientService extends EventEmitter {
     if (!page.reachedPreviousAct && startIndex >= maximumMatches) complete = false;
 
     const details = await mapWithConcurrency(updates, 4, async (row) => {
-      const detail = await this.fetchMatchDetail(updateMatchId(row));
+      const detail = this.markKnownFriendsInDetail(await this.fetchMatchDetail(updateMatchId(row)));
       return detail ? normalizeMatchDetail(detail, this.identity.puuid, this.metadata, {}, row) : null;
     });
     const matches = details.map((detail, index) => detail || normalizeRatingUpdate(updates[index], this.metadata));
@@ -1188,6 +1278,10 @@ class RiotClientService extends EventEmitter {
       session: { ...this.session, currentRank: rank.name, currentRR: rr }
     });
     const publicMatches = matches.map(({ teammateIds: _teammateIds, ...match }) => match);
+    const sharedMatchIds = new Set(analytics.synergy.flatMap((friend) => friend.matchIds || []));
+    const synergyMatches = actMatches
+      .filter((match) => sharedMatchIds.has(match.id))
+      .map(({ teammateIds: _teammateIds, ...match }) => match);
 
     return {
       connection: {
@@ -1216,6 +1310,7 @@ class RiotClientService extends EventEmitter {
       },
       live,
       matches: publicMatches,
+      synergyMatches,
       friends,
       loadout: normalizeLoadout(loadout, this.metadata),
       agents: analytics.agents,
@@ -1275,7 +1370,7 @@ class RiotClientService extends EventEmitter {
       },
       loadout: normalizeLoadout(loadout, this.metadata),
       loadoutAvailable: Boolean(loadout),
-      privacy: 'Visible ally or party member. Riot may still keep another player’s match details or equipped loadout private. Opponents are never inspected.'
+      privacy: 'Visible ally, party member, or Riot friend. Riot may still keep another player’s match details or equipped loadout private. Unknown opponents are never inspected.'
     };
   }
 
@@ -1335,6 +1430,7 @@ class RiotClientService extends EventEmitter {
     this.inspectablePlayers.clear();
     this.historicalPlayers.clear();
     this.historicalPlayerIds.clear();
+    this.friendIds.clear();
     this.activeSeason = { id: '', expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
   }
@@ -1416,6 +1512,7 @@ module.exports = {
   formatAgo,
   isPlayerNameHidden,
   isKnownPartyMember,
+  isKnownFriend,
   visiblePlayerIds,
   normalizeLivePlayers,
   normalizeHistoricalRoster,

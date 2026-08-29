@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.11
+## Included in version 0.8.0-beta.14
 
 - Original desktop dashboard and navigation
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -12,7 +12,8 @@ source, brand, or proprietary assets.
 - Local Riot authentication and entitlement-token retrieval
 - Player identity, region, friends, and decoded multi-title Riot presence retrieval
 - Live friend activity for VALORANT menus, agent select, queue type, in-game score, and other Riot titles
-- Riot Client-aligned social presence handling that ignores stale mobile League and detail-less VALORANT records
+- Riot Client-aligned social presence handling that ignores stale mobile League records while preserving active VALORANT records
+- Resilient VALORANT friend activity parsing across Riot's nested, alternate-casing, party-owner, and score field variants
 - Resolved competitive ranks, maps, agents, weapons, and equipped skin names
 - Competitive-rank emblems on the profile, act peak, live roster, and match history
 - All-time peak rank with the episode and act where that peak was recorded
@@ -24,6 +25,7 @@ source, brand, or proprietary assets.
 - Background tracked dodge RR-loss total with normal match losses and identified AFK penalties excluded
 - Strict inspection privacy: live opponents, Riot-incognito players, and hidden identities are never inspectable
 - Party-aware identity handling: current party members remain named and inspectable even when their general in-game incognito setting is enabled
+- Friend-aware identity handling: Riot friends remain named, ranked, and inspectable regardless of incognito setting or team assignment
 - Match Autopsy with personal round-by-round impact timelines and PNG recap export
 - Match Autopsy post-game rosters with agents, match ranks, K/D/A, ACS, privacy-preserved names, and visible-player profile links
 - Act Journey RR visualization with rank and match milestones
@@ -41,6 +43,7 @@ source, brand, or proprietary assets.
 - Manual **Check now** control plus automatic checks after startup and every four hours
 - Agent Lab and Map Lab with act-wide personal performance breakdowns
 - Friend-only squad synergy derived from shared matches
+- Selectable Friend Synergy profiles with tracked shared-match history and direct Match Autopsy access
 - Awakened Eye visual system with stronger hierarchy, artwork, motion, and depth
 - Enemy privacy boundary: live opponents expose only selected agent and competitive rank
 - Detailed match scores, K/D/A, K/D ratio, RR changes, and recent-game statistics
@@ -79,7 +82,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.11-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.14-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -108,10 +111,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.11`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.14`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.11`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.14`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -119,8 +122,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.11
-git push origin v0.8.0-beta.11
+git tag v0.8.0-beta.14
+git push origin v0.8.0-beta.14
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

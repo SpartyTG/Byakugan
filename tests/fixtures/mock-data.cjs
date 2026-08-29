@@ -84,6 +84,7 @@ const snapshot = Object.freeze({
     ]
   },
   matches: matches.map(({ teammateIds: _teammateIds, ...match }) => match),
+  synergyMatches: matches.map(({ teammateIds: _teammateIds, ...match }) => match),
   friends,
   loadout: [
     { slot: 'Vandal', skin: 'Araxys Vandal', edition: 'Exclusive', color: '#d84b5f' },

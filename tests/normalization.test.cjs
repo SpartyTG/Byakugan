@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, visiblePlayerIds, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mapWithConcurrency
@@ -40,6 +40,21 @@ test('normalizes a Riot match-detail response for the current player', () => {
   assert.equal(result.shots.headshots, 3);
   assert.equal(result.rankName, 'Ascendant 1');
   assert.equal(result.rankImage, 'https://media.valorant-api.com/tiers/21.png');
+});
+
+test('shared-match teammate IDs include visible friends but exclude incognito teammates', () => {
+  const detail = {
+    MatchInfo: { MatchID: 'privacy-match', QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [
+      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 15, Deaths: 10, Assists: 4 } },
+      { Subject: 'visible-friend', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerIdentity: { Incognito: false }, PlayerStats: {} },
+      { Subject: 'hidden-stranger', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerIdentity: { Incognito: true }, PlayerStats: {} },
+      { Subject: 'hidden-friend', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true, PlayerStats: {} }
+    ],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 9 }]
+  };
+  const match = normalizeMatchDetail(detail, 'self', metadata(), {}, { RankedRatingEarned: 17 });
+  assert.deepEqual(match.teammateIds, ['visible-friend', 'hidden-friend']);
 });
 
 test('normalizes non-competitive playlists without showing RR', () => {
@@ -80,13 +95,42 @@ test('keeps other Riot titles online instead of marking them offline', () => {
   assert.equal(normalizeQueueName('spikerush'), 'Spike Rush');
 });
 
-test('treats stale mobile League and detail-less VALORANT presence as offline', () => {
+test('treats stale mobile League as offline but preserves an active VALORANT product record', () => {
   const mobileLeague = summarizePresence({ puuid: 'friend-3', product: 'league_of_legends', state: 'mobile' });
-  const staleValorant = summarizePresence({ puuid: 'friend-4', product: 'valorant', state: 'online', private: '' });
+  const activeValorant = summarizePresence({ puuid: 'friend-4', product: 'valorant', state: 'chat', private: '' });
   assert.equal(mobileLeague.state, 'offline');
   assert.equal(mobileLeague.game, '');
-  assert.equal(staleValorant.state, 'offline');
-  assert.equal(staleValorant.game, '');
+  assert.equal(activeValorant.state, 'online');
+  assert.equal(activeValorant.game, 'VALORANT');
+  assert.equal(activeValorant.status, 'VALORANT • Online');
+});
+
+test('decodes nested and double-encoded VALORANT presence variants', () => {
+  const details = JSON.stringify({
+    data: {
+      party_owner_session_loop_state: 'CORE_GAME',
+      party_owner_queue_id: 'competitive',
+      party_owner_match_score_ally_team: 0,
+      party_owner_match_score_enemy_team: 0
+    }
+  });
+  const encodedTwice = Buffer.from(JSON.stringify(Buffer.from(details).toString('base64'))).toString('base64');
+  const presence = summarizePresence({ puuid: 'friend-variant', Product: 'VALORANT', state: 'dnd', private_data: encodedTwice });
+  assert.equal(presence.state, 'ingame');
+  assert.equal(presence.playlist, 'Competitive');
+  assert.equal(presence.score, '0–0');
+  assert.match(presence.status, /Competitive.*0–0/);
+});
+
+test('recognizes The Range from alternate presence fields', () => {
+  const presence = summarizePresence({
+    puuid: 'friend-range', resource: 'RC-VALORANT', state: 'chat',
+    Private: { partyOwnerProvisioningFlow: 'ShootingRange', partyOwnerQueueID: 'range', allyScore: 0, enemyScore: 0 }
+  });
+  assert.equal(presence.state, 'ingame');
+  assert.equal(presence.playlist, 'The Range');
+  assert.equal(presence.score, '0–0');
+  assert.match(presence.status, /The Range.*0–0/);
 });
 
 test('friend roster joins Riot presences and preserves live activity', async () => {
@@ -185,18 +229,21 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
     { Subject: 'party-hidden-in-game', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANPartyMember: true },
     { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
     { Subject: 'hidden', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true } },
-    { Subject: 'unknown-privacy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21 }
+    { Subject: 'unknown-privacy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21 },
+    { Subject: 'friend-hidden-in-game', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true }
   ];
 
   assert.equal(isKnownPartyMember(players[2]), true);
   assert.equal(isPlayerNameHidden(players[2], 'self'), false);
   assert.equal(isPlayerNameHidden(players[4], 'self'), true);
   assert.equal(isPlayerNameHidden(players[5], 'self'), true);
-  assert.deepEqual(visiblePlayerIds(players, 'self'), ['self', 'visible', 'party-hidden-in-game']);
+  assert.equal(isKnownFriend(players[6]), true);
+  assert.equal(isPlayerNameHidden(players[6], 'self'), false);
+  assert.deepEqual(visiblePlayerIds(players, 'self'), ['self', 'visible', 'party-hidden-in-game', 'friend-hidden-in-game']);
 
   const roster = normalizeLivePlayers(players, 'self', metadata(), {
     self: 'MyName#NA1', visible: 'VisibleName#NA1', 'party-hidden-in-game': 'MyPartyFriend#NA1', 'visible-enemy': 'EnemyMustNotAppear#NA1', hidden: 'MustNotAppear#NA1',
-    'unknown-privacy': 'MustNotAppearEither#NA1'
+    'unknown-privacy': 'MustNotAppearEither#NA1', 'friend-hidden-in-game': 'KnownFriend#NA1'
   });
   assert.equal(roster[0].name, 'You');
   assert.equal(roster[1].name, 'VisibleName#NA1');
@@ -210,6 +257,11 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(roster[3].name, '');
   assert.equal(roster[4].name, '');
   assert.equal(roster[5].name, '');
+  assert.equal(roster[6].name, 'KnownFriend#NA1');
+  assert.equal(roster[6].hidden, false);
+  assert.equal(roster[6].friend, true);
+  assert.equal(roster[6].side, 'enemy');
+  assert.equal(roster[6].inspectable, true);
   assert.equal(roster[3].rank, 'Ascendant 1');
   assert.equal(roster[3].agent, 'Jett');
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
@@ -222,16 +274,20 @@ test('historical roster keeps incognito identities hidden and includes match per
     Players: [
       { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
       { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
-      { Subject: 'hidden-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } }
+      { Subject: 'hidden-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } },
+      { Subject: 'hidden-friend', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true, PlayerStats: { Kills: 10, Deaths: 12, Assists: 4, Score: 2200 } }
     ],
     RoundResults: Array.from({ length: 20 }, () => ({}))
   };
-  const roster = normalizeHistoricalRoster(detail, 'self', metadata(), { 'visible-enemy': 'Visible#NA1', 'hidden-enemy': 'MustNotAppear#NA1' });
+  const roster = normalizeHistoricalRoster(detail, 'self', metadata(), { 'visible-enemy': 'Visible#NA1', 'hidden-enemy': 'MustNotAppear#NA1', 'hidden-friend': 'KnownFriend#NA1' });
   assert.equal(roster[0].acs, 200);
   assert.equal(roster[1].name, 'Visible#NA1');
   assert.equal(roster[1].inspectable, true);
   assert.equal(roster[2].name, '');
   assert.equal(roster[2].inspectable, false);
+  assert.equal(roster[3].name, 'KnownFriend#NA1');
+  assert.equal(roster[3].hidden, false);
+  assert.equal(roster[3].inspectable, true);
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
 });
 

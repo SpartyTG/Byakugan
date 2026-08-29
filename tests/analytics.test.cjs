@@ -31,6 +31,7 @@ test('builds journey, map, agent, insight, challenge, and session analytics', ()
   assert.ok(result.challenges.length > 0);
   assert.equal(result.session.games, 1);
   assert.equal(result.synergy[0].name, 'Duo');
+  assert.deepEqual(result.synergy[0].matchIds, ['new', 'old']);
 });
 
 test('keeps a rating-only update in the full act journey', () => {
@@ -43,4 +44,5 @@ test('synergy includes known friends only', () => {
   const result = buildSynergy([{ ...matches[0], teammateIds: ['friend-1', 'stranger'] }], [{ id: 'friend-1', name: 'Duo', tag: 'NA1' }]);
   assert.equal(result.length, 1);
   assert.equal(result[0].id, 'friend-1');
+  assert.deepEqual(result[0].matchIds, ['new']);
 });
