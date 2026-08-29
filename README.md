@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.6
+## Included in version 0.8.0-beta.7
 
 - Original desktop dashboard and navigation
 - Live/mock mode switch
@@ -28,7 +28,7 @@ source, brand, or proprietary assets.
 - One-click live overlay preview window with a transparent-grid backdrop and the exact data/layout OBS receives
 - Original Awakened Rank stream card with rank emblem, RR, session W/L and K/D, plus a win/loss-colored last-match RR strip
 - Live session W/L, K/D, RR movement, rank, and optional current agent/map on stream
-- Loopback-only overlay server with a private, regenerable URL and no roster data
+- Token-protected overlay server with local-only mode, optional same-network streaming-PC mode, and no roster data
 - Assisted Windows installer with desktop and Start menu shortcuts
 - In-app beta update banner, release confirmation, download progress, automatic installation, and relaunch
 - Mandatory launch-time update dialog: updates discovered at startup must be installed before using the app, while updates discovered during an existing session remain optional until restart
@@ -72,7 +72,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.6-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.7-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -101,7 +101,7 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.6`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.7`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
 example `0.8.0-beta.7`, before rebuilding and uploading all three artifacts.
@@ -112,8 +112,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.6
-git push origin v0.8.0-beta.6
+git tag v0.8.0-beta.7
+git push origin v0.8.0-beta.7
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -138,16 +138,19 @@ releases.
 1. Open **Settings → OBS stream overlay** in BYAKUGAN.
 2. Choose a layout and select **Preview overlay** to inspect the exact live output.
 3. Turn on **Enable Browser Source**.
-4. Select **Copy OBS URL**.
-5. In OBS, add **Sources → Browser**, paste the URL, and use one of these sizes:
+4. When OBS is on another computer, also turn on **Allow streaming PC**. Both PCs must be connected to the same private network. If Windows Firewall asks, allow BYAKUGAN on **Private networks** only.
+5. Select **Copy OBS URL**.
+6. In OBS, add **Sources → Browser**, paste the URL, and use one of these sizes:
    - Awakened rank card: `680 × 300`
    - Horizontal bar: `1600 × 180`
    - Compact card: `560 × 240`
    - Vertical panel: `380 × 660`
-6. Leave BYAKUGAN running while streaming.
+7. Leave BYAKUGAN running on the gaming PC while streaming.
 
-The overlay listens only on `127.0.0.1:43871`. Its private token is stored in
-BYAKUGAN settings and can be regenerated at any time. The stream payload is
+By default, the overlay listens only on `127.0.0.1:43871`. Streaming-PC mode
+instead binds to an automatically detected private IPv4 address such as
+`192.168.x.x`; it does not select a public IP address. Its private token is stored
+in BYAKUGAN settings and can be regenerated at any time. The stream payload is
 deliberately limited to the signed-in player's profile, current session totals,
 and optional personal agent/map state. It never includes Riot credentials,
 friends, teammate names, or enemy roster data.
@@ -160,7 +163,7 @@ Renderer UI
 Electron main process
     ├── SettingsStore
     ├── MockService
-    ├── loopback OBS overlay server
+    ├── local/private-network OBS overlay server
     └── RiotClientService
           ├── Riot lockfile / localhost API
           ├── access + entitlement tokens

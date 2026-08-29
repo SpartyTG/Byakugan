@@ -12,6 +12,7 @@ const DEFAULTS = Object.freeze({
   compactMatches: false,
   privacyMode: false,
   streamOverlayEnabled: false,
+  streamOverlayLanEnabled: false,
   streamOverlayLayout: 'horizontal',
   streamOverlayShowIdentity: false,
   streamOverlayShowAgentMap: true,

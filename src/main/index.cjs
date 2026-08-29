@@ -5,7 +5,7 @@ const { app, BrowserWindow, clipboard, ipcMain, shell } = require('electron');
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { MockService } = require('./services/mock-data.cjs');
-const { OverlayServer, createOverlayToken } = require('./services/overlay-server.cjs');
+const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
 
@@ -119,7 +119,13 @@ function registerIpc() {
     if (process.platform === 'win32' && before.launchAtStartup !== after.launchAtStartup) {
       app.setLoginItemSettings({ openAtLogin: Boolean(after.launchAtStartup), args: ['--hidden'] });
     }
-    await syncOverlay();
+    const overlay = await syncOverlay();
+    if (before.streamOverlayLanEnabled !== after.streamOverlayLanEnabled
+      && overlayPreviewWindow && !overlayPreviewWindow.isDestroyed() && overlay.url) {
+      const previewUrl = new URL(overlay.url);
+      previewUrl.searchParams.set('preview', '1');
+      await overlayPreviewWindow.loadURL(previewUrl.href);
+    }
     return after;
   });
 
@@ -228,6 +234,7 @@ app.whenReady().then(() => {
   overlayServer = new OverlayServer({
     getSnapshot: () => snapshot || {},
     getSettings: () => settings.get(),
+    getHost: () => settings.get().streamOverlayLanEnabled ? findLanHost() : LOOPBACK_HOST,
     assetDirectory: path.join(__dirname, '..', 'overlay')
   });
   createService(settings.get().dataMode);

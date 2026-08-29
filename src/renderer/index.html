@@ -300,7 +300,8 @@
               <span><small>K/D</small><strong>1.24</strong></span>
               <span><small>RR</small><strong>+38</strong></span>
             </div>
-            <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs privately on this PC at 127.0.0.1.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
+            <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs the live overlay server while BYAKUGAN is open.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
+            <label class="toggle-row"><span><strong>Allow streaming PC</strong><small>Creates a private-network URL for OBS on another PC connected to the same router.</small></span><input type="checkbox" id="streamOverlayLanEnabled"><i></i></label>
             <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="rank">Awakened rank card</option><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
             <label class="toggle-row"><span><strong>Show Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>
             <label class="toggle-row"><span><strong>Show current agent and map</strong><small>Displays only your own active-match selection.</small></span><input type="checkbox" id="streamOverlayShowAgentMap"><i></i></label>
@@ -311,7 +312,7 @@
               <button class="primary-button" id="copyOverlayUrl" disabled>Copy OBS URL</button>
               <button class="ghost-button" id="regenerateOverlayUrl" disabled>Regenerate</button>
             </div>
-            <p class="overlay-security-note">The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.</p>
+            <p class="overlay-security-note" id="overlaySecurityNote">The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.</p>
           </article>
 
           <article class="glass settings-card about-card">

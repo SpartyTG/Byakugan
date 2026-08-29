@@ -3,10 +3,36 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
+const os = require('node:os');
 const path = require('node:path');
 
 const LOOPBACK_HOST = '127.0.0.1';
 const DEFAULT_PORT = 43871;
+
+function isPrivateIpv4(address) {
+  const parts = String(address || '').split('.').map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  return parts[0] === 10
+    || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+    || (parts[0] === 192 && parts[1] === 168)
+    || (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127);
+}
+
+function findLanHost(interfaces = os.networkInterfaces()) {
+  const candidates = [];
+  for (const [name, addresses] of Object.entries(interfaces || {})) {
+    for (const entry of addresses || []) {
+      const family = typeof entry.family === 'string' ? entry.family : entry.family === 4 ? 'IPv4' : '';
+      if (family !== 'IPv4' || entry.internal || !isPrivateIpv4(entry.address)) continue;
+      const priority = entry.address.startsWith('192.168.') ? 0
+        : entry.address.startsWith('10.') ? 1
+          : entry.address.startsWith('172.') ? 2 : 3;
+      candidates.push({ address: entry.address, name, priority });
+    }
+  }
+  candidates.sort((left, right) => left.priority - right.priority || left.name.localeCompare(right.name));
+  return candidates[0]?.address || '';
+}
 
 function createOverlayToken() {
   return crypto.randomBytes(24).toString('hex');
@@ -87,11 +113,12 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
 }
 
 class OverlayServer {
-  constructor({ getSnapshot, getSettings, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
+  constructor({ getSnapshot, getSettings, getHost, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
     this.getSnapshot = getSnapshot || (() => ({}));
     this.getSettings = getSettings || (() => ({}));
     this.assetDirectory = assetDirectory || path.join(__dirname, '..', '..', 'overlay');
     this.host = host;
+    this.getHost = getHost || (() => host);
     this.port = port;
     this.server = null;
     this.clients = new Set();
@@ -108,13 +135,22 @@ class OverlayServer {
       enabled: Boolean(this.getSettings().streamOverlayEnabled),
       running,
       port,
+      host: running ? this.host : '',
+      access: running && this.host !== LOOPBACK_HOST ? 'network' : 'local',
       url: running && token ? `http://${this.host}:${port}/overlay/${encodeURIComponent(token)}` : '',
       error: this.lastError
     };
   }
 
   async start() {
-    if (this.server?.listening) return this.status();
+    const desiredHost = cleanText(this.getHost(), '', 64);
+    if (!desiredHost) {
+      this.lastError = 'No private local-network IPv4 address was found. Connect this PC to your home network and try again.';
+      throw new Error(this.lastError);
+    }
+    if (this.server?.listening && desiredHost === this.host) return this.status();
+    if (this.server?.listening) await this.stop();
+    this.host = desiredHost;
     this.lastError = '';
     this.server = http.createServer((request, response) => this.handle(request, response));
     this.server.on('clientError', (_error, socket) => socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'));
@@ -240,5 +276,7 @@ module.exports = {
   OverlayServer,
   buildOverlayPayload,
   createOverlayToken,
+  findLanHost,
+  isPrivateIpv4,
   tokenMatches
 };

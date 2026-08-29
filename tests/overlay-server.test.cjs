@@ -8,6 +8,8 @@ const {
   LOOPBACK_HOST,
   OverlayServer,
   buildOverlayPayload,
+  findLanHost,
+  isPrivateIpv4,
   tokenMatches
 } = require('../src/main/services/overlay-server.cjs');
 
@@ -70,7 +72,19 @@ test('overlay tokens use constant-shape validation', () => {
   assert.equal(tokenMatches('short', token), false);
 });
 
-test('overlay server is loopback-only and rejects invalid URLs', async () => {
+test('selects only private IPv4 addresses for streaming-PC mode', () => {
+  assert.equal(isPrivateIpv4('192.168.1.20'), true);
+  assert.equal(isPrivateIpv4('10.0.0.8'), true);
+  assert.equal(isPrivateIpv4('172.20.4.2'), true);
+  assert.equal(isPrivateIpv4('8.8.8.8'), false);
+  assert.equal(findLanHost({
+    VPN: [{ family: 'IPv4', address: '10.8.0.2', internal: false }],
+    Ethernet: [{ family: 'IPv4', address: '192.168.1.45', internal: false }],
+    Public: [{ family: 'IPv4', address: '203.0.113.5', internal: false }]
+  }), '192.168.1.45');
+});
+
+test('overlay server defaults to loopback and rejects invalid URLs', async () => {
   const currentSettings = settings();
   const server = new OverlayServer({
     getSnapshot: () => snapshot,
@@ -83,6 +97,8 @@ test('overlay server is loopback-only and rejects invalid URLs', async () => {
     const status = await server.start();
     assert.equal(server.host, LOOPBACK_HOST);
     assert.equal(status.running, true);
+    assert.equal(status.access, 'local');
+    assert.equal(status.host, LOOPBACK_HOST);
     assert.match(status.url, /^http:\/\/127\.0\.0\.1:\d+\/overlay\//);
 
     const page = await fetch(status.url);

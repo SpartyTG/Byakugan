@@ -462,6 +462,7 @@ function syncSettingsForm() {
   $('#compactMatches').checked = Boolean(settings.compactMatches);
   $('#refreshSeconds').value = String(settings.refreshSeconds || 30);
   $('#streamOverlayEnabled').checked = Boolean(settings.streamOverlayEnabled);
+  $('#streamOverlayLanEnabled').checked = Boolean(settings.streamOverlayLanEnabled);
   $('#streamOverlayLayout').value = settings.streamOverlayLayout || 'horizontal';
   $('#streamOverlayShowIdentity').checked = Boolean(settings.streamOverlayShowIdentity);
   $('#streamOverlayShowAgentMap').checked = settings.streamOverlayShowAgentMap !== false;
@@ -475,8 +476,11 @@ function renderOverlayStatus(status = {}) {
   statusElement.textContent = ready ? 'LIVE' : status.error ? 'ERROR' : 'OFF';
   statusElement.classList.toggle('live', ready);
   text('#overlayUrl', ready
-    ? `http://127.0.0.1:${status.port}/overlay/••••••••••••`
+    ? `http://${status.host || '127.0.0.1'}:${status.port}/overlay/••••••••••••`
     : status.error || 'Enable the overlay to create your URL.');
+  text('#overlaySecurityNote', status.access === 'network' || state.settings?.streamOverlayLanEnabled
+    ? 'Same-network mode is active. Keep BYAKUGAN open on the gaming PC, allow Private networks if Windows asks, and regenerate this URL if it is ever shown publicly.'
+    : 'The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.');
   $('#copyOverlayUrl').disabled = !ready;
   $('#regenerateOverlayUrl').disabled = !status.enabled;
 }
@@ -663,6 +667,10 @@ function bindEvents() {
   $('#compactMatches').addEventListener('change', (event) => saveSettingsPatch({ compactMatches: event.target.checked }, false));
   $('#refreshSeconds').addEventListener('change', (event) => saveSettingsPatch({ refreshSeconds: Number(event.target.value) }, false));
   $('#streamOverlayEnabled').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayEnabled: event.target.checked }, false));
+  $('#streamOverlayLanEnabled').addEventListener('change', async (event) => {
+    await saveSettingsPatch({ streamOverlayLanEnabled: event.target.checked }, false);
+    if (event.target.checked) toast('Streaming PC mode enabled', 'Use Copy OBS URL, then paste it into a Browser Source on the other PC. Allow Private networks if Windows asks.');
+  });
   $('#streamOverlayLayout').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayLayout: event.target.value }, false));
   $('#streamOverlayShowIdentity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowIdentity: event.target.checked }, false));
   $('#streamOverlayShowAgentMap').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowAgentMap: event.target.checked }, false));
@@ -747,7 +755,8 @@ async function initialize() {
       dataMode: 'mock', autoRefresh: false, refreshSeconds: 30,
       launchAtStartup: false, privacyMode: false, compactMatches: false,
       streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
-      streamOverlayShowIdentity: false, streamOverlayShowAgentMap: true, streamOverlayShowRR: true
+      streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
+      streamOverlayShowAgentMap: true, streamOverlayShowRR: true
     }));
     syncSettingsForm();
     applyPrivacy();
