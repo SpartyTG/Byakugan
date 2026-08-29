@@ -465,8 +465,12 @@ function syncSettingsForm() {
   $('#streamOverlayLanEnabled').checked = Boolean(settings.streamOverlayLanEnabled);
   $('#streamOverlayLayout').value = settings.streamOverlayLayout || 'horizontal';
   $('#streamOverlayShowIdentity').checked = Boolean(settings.streamOverlayShowIdentity);
-  $('#streamOverlayShowAgentMap').checked = settings.streamOverlayShowAgentMap !== false;
+  $('#streamOverlayShowWl').checked = settings.streamOverlayShowWl !== false;
+  $('#streamOverlayShowKd').checked = settings.streamOverlayShowKd !== false;
+  $('#streamOverlayShowAgent').checked = settings.streamOverlayShowAgent !== false;
+  $('#streamOverlayShowMap').checked = settings.streamOverlayShowMap !== false;
   $('#streamOverlayShowRR').checked = settings.streamOverlayShowRR !== false;
+  $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
 }
 
 function renderOverlayStatus(status = {}) {
@@ -673,8 +677,12 @@ function bindEvents() {
   });
   $('#streamOverlayLayout').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayLayout: event.target.value }, false));
   $('#streamOverlayShowIdentity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowIdentity: event.target.checked }, false));
-  $('#streamOverlayShowAgentMap').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowAgentMap: event.target.checked }, false));
+  $('#streamOverlayShowWl').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowWl: event.target.checked }, false));
+  $('#streamOverlayShowKd').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowKd: event.target.checked }, false));
+  $('#streamOverlayShowAgent').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowAgent: event.target.checked }, false));
+  $('#streamOverlayShowMap').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowMap: event.target.checked }, false));
   $('#streamOverlayShowRR').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRR: event.target.checked }, false));
+  $('#streamOverlayShowRrChange').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRrChange: event.target.checked }, false));
   $('#copyOverlayUrl').addEventListener('click', async () => {
     try {
       const status = await window.companion.copyOverlayUrl();
@@ -756,7 +764,9 @@ async function initialize() {
       launchAtStartup: false, privacyMode: false, compactMatches: false,
       streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
-      streamOverlayShowAgentMap: true, streamOverlayShowRR: true
+      streamOverlayShowWl: true, streamOverlayShowKd: true,
+      streamOverlayShowAgent: true, streamOverlayShowMap: true,
+      streamOverlayShowRR: true, streamOverlayShowRrChange: true
     }));
     syncSettingsForm();
     applyPrivacy();

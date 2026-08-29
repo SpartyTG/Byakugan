@@ -20,8 +20,12 @@ function settings(patch = {}) {
     streamOverlayEnabled: true,
     streamOverlayLayout: 'horizontal',
     streamOverlayShowIdentity: false,
-    streamOverlayShowAgentMap: true,
+    streamOverlayShowWl: true,
+    streamOverlayShowKd: true,
+    streamOverlayShowAgent: true,
+    streamOverlayShowMap: true,
     streamOverlayShowRR: true,
+    streamOverlayShowRrChange: true,
     streamOverlayToken: token,
     ...patch
   };
@@ -53,15 +57,29 @@ test('awakened rank layout is accepted for OBS', () => {
 test('overlay visibility settings are enforced in the server payload', () => {
   const payload = buildOverlayPayload(snapshot, settings({
     streamOverlayShowIdentity: true,
-    streamOverlayShowAgentMap: false,
+    streamOverlayShowWl: false,
+    streamOverlayShowKd: false,
+    streamOverlayShowAgent: false,
+    streamOverlayShowMap: false,
     streamOverlayShowRR: false,
+    streamOverlayShowRrChange: false,
     streamOverlayLayout: 'vertical'
   }));
 
   assert.equal(payload.player.name, 'Nova');
+  assert.equal(payload.player.rr, 0);
   assert.equal(payload.live.agent, '—');
   assert.equal(payload.live.map, '—');
+  assert.equal(payload.session.games, 0);
+  assert.equal(payload.session.kd, 0);
+  assert.equal(payload.session.rrChange, 0);
+  assert.equal(payload.session.lastMatchRR, 0);
+  assert.equal(payload.preferences.showWl, false);
+  assert.equal(payload.preferences.showKd, false);
+  assert.equal(payload.preferences.showAgent, false);
+  assert.equal(payload.preferences.showMap, false);
   assert.equal(payload.preferences.showRR, false);
+  assert.equal(payload.preferences.showRrChange, false);
   assert.equal(payload.layout, 'vertical');
 });
 

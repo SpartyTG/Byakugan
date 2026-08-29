@@ -72,8 +72,12 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const live = snapshot.live || {};
   const self = (live.players || []).find((player) => player?.isSelf) || {};
   const showIdentity = Boolean(settings.streamOverlayShowIdentity);
-  const showAgentMap = settings.streamOverlayShowAgentMap !== false;
+  const showWl = settings.streamOverlayShowWl !== false;
+  const showKd = settings.streamOverlayShowKd !== false;
+  const showAgent = settings.streamOverlayShowAgent !== false;
+  const showMap = settings.streamOverlayShowMap !== false;
   const showRR = settings.streamOverlayShowRR !== false;
+  const showRrChange = settings.streamOverlayShowRrChange !== false;
   const lastMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
     ? settings.streamOverlayLayout
@@ -83,31 +87,31 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     version: 1,
     updatedAt: new Date().toISOString(),
     layout,
-    preferences: { showIdentity, showAgentMap, showRR },
+    preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showRrChange },
     player: {
       name: showIdentity ? cleanText(profile.gameName, 'PLAYER', 32) : 'PLAYER',
       rank: cleanText(profile.rank, 'Unrated', 40),
       rankImage: mediaUrl(profile.rankImage),
-      rr: Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0
+      rr: showRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0
     },
     session: {
-      games: Number(session.games) || 0,
-      wins: Number(session.wins) || 0,
-      losses: Number(session.losses) || 0,
-      kd: Number.isFinite(Number(session.kd)) ? Number(session.kd) : 0,
-      rrChange: Number(session.rrChange) || 0,
-      lastMatchRR: Number(lastMatch.rr) || 0,
-      lastMatchResult: cleanText(lastMatch.result, 'NO MATCH', 16),
-      startingRank: cleanText(session.startingRank, 'Unrated', 40),
-      currentRank: cleanText(session.currentRank || profile.rank, 'Unrated', 40)
+      games: showWl ? Number(session.games) || 0 : 0,
+      wins: showWl ? Number(session.wins) || 0 : 0,
+      losses: showWl ? Number(session.losses) || 0 : 0,
+      kd: showKd && Number.isFinite(Number(session.kd)) ? Number(session.kd) : 0,
+      rrChange: showRrChange ? Number(session.rrChange) || 0 : 0,
+      lastMatchRR: showRrChange ? Number(lastMatch.rr) || 0 : 0,
+      lastMatchResult: showRrChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
+      startingRank: showRrChange ? cleanText(session.startingRank, 'Unrated', 40) : 'Unrated',
+      currentRank: showRrChange ? cleanText(session.currentRank || profile.rank, 'Unrated', 40) : 'Unrated'
     },
     live: {
       state: cleanText(live.state, 'MENUS', 24).toUpperCase(),
       label: liveLabel(live.state),
       queue: cleanText(live.queue, 'Not queued', 40),
-      map: showAgentMap ? cleanText(live.map, '—', 40) : '—',
-      agent: showAgentMap ? cleanText(self.agent, '—', 40) : '—',
-      agentImage: showAgentMap ? mediaUrl(self.agentImage) : ''
+      map: showMap ? cleanText(live.map, '—', 40) : '—',
+      agent: showAgent ? cleanText(self.agent, '—', 40) : '—',
+      agentImage: showAgent ? mediaUrl(self.agentImage) : ''
     }
   };
 }

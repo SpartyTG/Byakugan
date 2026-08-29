@@ -321,6 +321,15 @@ button { color: inherit; }
 .app-update-row .ghost-button { flex: 0 0 auto; padding-inline: 13px; }
 .stream-overlay-card { grid-column: 1 / -1; }
 .stream-overlay-card .settings-heading { align-items: center; }
+.overlay-options-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 9px; padding: 18px 0 11px; border-top: 1px solid var(--border); }
+.overlay-options-heading small, .overlay-options-heading strong { display: block; }
+.overlay-options-heading small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
+.overlay-options-heading strong { margin-top: 4px; font-size: 13px; }
+.overlay-options-heading > span { color: var(--muted-2); font-size: 8px; }
+.overlay-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 15px; }
+.overlay-field-grid .toggle-row { min-height: 67px; padding: 0 13px; border: 1px solid rgba(194,180,255,.11); border-radius: 12px; background: rgba(255,255,255,.012); }
+.overlay-field-grid .toggle-row > span { min-width: 0; padding-right: 12px; }
+.overlay-field-grid .toggle-row > i { flex: 0 0 auto; }
 .overlay-status { margin-left: auto; border: 1px solid rgba(238,92,120,.25); border-radius: 99px; padding: 6px 10px; background: rgba(238,92,120,.06); color: var(--red); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
 .overlay-status.live { border-color: rgba(35,212,184,.25); background: rgba(35,212,184,.07); color: var(--teal); }
 .overlay-preview { min-height: 82px; display: grid; grid-template-columns: 55px 1fr repeat(3, minmax(70px, .45fr)); align-items: center; gap: 14px; margin-bottom: 8px; padding: 13px 16px; overflow: hidden; border: 1px solid rgba(194,180,255,.18); border-radius: 15px; background: radial-gradient(circle at 8% 20%, rgba(123,103,246,.18), transparent 27%), linear-gradient(112deg, rgba(15,17,32,.96), rgba(8,17,24,.92)); }
@@ -444,6 +453,7 @@ button { color: inherit; }
   .nav-item i { margin: auto; }
   .hero-grid, .social-layout, .settings-grid, .roster-grid { grid-template-columns: 1fr; }
   .stream-overlay-card { grid-column: auto; }
+  .overlay-field-grid { grid-template-columns: 1fr; }
   .overlay-preview { grid-template-columns: 50px 1fr repeat(3, 58px); }
   .overlay-url-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .overlay-url-row > div { grid-column: 1 / -1; }

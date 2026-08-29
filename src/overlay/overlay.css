@@ -87,7 +87,7 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .player-copy strong { margin-top: 5px; font-size: 18px; letter-spacing: -.02em; }
 .player-copy em { margin-top: 5px; color: var(--violet-soft); font-size: 10px; font-style: normal; font-weight: 800; }
 
-.metrics-block { display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)); align-items: center; padding: 17px 8px; }
+.metrics-block { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); align-items: center; padding: 17px 8px; }
 .metric { min-width: 0; padding: 10px 22px; border-left: 1px solid rgba(194,180,255,.09); }
 .metric:first-child { border-left: 0; }
 .metric small, .metric strong, .metric em { display: block; }
@@ -114,10 +114,17 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .is-offline .connection-dot { background: var(--red); box-shadow: 0 0 10px var(--red); }
 .is-offline .offline-message { opacity: 1; }
 .hide-identity #playerName { display: none; }
-.hide-agent-map .live-block { display: none; }
-.hide-agent-map { grid-template-columns: 235px 250px minmax(410px, 1fr); }
-.hide-rr #playerRR, .hide-rr .rr-metric { display: none; }
-.hide-rr .metrics-block { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
+.hide-wl .wl-metric, .hide-wl #rankSessionRecord { display: none; }
+.hide-kd .kd-metric, .hide-kd #rankSessionKd { display: none; }
+.hide-wl .kd-metric, .hide-wl.hide-kd .rr-metric { border-left: 0; }
+.hide-agent .live-agent, .hide-agent #liveAgent { display: none; }
+.hide-map #liveMap { display: none; }
+.hide-live-details .live-block, .hide-metrics .metrics-block, .hide-rank-record .rank-session-record { display: none; }
+.hide-rr #playerRR { display: none; }
+.hide-rr-change .rr-metric, .hide-rr-change .last-match-strip { display: none; }
+.hide-live-details { grid-template-columns: 235px 250px minmax(410px, 1fr); }
+.hide-metrics { grid-template-columns: 235px 250px minmax(270px, 1fr); }
+.hide-metrics.hide-live-details { grid-template-columns: 235px minmax(250px, 1fr); }
 
 .layout-compact { grid-template-columns: 125px 1fr 1fr; grid-template-rows: 1fr 1fr; min-height: 210px; }
 .layout-compact .brand-block { grid-row: 1 / 3; flex-direction: column; justify-content: center; padding: 14px; text-align: center; }
@@ -132,9 +139,12 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .layout-compact .live-block { padding: 13px; }
 .layout-compact .live-agent { width: 43px; height: 50px; }
 .layout-compact .live-copy strong { font-size: 14px; }
-.layout-compact.hide-agent-map { grid-template-columns: 125px 1fr; }
-.layout-compact.hide-agent-map .player-block { grid-column: 2; }
-.layout-compact.hide-agent-map .metrics-block { grid-column: 2; }
+.layout-compact.hide-live-details { grid-template-columns: 125px 1fr; }
+.layout-compact.hide-live-details .player-block { grid-column: 2; }
+.layout-compact.hide-live-details .metrics-block { grid-column: 2; }
+.layout-compact.hide-metrics { grid-template-columns: 125px 1fr 1fr; grid-template-rows: 1fr; min-height: 165px; }
+.layout-compact.hide-metrics .brand-block { grid-row: 1; }
+.layout-compact.hide-metrics.hide-live-details { grid-template-columns: 125px 1fr; }
 
 .layout-vertical { grid-template-columns: 1fr; grid-template-rows: 105px 125px 1fr 125px; min-height: 560px; }
 .layout-vertical .brand-block { justify-content: center; }
@@ -145,12 +155,14 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .layout-vertical .metric:first-child { border-top: 0; }
 .layout-vertical .metric strong { grid-row: 1 / 3; grid-column: 2; margin: 0; }
 .layout-vertical .live-block { justify-content: center; }
-.layout-vertical.hide-agent-map { grid-template-columns: 1fr; grid-template-rows: 105px 125px 1fr; }
+.layout-vertical.hide-live-details { grid-template-columns: 1fr; grid-template-rows: 105px 125px 1fr; }
+.layout-vertical.hide-metrics { grid-template-columns: 1fr; grid-template-rows: 105px 125px 125px; min-height: 355px; }
+.layout-vertical.hide-metrics.hide-live-details { grid-template-rows: 105px 1fr; min-height: 255px; }
 
 /* Awakened Rank — a compact original stream card inspired by fighting-game HUDs. */
 .layout-rank {
   min-height: 210px;
-  grid-template-columns: 132px minmax(330px, 1fr);
+  grid-template-columns: 175px minmax(290px, 1fr);
   grid-template-rows: 1fr 58px;
   border-radius: 28px;
   border-color: rgba(194,180,255,.28);
@@ -181,7 +193,13 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .layout-rank .rank-session-record small { color: var(--muted); font-size: 7px; letter-spacing: .14em; }
 .layout-rank .rank-session-record strong { margin-top: 6px; font-size: 14px; }
 .layout-rank .rank-session-record em { margin-top: 4px; color: var(--muted); font-size: 8px; font-style: normal; }
-.layout-rank .metrics-block, .layout-rank .live-block { display: none; }
+.layout-rank .metrics-block { display: none; }
+.layout-rank .live-block { grid-column: 1; grid-row: 2; display: flex; gap: 8px; min-width: 0; margin: 0 8px 16px 16px; padding: 6px 8px; overflow: hidden; border: 1px solid rgba(56,230,193,.16); border-radius: 13px; background: rgba(10,22,27,.88); }
+.layout-rank .live-agent { width: 34px; height: 40px; border-radius: 9px; }
+.layout-rank .live-copy { min-width: 0; }
+.layout-rank .live-copy > span { display: none; }
+.layout-rank .live-copy strong { overflow: hidden; margin-top: 0; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.layout-rank .live-copy em { overflow: hidden; margin-top: 4px; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .layout-rank .last-match-strip { position: relative; z-index: 3; grid-column: 2; grid-row: 2; display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; min-width: 0; margin: 0 22px 16px 0; padding: 0 15px; overflow: hidden; border: 1px solid rgba(194,180,255,.14); border-radius: 13px; background: linear-gradient(90deg, rgba(139,108,255,.82), rgba(91,72,183,.8)); box-shadow: 0 9px 28px rgba(0,0,0,.3); }
 .layout-rank .last-match-strip::before { content: ""; position: absolute; inset: 0; opacity: .14; background: linear-gradient(110deg, transparent 35%, white 50%, transparent 65%); transform: translateX(-100%); animation: scan 6s ease-in-out infinite; }
 .layout-rank .last-match-strip small { position: relative; z-index: 1; font-size: 8px; font-weight: 900; letter-spacing: .13em; }
@@ -189,8 +207,11 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .layout-rank .last-match-strip em { position: relative; z-index: 1; justify-self: end; color: rgba(255,255,255,.72); font-size: 8px; font-style: normal; font-weight: 900; letter-spacing: .1em; }
 .layout-rank.last-positive .last-match-strip { background: linear-gradient(90deg, rgba(18,160,125,.94), rgba(45,218,181,.9)); }
 .layout-rank.last-negative .last-match-strip { background: linear-gradient(90deg, rgba(189,43,77,.96), rgba(255,80,111,.92)); }
-.layout-rank.hide-rr .player-copy em, .layout-rank.hide-rr .last-match-strip { display: none; }
-.layout-rank.hide-rr { grid-template-rows: 1fr; }
+.layout-rank.hide-rank-record .rank-session-record, .layout-rank.hide-rr-change .last-match-strip, .layout-rank.hide-live-details .live-block { display: none; }
+.layout-rank.hide-live-details .last-match-strip { grid-column: 1 / 3; margin-left: 22px; }
+.layout-rank.hide-rr-change:not(.hide-live-details) .live-block { grid-column: 1 / 3; margin-right: 22px; }
+.layout-rank.hide-rr .player-copy em { display: none; }
+.layout-rank.hide-rank-footer { grid-template-rows: 1fr; }
 .layout-rank.hide-identity .player-copy small { display: block; }
 
 @media (max-width: 900px) {

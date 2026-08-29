@@ -11,11 +11,20 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'companion-settings-'));
   try {
     const store = new SettingsStore(directory);
-    const updated = store.update({ dataMode: 'live', privacyMode: true, streamOverlayLanEnabled: true, streamOverlayLayout: 'rank', unknown: 'ignored' });
+    const updated = store.update({
+      dataMode: 'live', privacyMode: true, streamOverlayLanEnabled: true, streamOverlayLayout: 'rank',
+      streamOverlayShowWl: false, streamOverlayShowKd: false, streamOverlayShowAgent: false,
+      streamOverlayShowMap: false, streamOverlayShowRrChange: false, unknown: 'ignored'
+    });
     assert.equal(updated.dataMode, 'live');
     assert.equal(updated.privacyMode, true);
     assert.equal(updated.streamOverlayLanEnabled, true);
     assert.equal(updated.streamOverlayLayout, 'rank');
+    assert.equal(updated.streamOverlayShowWl, false);
+    assert.equal(updated.streamOverlayShowKd, false);
+    assert.equal(updated.streamOverlayShowAgent, false);
+    assert.equal(updated.streamOverlayShowMap, false);
+    assert.equal(updated.streamOverlayShowRrChange, false);
     assert.equal(updated.unknown, undefined);
 
     const restored = new SettingsStore(directory).get();
@@ -23,11 +32,26 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(restored.privacyMode, true);
     assert.equal(restored.streamOverlayLanEnabled, true);
     assert.equal(restored.streamOverlayLayout, 'rank');
+    assert.equal(restored.streamOverlayShowAgent, false);
+    assert.equal(restored.streamOverlayShowMap, false);
 
     const rejected = store.update({ dataMode: 'invalid', refreshSeconds: -1, privacyMode: 'yes' });
     assert.equal(rejected.dataMode, 'live');
     assert.equal(rejected.refreshSeconds, 30);
     assert.equal(rejected.privacyMode, true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('SettingsStore migrates the combined legacy agent and map preference', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'companion-settings-migration-'));
+  try {
+    fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({ streamOverlayShowAgentMap: false }));
+    const restored = new SettingsStore(directory).get();
+    assert.equal(restored.streamOverlayShowAgent, false);
+    assert.equal(restored.streamOverlayShowMap, false);
+    assert.equal(restored.streamOverlayShowAgentMap, undefined);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

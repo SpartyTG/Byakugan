@@ -303,9 +303,16 @@
             <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs the live overlay server while BYAKUGAN is open.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
             <label class="toggle-row"><span><strong>Allow streaming PC</strong><small>Creates a private-network URL for OBS on another PC connected to the same router.</small></span><input type="checkbox" id="streamOverlayLanEnabled"><i></i></label>
             <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="rank">Awakened rank card</option><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
-            <label class="toggle-row"><span><strong>Show Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>
-            <label class="toggle-row"><span><strong>Show current agent and map</strong><small>Displays only your own active-match selection.</small></span><input type="checkbox" id="streamOverlayShowAgentMap"><i></i></label>
-            <label class="toggle-row"><span><strong>Show RR</strong><small>Include current RR and session change.</small></span><input type="checkbox" id="streamOverlayShowRR"><i></i></label>
+            <div class="overlay-options-heading"><div><small>VISIBLE FIELDS</small><strong>Build your overlay</strong></div><span>Every field updates live</span></div>
+            <div class="overlay-field-grid">
+              <label class="toggle-row"><span><strong>Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>
+              <label class="toggle-row"><span><strong>W/L</strong><small>Session wins, losses, and games.</small></span><input type="checkbox" id="streamOverlayShowWl"><i></i></label>
+              <label class="toggle-row"><span><strong>K/D</strong><small>Current session kill/death ratio.</small></span><input type="checkbox" id="streamOverlayShowKd"><i></i></label>
+              <label class="toggle-row"><span><strong>Current RR</strong><small>Your current rank-rating total.</small></span><input type="checkbox" id="streamOverlayShowRR"><i></i></label>
+              <label class="toggle-row"><span><strong>RR gain/loss</strong><small>Session movement and last-match RR.</small></span><input type="checkbox" id="streamOverlayShowRrChange"><i></i></label>
+              <label class="toggle-row"><span><strong>Agent</strong><small>Your selected agent and portrait.</small></span><input type="checkbox" id="streamOverlayShowAgent"><i></i></label>
+              <label class="toggle-row"><span><strong>Map</strong><small>The map for your active match.</small></span><input type="checkbox" id="streamOverlayShowMap"><i></i></label>
+            </div>
             <div class="overlay-url-row">
               <div><small>PRIVATE OBS URL</small><strong id="overlayUrl">Enable the overlay to create your URL.</strong></div>
               <button class="ghost-button overlay-preview-button" id="previewOverlay">Preview overlay</button>

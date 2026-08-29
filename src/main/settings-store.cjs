@@ -15,8 +15,12 @@ const DEFAULTS = Object.freeze({
   streamOverlayLanEnabled: false,
   streamOverlayLayout: 'horizontal',
   streamOverlayShowIdentity: false,
-  streamOverlayShowAgentMap: true,
+  streamOverlayShowWl: true,
+  streamOverlayShowKd: true,
+  streamOverlayShowAgent: true,
+  streamOverlayShowMap: true,
   streamOverlayShowRR: true,
+  streamOverlayShowRrChange: true,
   streamOverlayToken: ''
 });
 
@@ -30,6 +34,11 @@ class SettingsStore {
   load() {
     try {
       const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      if (typeof parsed.streamOverlayShowAgentMap === 'boolean') {
+        if (parsed.streamOverlayShowAgent === undefined) parsed.streamOverlayShowAgent = parsed.streamOverlayShowAgentMap;
+        if (parsed.streamOverlayShowMap === undefined) parsed.streamOverlayShowMap = parsed.streamOverlayShowAgentMap;
+      }
+      delete parsed.streamOverlayShowAgentMap;
       this.data = { ...DEFAULTS, ...parsed };
     } catch {}
   }

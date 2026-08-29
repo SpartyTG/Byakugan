@@ -49,8 +49,16 @@ function render(data) {
 
   overlay.className = `overlay layout-${data.layout || 'horizontal'}`;
   overlay.classList.toggle('hide-identity', !preferences.showIdentity);
-  overlay.classList.toggle('hide-agent-map', !preferences.showAgentMap);
+  overlay.classList.toggle('hide-wl', preferences.showWl === false);
+  overlay.classList.toggle('hide-kd', preferences.showKd === false);
+  overlay.classList.toggle('hide-agent', preferences.showAgent === false);
+  overlay.classList.toggle('hide-map', preferences.showMap === false);
+  overlay.classList.toggle('hide-live-details', preferences.showAgent === false && preferences.showMap === false);
   overlay.classList.toggle('hide-rr', !preferences.showRR);
+  overlay.classList.toggle('hide-rr-change', preferences.showRrChange === false);
+  overlay.classList.toggle('hide-metrics', preferences.showWl === false && preferences.showKd === false && preferences.showRrChange === false);
+  overlay.classList.toggle('hide-rank-record', preferences.showWl === false && preferences.showKd === false);
+  overlay.classList.toggle('hide-rank-footer', preferences.showRrChange === false && preferences.showAgent === false && preferences.showMap === false);
   overlay.classList.toggle('rr-positive', Number(session.rrChange) > 0);
   overlay.classList.toggle('rr-negative', Number(session.rrChange) < 0);
   overlay.classList.toggle('last-positive', Number(session.lastMatchRR) > 0);
@@ -62,6 +70,7 @@ function render(data) {
   setImage('#rankImage', '#rankFallback', player.rankImage, initials(player.rank));
 
   text('#sessionRecord', `${Number(session.wins) || 0}–${Number(session.losses) || 0}`);
+  text('#rankSessionLabel', preferences.showWl === false ? 'SESSION K/D' : 'SESSION RECORD');
   text('#rankSessionRecord', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`);
   text('#rankSessionKd', `${Number(session.kd || 0).toFixed(2)} K/D`);
   text('#sessionGames', `${Number(session.games) || 0} ${(Number(session.games) || 0) === 1 ? 'GAME' : 'GAMES'}`);
