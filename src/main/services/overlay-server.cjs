@@ -48,7 +48,8 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const showIdentity = Boolean(settings.streamOverlayShowIdentity);
   const showAgentMap = settings.streamOverlayShowAgentMap !== false;
   const showRR = settings.streamOverlayShowRR !== false;
-  const layout = ['horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
+  const lastMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
+  const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
     ? settings.streamOverlayLayout
     : 'horizontal';
 
@@ -69,6 +70,8 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       losses: Number(session.losses) || 0,
       kd: Number.isFinite(Number(session.kd)) ? Number(session.kd) : 0,
       rrChange: Number(session.rrChange) || 0,
+      lastMatchRR: Number(lastMatch.rr) || 0,
+      lastMatchResult: cleanText(lastMatch.result, 'NO MATCH', 16),
       startingRank: cleanText(session.startingRank, 'Unrated', 40),
       currentRank: cleanText(session.currentRank || profile.rank, 'Unrated', 40)
     },

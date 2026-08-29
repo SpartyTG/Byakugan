@@ -470,7 +470,7 @@ function syncSettingsForm() {
 
 function renderOverlayStatus(status = {}) {
   state.overlayStatus = status;
-  const ready = Boolean(status.running && status.url);
+  const ready = Boolean(status.enabled && status.running && status.url);
   const statusElement = $('#overlayStatus');
   statusElement.textContent = ready ? 'LIVE' : status.error ? 'ERROR' : 'OFF';
   statusElement.classList.toggle('live', ready);
@@ -683,6 +683,14 @@ function bindEvents() {
       toast('Private URL regenerated', 'Copy the new URL and replace the old Browser Source address in OBS.');
     } catch (error) {
       toast('Could not regenerate URL', error.message, 'error');
+    }
+  });
+  $('#previewOverlay').addEventListener('click', async () => {
+    try {
+      await window.companion.previewOverlay();
+      toast('Overlay preview opened', 'This window uses the same live layout and data that OBS receives.');
+    } catch (error) {
+      toast('Preview unavailable', error.message, 'error');
     }
   });
   $('#reviewUpdateButton').addEventListener('click', openUpdateDialog);

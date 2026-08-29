@@ -334,13 +334,14 @@ button { color: inherit; }
 .overlay-preview > span small { color: var(--muted); font-size: 7px; font-weight: 800; letter-spacing: .1em; }
 .overlay-preview > span strong { margin-top: 5px; font-size: 18px; }
 .overlay-preview > span:last-child strong { color: var(--teal); }
-.overlay-url-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 9px; padding-top: 15px; border-top: 1px solid var(--border); }
+.overlay-url-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); align-items: center; gap: 9px; padding-top: 15px; border-top: 1px solid var(--border); }
 .overlay-url-row > div { min-width: 0; }
 .overlay-url-row small, .overlay-url-row strong { display: block; }
 .overlay-url-row small { color: var(--muted-2); font-size: 7px; font-weight: 850; letter-spacing: .12em; }
 .overlay-url-row strong { overflow: hidden; margin-top: 5px; color: var(--muted); font-family: Consolas, monospace; font-size: 8px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .overlay-url-row .primary-button { min-height: 38px; font-size: 9px; }
 .overlay-url-row .ghost-button { padding-inline: 13px; }
+.overlay-preview-button { border-color: rgba(194,180,255,.24); color: var(--violet-light); }
 .overlay-security-note { margin: 12px 0 0; color: var(--muted-2); font-size: 8px; line-height: 1.55; }
 .about-card { text-align: center; }
 .about-card .brand-mark { margin: 5px auto 15px; }
@@ -444,8 +445,9 @@ button { color: inherit; }
   .hero-grid, .social-layout, .settings-grid, .roster-grid { grid-template-columns: 1fr; }
   .stream-overlay-card { grid-column: auto; }
   .overlay-preview { grid-template-columns: 50px 1fr repeat(3, 58px); }
-  .overlay-url-row { grid-template-columns: 1fr auto; }
-  .overlay-url-row .ghost-button { grid-column: 2; }
+  .overlay-url-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .overlay-url-row > div { grid-column: 1 / -1; }
+  .overlay-url-row .ghost-button, .overlay-url-row .primary-button { width: 100%; }
   .update-banner { grid-template-columns: auto 1fr; }
   .update-banner .primary-button, .update-banner-progress { grid-column: 1 / -1; }
   .loadout-grid, .agent-grid { grid-template-columns: repeat(2, 1fr); }

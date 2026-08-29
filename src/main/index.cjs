@@ -15,6 +15,7 @@ let service = null;
 let snapshot = null;
 let overlayServer = null;
 let updateService = null;
+let overlayPreviewWindow = null;
 
 function createUpdateService() {
   let updater = null;
@@ -32,7 +33,7 @@ function createUpdateService() {
 
 async function syncOverlay() {
   if (!overlayServer) return { enabled: false, running: false, url: '', error: '' };
-  if (!settings.get().streamOverlayEnabled) {
+  if (!settings.get().streamOverlayEnabled && !overlayPreviewWindow) {
     await overlayServer.stop();
     return overlayServer.status();
   }
@@ -134,6 +135,35 @@ function registerIpc() {
     await overlayServer?.stop();
     return syncOverlay();
   });
+  ipcMain.handle('overlay:preview', async () => {
+    if (overlayPreviewWindow && !overlayPreviewWindow.isDestroyed()) {
+      overlayPreviewWindow.focus();
+      return { ok: true };
+    }
+    await overlayServer.start();
+    overlayServer.publish();
+    const layout = settings.get().streamOverlayLayout || 'horizontal';
+    const sizes = {
+      rank: [680, 300], horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
+    };
+    const [width, height] = sizes[layout] || sizes.horizontal;
+    overlayPreviewWindow = new BrowserWindow({
+      width, height, minWidth: 460, minHeight: 260, resizable: true,
+      show: false, autoHideMenuBar: true, backgroundColor: '#10121c',
+      title: 'BYAKUGAN — OBS Overlay Preview',
+      parent: mainWindow || undefined,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true }
+    });
+    const previewUrl = new URL(overlayServer.status().url);
+    previewUrl.searchParams.set('preview', '1');
+    await overlayPreviewWindow.loadURL(previewUrl.href);
+    overlayPreviewWindow.show();
+    overlayPreviewWindow.on('closed', () => {
+      overlayPreviewWindow = null;
+      if (!settings.get().streamOverlayEnabled) overlayServer.stop();
+    });
+    return { ok: true };
+  });
 
   ipcMain.handle('update:status', () => updateService?.status() || { state: 'unavailable', message: 'Update service unavailable.' });
   ipcMain.handle('update:check', () => updateService?.check(true));
@@ -185,7 +215,11 @@ function createWindow() {
     if (url !== mainWindow.webContents.getURL()) event.preventDefault();
   });
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => {
+    overlayPreviewWindow?.close();
+    overlayPreviewWindow = null;
+    mainWindow = null;
+  });
 }
 
 app.whenReady().then(() => {
@@ -212,5 +246,6 @@ app.on('window-all-closed', () => {
   service?.disconnect?.();
   overlayServer?.stop();
   updateService?.stop();
+  overlayPreviewWindow = null;
   if (process.platform !== 'darwin') app.quit();
 });

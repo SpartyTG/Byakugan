@@ -2,6 +2,7 @@
 
 const overlay = document.querySelector('#overlay');
 const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at(-1) || '');
+document.body.classList.toggle('preview-mode', new URLSearchParams(location.search).get('preview') === '1');
 let staleTimer = null;
 
 function markAlive() {
@@ -52,6 +53,8 @@ function render(data) {
   overlay.classList.toggle('hide-rr', !preferences.showRR);
   overlay.classList.toggle('rr-positive', Number(session.rrChange) > 0);
   overlay.classList.toggle('rr-negative', Number(session.rrChange) < 0);
+  overlay.classList.toggle('last-positive', Number(session.lastMatchRR) > 0);
+  overlay.classList.toggle('last-negative', Number(session.lastMatchRR) < 0);
 
   text('#playerName', player.name || 'PLAYER');
   text('#playerRank', player.rank || 'Unrated');
@@ -59,12 +62,16 @@ function render(data) {
   setImage('#rankImage', '#rankFallback', player.rankImage, initials(player.rank));
 
   text('#sessionRecord', `${Number(session.wins) || 0}–${Number(session.losses) || 0}`);
+  text('#rankSessionRecord', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`);
+  text('#rankSessionKd', `${Number(session.kd || 0).toFixed(2)} K/D`);
   text('#sessionGames', `${Number(session.games) || 0} ${(Number(session.games) || 0) === 1 ? 'GAME' : 'GAMES'}`);
   text('#sessionKd', Number(session.kd || 0).toFixed(2));
   text('#sessionRR', signed(session.rrChange));
   text('#rankMovement', session.startingRank && session.currentRank && session.startingRank !== session.currentRank
     ? `${session.startingRank} → ${session.currentRank}`
     : session.currentRank || 'NO CHANGE');
+  text('#lastMatchRR', signed(session.lastMatchRR, ' RR'));
+  text('#lastMatchResult', session.lastMatchResult || 'NO MATCH');
 
   text('#liveLabel', live.label || 'IN MENUS');
   text('#liveMap', live.map || '—');

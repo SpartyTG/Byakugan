@@ -13,6 +13,7 @@
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
 body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
+.preview-mode { padding: 28px; background-color: #10121c; background-image: linear-gradient(45deg, #171a27 25%, transparent 25%), linear-gradient(-45deg, #171a27 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #171a27 75%), linear-gradient(-45deg, transparent 75%, #171a27 75%); background-position: 0 0, 0 12px, 12px -12px, -12px 0; background-size: 24px 24px; }
 
 .overlay {
   position: relative;
@@ -54,6 +55,7 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 @keyframes scan { 50%, 100% { transform: translateX(100%); } }
 
 .brand-block, .player-block, .metrics-block, .live-block { position: relative; z-index: 1; }
+.rank-session-record, .last-match-strip { display: none; }
 .brand-block, .player-block, .live-block { display: flex; align-items: center; padding: 22px; }
 .player-block, .metrics-block, .live-block { border-left: 1px solid rgba(194,180,255,.11); }
 
@@ -144,6 +146,52 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .layout-vertical .metric strong { grid-row: 1 / 3; grid-column: 2; margin: 0; }
 .layout-vertical .live-block { justify-content: center; }
 .layout-vertical.hide-agent-map { grid-template-columns: 1fr; grid-template-rows: 105px 125px 1fr; }
+
+/* Awakened Rank — a compact original stream card inspired by fighting-game HUDs. */
+.layout-rank {
+  min-height: 210px;
+  grid-template-columns: 132px minmax(330px, 1fr);
+  grid-template-rows: 1fr 58px;
+  border-radius: 28px;
+  border-color: rgba(194,180,255,.28);
+  background:
+    radial-gradient(circle at 15% 42%, rgba(139,108,255,.28), transparent 29%),
+    radial-gradient(circle at 88% 115%, rgba(57,230,193,.12), transparent 34%),
+    linear-gradient(120deg, rgba(10,11,22,.98), rgba(18,17,36,.96) 62%, rgba(8,17,23,.96));
+  box-shadow: 0 20px 70px rgba(0,0,0,.52), inset 0 1px rgba(255,255,255,.04);
+}
+.layout-rank::after { height: 3px; background: linear-gradient(90deg, transparent 3%, var(--violet) 28%, var(--teal) 78%, transparent 98%); }
+.layout-rank .brand-block { position: absolute; z-index: 4; top: 15px; right: 20px; gap: 8px; padding: 0; }
+.layout-rank .eye-mark { width: 28px; height: 28px; border-radius: 9px; box-shadow: 0 0 18px rgba(139,108,255,.32); }
+.layout-rank .eye-mark span { width: 16px; height: 10px; border-width: 2px; }
+.layout-rank .eye-mark span::before { width: 4px; height: 4px; left: 4px; top: 1px; border-width: 1px; }
+.layout-rank .eye-mark span::after { display: none; }
+.layout-rank .brand-copy strong { font-size: 9px; letter-spacing: .18em; }
+.layout-rank .brand-copy small { margin-top: 3px; font-size: 6px; letter-spacing: .16em; }
+.layout-rank .connection-dot { display: none; }
+.layout-rank .player-block { grid-column: 1 / 3; grid-row: 1; gap: 20px; padding: 24px 28px 10px 22px; border-left: 0; }
+.layout-rank .rank-emblem { width: 105px; height: 105px; align-self: center; filter: drop-shadow(0 0 18px rgba(139,108,255,.25)); }
+.layout-rank .rank-emblem span { width: 72px; height: 72px; border-radius: 11px; box-shadow: 0 0 0 9px rgba(139,108,255,.06); }
+.layout-rank .player-copy { min-width: 0; align-self: center; display: grid; grid-template-columns: auto auto; column-gap: 13px; align-items: end; }
+.layout-rank .player-copy small { grid-column: 1 / 3; color: var(--violet-soft); font-size: 8px; letter-spacing: .18em; }
+.layout-rank .player-copy strong { margin-top: 7px; font-size: 28px; line-height: 1; letter-spacing: -.035em; text-shadow: 0 3px 18px rgba(0,0,0,.4); }
+.layout-rank .player-copy em { margin: 0 0 1px; padding: 5px 9px; border: 1px solid rgba(194,180,255,.18); border-radius: 8px; background: rgba(139,108,255,.1); color: white; font-size: 12px; }
+.layout-rank .rank-session-record { align-self: flex-end; display: block; margin: 0 12px 6px auto; padding-left: 20px; border-left: 1px solid rgba(194,180,255,.13); text-align: right; }
+.layout-rank .rank-session-record small, .layout-rank .rank-session-record strong, .layout-rank .rank-session-record em { display: block; }
+.layout-rank .rank-session-record small { color: var(--muted); font-size: 7px; letter-spacing: .14em; }
+.layout-rank .rank-session-record strong { margin-top: 6px; font-size: 14px; }
+.layout-rank .rank-session-record em { margin-top: 4px; color: var(--muted); font-size: 8px; font-style: normal; }
+.layout-rank .metrics-block, .layout-rank .live-block { display: none; }
+.layout-rank .last-match-strip { position: relative; z-index: 3; grid-column: 2; grid-row: 2; display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; min-width: 0; margin: 0 22px 16px 0; padding: 0 15px; overflow: hidden; border: 1px solid rgba(194,180,255,.14); border-radius: 13px; background: linear-gradient(90deg, rgba(139,108,255,.82), rgba(91,72,183,.8)); box-shadow: 0 9px 28px rgba(0,0,0,.3); }
+.layout-rank .last-match-strip::before { content: ""; position: absolute; inset: 0; opacity: .14; background: linear-gradient(110deg, transparent 35%, white 50%, transparent 65%); transform: translateX(-100%); animation: scan 6s ease-in-out infinite; }
+.layout-rank .last-match-strip small { position: relative; z-index: 1; font-size: 8px; font-weight: 900; letter-spacing: .13em; }
+.layout-rank .last-match-strip strong { position: relative; z-index: 1; font-size: 16px; }
+.layout-rank .last-match-strip em { position: relative; z-index: 1; justify-self: end; color: rgba(255,255,255,.72); font-size: 8px; font-style: normal; font-weight: 900; letter-spacing: .1em; }
+.layout-rank.last-positive .last-match-strip { background: linear-gradient(90deg, rgba(18,160,125,.94), rgba(45,218,181,.9)); }
+.layout-rank.last-negative .last-match-strip { background: linear-gradient(90deg, rgba(189,43,77,.96), rgba(255,80,111,.92)); }
+.layout-rank.hide-rr .player-copy em, .layout-rank.hide-rr .last-match-strip { display: none; }
+.layout-rank.hide-rr { grid-template-rows: 1fr; }
+.layout-rank.hide-identity .player-copy small { display: block; }
 
 @media (max-width: 900px) {
   .layout-horizontal { grid-template-columns: 190px 215px 1fr; }

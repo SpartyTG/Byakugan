@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.5
+## Included in version 0.8.0-beta.6
 
 - Original desktop dashboard and navigation
 - Live/mock mode switch
@@ -24,7 +24,9 @@ source, brand, or proprietary assets.
 - Act Journey RR visualization with rank and match milestones
 - Evidence-based BYAKUGAN Insights with explicit sample sizes
 - Personal challenges, current-session tracking, and post-match summaries
-- OBS Browser Source overlay with horizontal, compact, and vertical stream layouts
+- OBS Browser Source overlay with Awakened Rank, horizontal, compact, and vertical stream layouts
+- One-click live overlay preview window with a transparent-grid backdrop and the exact data/layout OBS receives
+- Original Awakened Rank stream card with rank emblem, RR, session W/L and K/D, plus a win/loss-colored last-match RR strip
 - Live session W/L, K/D, RR movement, rank, and optional current agent/map on stream
 - Loopback-only overlay server with a private, regenerable URL and no roster data
 - Assisted Windows installer with desktop and Start menu shortcuts
@@ -70,7 +72,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.5-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.6-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -99,10 +101,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.5`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.6`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.6`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.7`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -110,8 +112,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.5
-git push origin v0.8.0-beta.5
+git tag v0.8.0-beta.6
+git push origin v0.8.0-beta.6
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -134,13 +136,15 @@ releases.
 ## OBS Browser Source
 
 1. Open **Settings → OBS stream overlay** in BYAKUGAN.
-2. Turn on **Enable Browser Source** and choose a layout.
-3. Select **Copy OBS URL**.
-4. In OBS, add **Sources → Browser**, paste the URL, and use one of these sizes:
+2. Choose a layout and select **Preview overlay** to inspect the exact live output.
+3. Turn on **Enable Browser Source**.
+4. Select **Copy OBS URL**.
+5. In OBS, add **Sources → Browser**, paste the URL, and use one of these sizes:
+   - Awakened rank card: `680 × 300`
    - Horizontal bar: `1600 × 180`
    - Compact card: `560 × 240`
    - Vertical panel: `380 × 660`
-5. Leave BYAKUGAN running while streaming.
+6. Leave BYAKUGAN running while streaming.
 
 The overlay listens only on `127.0.0.1:43871`. Its private token is stored in
 BYAKUGAN settings and can be regenerated at any time. The stream payload is

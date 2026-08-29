@@ -42,7 +42,7 @@ class SettingsStore {
       if (typeof DEFAULTS[key] === 'boolean' && typeof value !== 'boolean') continue;
       if (typeof DEFAULTS[key] === 'number' && (!Number.isFinite(value) || value < 1)) continue;
       if (key === 'dataMode' && !['mock', 'live'].includes(value)) continue;
-      if (key === 'streamOverlayLayout' && !['horizontal', 'compact', 'vertical'].includes(value)) continue;
+      if (key === 'streamOverlayLayout' && !['rank', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
       if (key === 'streamOverlayToken' && !/^[a-f0-9]{48}$/.test(value)) continue;
       this.data[key] = value;
     }

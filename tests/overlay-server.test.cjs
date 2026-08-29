@@ -34,11 +34,18 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(payload.live.agent, 'Omen');
   assert.equal(payload.live.map, 'Ascent');
   assert.equal(payload.session.games, 3);
+  assert.equal(payload.session.lastMatchRR, 19);
+  assert.equal(payload.session.lastMatchResult, 'VICTORY');
   assert.equal(serialized.includes('PixelPilot'), false);
   assert.equal(serialized.includes('EchoBloom'), false);
   assert.equal(serialized.includes('Sova'), false);
   assert.equal(serialized.includes('demo-match-9f31'), false);
   assert.equal(serialized.includes('players'), false);
+});
+
+test('awakened rank layout is accepted for OBS', () => {
+  const payload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'rank' }));
+  assert.equal(payload.layout, 'rank');
 });
 
 test('overlay visibility settings are enforced in the server payload', () => {

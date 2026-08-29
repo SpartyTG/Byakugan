@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   getOverlayStatus: () => ipcRenderer.invoke('overlay:status'),
   copyOverlayUrl: () => ipcRenderer.invoke('overlay:copy-url'),
   regenerateOverlayToken: () => ipcRenderer.invoke('overlay:regenerate-token'),
+  previewOverlay: () => ipcRenderer.invoke('overlay:preview'),
   getUpdateStatus: () => ipcRenderer.invoke('update:status'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadAndInstallUpdate: () => ipcRenderer.invoke('update:download-install'),

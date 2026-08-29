@@ -301,12 +301,13 @@
               <span><small>RR</small><strong>+38</strong></span>
             </div>
             <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs privately on this PC at 127.0.0.1.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
-            <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
+            <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="rank">Awakened rank card</option><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
             <label class="toggle-row"><span><strong>Show Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>
             <label class="toggle-row"><span><strong>Show current agent and map</strong><small>Displays only your own active-match selection.</small></span><input type="checkbox" id="streamOverlayShowAgentMap"><i></i></label>
             <label class="toggle-row"><span><strong>Show RR</strong><small>Include current RR and session change.</small></span><input type="checkbox" id="streamOverlayShowRR"><i></i></label>
             <div class="overlay-url-row">
               <div><small>PRIVATE OBS URL</small><strong id="overlayUrl">Enable the overlay to create your URL.</strong></div>
+              <button class="ghost-button overlay-preview-button" id="previewOverlay">Preview overlay</button>
               <button class="primary-button" id="copyOverlayUrl" disabled>Copy OBS URL</button>
               <button class="ghost-button" id="regenerateOverlayUrl" disabled>Regenerate</button>
             </div>
