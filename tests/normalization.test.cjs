@@ -2,6 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
   isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, normalizeLivePlayers, normalizeHistoricalRoster,
@@ -318,6 +321,97 @@ test('selects only current-act competitive updates and stops at the previous act
 test('bounded concurrent mapping preserves roster order', async () => {
   const result = await mapWithConcurrency([3, 1, 2], 2, async (value) => value * 10);
   assert.deepEqual(result, [30, 10, 20]);
+});
+
+test('persists completed act stats and restores them for the same account and act', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-act-cache-'));
+  try {
+    const first = new RiotClientService({ cacheDirectory: directory });
+    first.identity = { puuid: 'self' };
+    first.persistActStats({
+      seasonId: 'current-act', newestMatchId: 'match-1',
+      data: { complete: true, stats: { games: 1, wins: 1, losses: 0, kd: 2 }, matches: [{ id: 'match-1', result: 'VICTORY' }] }
+    });
+
+    const restored = new RiotClientService({ cacheDirectory: directory });
+    restored.identity = { puuid: 'self' };
+    const cache = restored.loadPersistedActStats('current-act');
+    assert.equal(cache.newestMatchId, 'match-1');
+    assert.equal(cache.data.stats.games, 1);
+    assert.equal(cache.data.matches[0].result, 'VICTORY');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('hydrates only newly played matches when a complete act cache already exists', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.actStatsCache = {
+    seasonId: 'current-act', newestMatchId: 'old-match', expiresAt: Number.MAX_SAFE_INTEGER,
+    data: {
+      complete: true,
+      stats: { games: 1, wins: 1, losses: 0, kd: 1.5, headshot: 20 },
+      matches: [{
+        id: 'old-match', result: 'VICTORY', queueId: 'competitive', isCompetitive: true,
+        kills: 15, deaths: 10, shots: { headshots: 2, bodyshots: 7, legshots: 1 }, competitiveTier: 21
+      }]
+    }
+  };
+  const requested = [];
+  service.fetchMatchDetail = async (matchId) => {
+    requested.push(matchId);
+    return {
+      MatchInfo: { MatchID: matchId, QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+      Players: [{ Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerStats: { Kills: 20, Deaths: 10, Assists: 4 } }],
+      Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
+    };
+  };
+  const result = await service.fetchActStats({ Matches: [
+    { MatchID: 'new-match', SeasonID: 'current-act', RankedRatingEarned: 18 },
+    { MatchID: 'old-match', SeasonID: 'current-act', RankedRatingEarned: 15 }
+  ] }, 'current-act');
+  assert.deepEqual(requested, ['new-match']);
+  assert.equal(result.complete, true);
+  assert.equal(result.stats.games, 2);
+  assert.deepEqual(result.matches.map((match) => match.id), ['new-match', 'old-match']);
+});
+
+test('player inspection falls back to observed shared matches when Riot history is private', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self', gameName: 'Self', tagLine: 'NA1' };
+  service.metadata = metadata();
+  service.inspectablePlayers.set('player-friend', { puuid: 'friend', name: 'Friend#NA1', isSelf: false });
+  service.actStatsCache = {
+    seasonId: 'current-act', newestMatchId: 'shared-match', expiresAt: Number.MAX_SAFE_INTEGER,
+    data: {
+      complete: true, stats: {}, matches: [],
+      observedProfiles: {
+        friend: [{
+          id: 'shared-match', result: 'VICTORY', isCompetitive: true, kills: 18, deaths: 9,
+          competitiveTier: 21, shots: { headshots: 4, bodyshots: 10, legshots: 2 }, startedAt: 100
+        }]
+      }
+    }
+  };
+  service.fetchActiveSeasonId = async () => 'current-act';
+  service.safeRemote = async (endpoint) => endpoint === '/mmr/v1/players/friend'
+    ? { QueueSkills: { competitive: { SeasonalInfoBySeasonID: {
+      'current-act': { CompetitiveTier: 21, RankedRating: 44, NumberOfWins: 12 },
+      'old-act': { CompetitiveTier: 24 }
+    } } } }
+    : null;
+
+  const profile = await service.inspectPlayer('player-friend');
+  assert.equal(profile.rank, 'Ascendant 1');
+  assert.equal(profile.rr, 44);
+  assert.equal(profile.stats.source, 'observed');
+  assert.equal(profile.stats.games, 1);
+  assert.equal(profile.stats.wins, 1);
+  assert.equal(profile.stats.kd, 2);
+  assert.equal(profile.stats.actWins, 12);
+  assert.match(profile.stats.scope, /OBSERVED SHARED/);
 });
 
 test('resolves all-time peak rank with its episode and act', () => {

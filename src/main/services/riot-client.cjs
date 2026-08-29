@@ -2,6 +2,8 @@
 
 const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { readLockfile, getLockfilePath, canReachPort } = require('./riot-lockfile.cjs');
 const { deriveRegion } = require('./region.cjs');
 const { requestJson } = require('./http.cjs');
@@ -503,6 +505,40 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
   });
 }
 
+function normalizeObservedProfileMatches(detail, ownPuuid, metadata) {
+  const players = detail?.Players || detail?.players || [];
+  const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
+  const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
+  const observed = {};
+  for (const player of players) {
+    const subject = player.Subject || player.subject || player.puuid;
+    const teamId = player.TeamID || player.teamId;
+    if (!subject || subject === ownPuuid || (teamId !== ownTeam && !isKnownFriend(player)) || isPlayerNameHidden(player, ownPuuid)) continue;
+    const match = normalizeMatchDetail(detail, subject, metadata);
+    if (!match?.isCompetitive || !['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result)) continue;
+    const { teammateIds: _teammateIds, report: _report, ...safeMatch } = match;
+    (observed[subject] ||= []).push(safeMatch);
+  }
+  return observed;
+}
+
+function mergeObservedProfiles(...collections) {
+  const merged = {};
+  for (const collection of collections) {
+    for (const [subject, matches] of Object.entries(collection || {})) {
+      const rows = merged[subject] ||= [];
+      const seen = new Set(rows.map((match) => match.id));
+      for (const match of matches || []) {
+        if (!match?.id || seen.has(match.id)) continue;
+        seen.add(match.id);
+        rows.push(match);
+      }
+      rows.sort((a, b) => Number(b.startedAt || 0) - Number(a.startedAt || 0));
+    }
+  }
+  return merged;
+}
+
 function selectCompetitiveTier({ fallbackTier = 0, mmr = null, activeSeasonId = '', updates = null } = {}) {
   const direct = Number(fallbackTier) || 0;
   if (direct > 0) return direct;
@@ -538,6 +574,10 @@ function updateTimestamp(row) {
 function competitiveUpdateKey(row) {
   if (!row) return '';
   return [updateMatchId(row), updateSeasonId(row), updateTimestamp(row), ratingDelta(row)].join(':');
+}
+
+function newestCompetitiveMatchId(rows) {
+  return (rows || []).map(updateMatchId).find(Boolean) || '';
 }
 
 function isDodgePenaltyUpdate(row) {
@@ -651,6 +691,8 @@ class RiotClientService extends EventEmitter {
     this.nameCache = new Map();
     this.rankCache = new Map();
     this.matchDetailCache = new Map();
+    this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
+    this.actStatsDiskLoadedFor = '';
     this.actStatsCache = null;
     this.actStatsPromise = null;
     this.dodgeStatsCache = null;
@@ -1094,59 +1136,129 @@ class RiotClientService extends EventEmitter {
     return detail;
   }
 
+  loadPersistedActStats(activeSeasonId) {
+    const accountKey = `${this.identity?.puuid || ''}:${activeSeasonId || ''}`;
+    if (!this.actStatsCacheFile || !this.identity?.puuid || !activeSeasonId || this.actStatsDiskLoadedFor === accountKey) {
+      return this.actStatsCache;
+    }
+    this.actStatsDiskLoadedFor = accountKey;
+    try {
+      const cached = JSON.parse(fs.readFileSync(this.actStatsCacheFile, 'utf8'));
+      const valid = cached?.schema === 2
+        && cached.puuid === this.identity.puuid
+        && cached.seasonId === activeSeasonId
+        && typeof cached.newestMatchId === 'string'
+        && cached.data?.complete === true
+        && cached.data?.stats && Array.isArray(cached.data?.matches)
+        && cached.data.matches.length <= 1000;
+      if (valid) {
+        this.actStatsCache = {
+          seasonId: cached.seasonId,
+          newestMatchId: cached.newestMatchId,
+          data: cached.data,
+          expiresAt: Number.MAX_SAFE_INTEGER
+        };
+      }
+    } catch {}
+    return this.actStatsCache;
+  }
+
+  persistActStats(cache) {
+    if (!this.actStatsCacheFile || !this.identity?.puuid || !cache?.data?.complete) return;
+    try {
+      fs.mkdirSync(path.dirname(this.actStatsCacheFile), { recursive: true });
+      const temporary = `${this.actStatsCacheFile}.tmp`;
+      fs.writeFileSync(temporary, JSON.stringify({
+        schema: 2,
+        puuid: this.identity.puuid,
+        seasonId: cache.seasonId,
+        newestMatchId: cache.newestMatchId,
+        savedAt: Date.now(),
+        data: cache.data
+      }), 'utf8');
+      fs.renameSync(temporary, this.actStatsCacheFile);
+    } catch {}
+  }
+
   async fetchActStats(initialUpdates, activeSeasonId) {
     if (!initialUpdates || !activeSeasonId) return null;
     const initialRows = initialUpdates?.Matches || initialUpdates?.matches || [];
-    const newestMatchId = updateMatchId(initialRows[0]);
-    if (this.actStatsCache?.seasonId === activeSeasonId && this.actStatsCache.newestMatchId === newestMatchId && this.actStatsCache.expiresAt > Date.now()) {
+    const newestMatchId = newestCompetitiveMatchId(initialRows);
+    this.loadPersistedActStats(activeSeasonId);
+    if (this.actStatsCache?.seasonId === activeSeasonId
+      && (!newestMatchId || this.actStatsCache.newestMatchId === newestMatchId)
+      && this.actStatsCache.expiresAt > Date.now()) {
       return this.actStatsCache.data;
     }
 
-    const pageSize = 20;
+    const initialPageSize = 20;
+    const pageSize = 50;
     const maximumMatches = 1000;
     const updates = [];
     const seen = new Set();
+    const previousCache = this.actStatsCache?.seasonId === activeSeasonId && this.actStatsCache?.data?.complete
+      ? this.actStatsCache
+      : null;
+    const cachedMatchIds = new Set((previousCache?.data?.matches || []).map((match) => match.id).filter(Boolean));
+    let reachedCachedData = false;
     let complete = true;
     let page = selectCurrentActUpdates(initialRows, activeSeasonId);
-    for (const row of page.rows) {
-      const matchId = updateMatchId(row);
-      if (!seen.has(matchId)) { seen.add(matchId); updates.push(row); }
-    }
+    const collectRows = (rows) => {
+      for (const row of rows) {
+        const matchId = updateMatchId(row);
+        if (cachedMatchIds.has(matchId)) {
+          reachedCachedData = true;
+          break;
+        }
+        if (matchId && !seen.has(matchId)) { seen.add(matchId); updates.push(row); }
+      }
+    };
+    collectRows(page.rows);
 
-    let startIndex = pageSize;
-    while (!page.reachedPreviousAct && initialRows.length >= pageSize && startIndex < maximumMatches) {
-      const next = await this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=${startIndex}&endIndex=${startIndex + pageSize}&queue=competitive`);
+    let startIndex = initialRows.length;
+    while (!reachedCachedData && !page.reachedPreviousAct && initialRows.length >= initialPageSize && startIndex < maximumMatches) {
+      const endIndex = Math.min(startIndex + pageSize, maximumMatches);
+      const next = await this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=${startIndex}&endIndex=${endIndex}&queue=competitive`);
       if (!next) { complete = false; break; }
       const nextRows = next?.Matches || next?.matches || [];
       page = selectCurrentActUpdates(nextRows, activeSeasonId);
-      for (const row of page.rows) {
-        const matchId = updateMatchId(row);
-        if (!seen.has(matchId)) { seen.add(matchId); updates.push(row); }
-      }
-      if (page.reachedPreviousAct || nextRows.length < pageSize) break;
-      startIndex += pageSize;
+      collectRows(page.rows);
+      if (reachedCachedData || page.reachedPreviousAct || nextRows.length < pageSize) break;
+      startIndex += nextRows.length;
     }
-    if (!page.reachedPreviousAct && startIndex >= maximumMatches) complete = false;
+    if (!reachedCachedData && !page.reachedPreviousAct && startIndex >= maximumMatches) complete = false;
 
-    const details = await mapWithConcurrency(updates, 4, async (row) => {
+    const hydrated = await mapWithConcurrency(updates, 8, async (row) => {
       const detail = this.markKnownFriendsInDetail(await this.fetchMatchDetail(updateMatchId(row)));
-      return detail ? normalizeMatchDetail(detail, this.identity.puuid, this.metadata, {}, row) : null;
+      return detail ? {
+        match: normalizeMatchDetail(detail, this.identity.puuid, this.metadata, {}, row),
+        observedProfiles: normalizeObservedProfileMatches(detail, this.identity.puuid, this.metadata)
+      } : { match: null, observedProfiles: {} };
     });
-    const matches = details.map((detail, index) => detail || normalizeRatingUpdate(updates[index], this.metadata));
+    const details = hydrated.map((row) => row.match);
+    const hydratedMatches = details.map((detail, index) => detail || normalizeRatingUpdate(updates[index], this.metadata));
+    const matches = reachedCachedData
+      ? [...hydratedMatches, ...previousCache.data.matches.filter((match) => !seen.has(match.id))]
+      : hydratedMatches;
+    const freshObservedProfiles = mergeObservedProfiles(...hydrated.map((row) => row.observedProfiles));
+    const observedProfiles = reachedCachedData
+      ? mergeObservedProfiles(freshObservedProfiles, previousCache.data.observedProfiles)
+      : freshObservedProfiles;
     const completedMatches = matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result));
-    if (completedMatches.length !== updates.length) complete = false;
+    if (details.some((detail) => !detail) || (reachedCachedData && !previousCache.data.complete)) complete = false;
     const stats = {
       ...calculateStats(completedMatches),
       games: completedMatches.length,
       scope: complete ? 'THIS ACT' : 'LOADING FULL ACT STATS'
     };
-    const data = { stats, matches, complete };
+    const data = { stats, matches, observedProfiles, complete };
     this.actStatsCache = {
       seasonId: activeSeasonId,
       newestMatchId,
       data,
-      expiresAt: Date.now() + (complete ? 60 * 60_000 : 2 * 60_000)
+      expiresAt: complete ? Number.MAX_SAFE_INTEGER : Date.now() + 2 * 60_000
     };
+    this.persistActStats(this.actStatsCache);
     return data;
   }
 
@@ -1239,9 +1351,10 @@ class RiotClientService extends EventEmitter {
     ]);
 
     const initialRows = ratingUpdates?.Matches || ratingUpdates?.matches || [];
-    const newestMatchId = updateMatchId(initialRows[0]);
+    const newestMatchId = newestCompetitiveMatchId(initialRows);
+    this.loadPersistedActStats(activeSeasonId);
     const actData = this.actStatsCache?.seasonId === activeSeasonId
-      && this.actStatsCache?.newestMatchId === newestMatchId
+      && (!newestMatchId || this.actStatsCache?.newestMatchId === newestMatchId)
       && this.actStatsCache?.expiresAt > Date.now()
       ? this.actStatsCache.data
       : null;
@@ -1256,7 +1369,10 @@ class RiotClientService extends EventEmitter {
       ...initialDodgeData,
       scope: 'LOADING HISTORY'
     };
-    if (!cachedDodgeData && hydrateDodge) this.startDodgeStatsHydration(ratingUpdates);
+    if (!cachedDodgeData && hydrateDodge) {
+      if (this.actStatsPromise) this.actStatsPromise.finally(() => this.startDodgeStatsHydration(ratingUpdates));
+      else this.startDodgeStatsHydration(ratingUpdates);
+    }
 
     const tier = mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID;
     const latestSeason = tier?.[activeSeasonId] || (tier ? Object.values(tier).at(-1) : null);
@@ -1333,10 +1449,30 @@ class RiotClientService extends EventEmitter {
       this.safeRemote(`/mmr/v1/players/${subject}/competitiveupdates?startIndex=0&endIndex=50&queue=competitive`)
     ]);
     const matches = await this.fetchDetailedMatches(history, updates, subject, 50);
-    const completedMatches = matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result));
+    const directMatches = matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result));
+    const cachedObserved = this.actStatsCache?.data?.observedProfiles?.[subject] || [];
+    const pendingDetails = await Promise.allSettled([...this.matchDetailCache.values()]);
+    const liveObserved = mergeObservedProfiles(...pendingDetails
+      .filter((result) => result.status === 'fulfilled' && result.value)
+      .map((result) => normalizeObservedProfileMatches(
+        this.markKnownFriendsInDetail(result.value), this.identity.puuid, this.metadata
+      )))[subject] || [];
+    const observedMatches = mergeObservedProfiles({ [subject]: cachedObserved }, { [subject]: liveObserved })[subject] || [];
+    const completedMatches = directMatches.length ? directMatches : observedMatches;
+    const statsSource = directMatches.length ? 'riot' : observedMatches.length ? 'observed' : 'private';
     const updateRows = updates?.Matches || updates?.matches || [];
     const statsAvailable = completedMatches.length > 0;
     const stats = calculateStats(completedMatches);
+    const seasonal = mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID
+      || mmr?.queueSkills?.competitive?.seasonalInfoBySeasonId
+      || {};
+    const season = seasonal[activeSeasonId] || {};
+    const winsByTier = season.WinsByTier || season.winsByTier || {};
+    const directActWins = Number(season.NumberOfWins ?? season.numberOfWins);
+    const actWins = Number.isFinite(directActWins)
+      ? directActWins
+      : Object.values(winsByTier).reduce((total, wins) => total + (Number(wins) || 0), 0);
+    const currentRr = Number(season.RankedRating ?? season.rankedRating);
     const rankNumber = selectCompetitiveTier({ mmr, activeSeasonId, updates });
     const rank = this.metadata.tiers.get(rankNumber) || { name: rankNumber ? `Competitive tier ${rankNumber}` : 'Unrated', image: '' };
     const allTimePeak = selectAllTimePeak(mmr, this.metadata);
@@ -1349,6 +1485,7 @@ class RiotClientService extends EventEmitter {
       level: Number(xp?.Progress?.Level ?? xp?.progress?.level ?? 0),
       rank: rank.name,
       rankImage: rank.image || '',
+      rr: Number.isFinite(currentRr) ? currentRr : null,
       peakRank: allTimePeak.rank,
       peakRankImage: allTimePeak.image,
       peakAct: allTimePeak.act,
@@ -1360,17 +1497,27 @@ class RiotClientService extends EventEmitter {
         losses: stats.losses,
         kd: stats.kd,
         headshot: stats.headshot,
+        actWins,
+        source: statsSource,
         scope: completedMatches.length >= 50
           ? 'LAST 50 COMPETITIVE'
-          : statsAvailable
+          : statsSource === 'riot'
             ? `${completedMatches.length} AVAILABLE COMPETITIVE`
+            : statsSource === 'observed'
+              ? `${completedMatches.length} OBSERVED SHARED COMPETITIVE`
             : updateRows.length
               ? `${updateRows.length} RATING UPDATES • MATCH DETAILS PRIVATE`
-              : 'COMPETITIVE HISTORY PRIVATE'
+              : actWins
+                ? `CURRENT ACT • DETAILED HISTORY PRIVATE`
+                : 'COMPETITIVE HISTORY PRIVATE'
       },
       loadout: normalizeLoadout(loadout, this.metadata),
       loadoutAvailable: Boolean(loadout),
-      privacy: 'Visible ally, party member, or Riot friend. Riot may still keep another player’s match details or equipped loadout private. Unknown opponents are never inspected.'
+      privacy: statsSource === 'observed'
+        ? `Riot kept this player's full history private. These statistics use ${completedMatches.length} competitive ${completedMatches.length === 1 ? 'match' : 'matches'} BYAKUGAN observed while you shared a match. Equipped loadout access is controlled separately by Riot.`
+        : statsSource === 'private'
+          ? `Riot returned rank information but kept this player's detailed match history and equipped loadout private. Current-act wins are shown when MMR supplies them. BYAKUGAN does not inspect unknown opponents.`
+          : 'Riot returned this visible player’s competitive history. Equipped loadout access is controlled separately by Riot; unknown opponents are never inspected.'
     };
   }
 
@@ -1425,6 +1572,7 @@ class RiotClientService extends EventEmitter {
     this.matchDetailCache.clear();
     this.actStatsCache = null;
     this.actStatsPromise = null;
+    this.actStatsDiskLoadedFor = '';
     this.dodgeStatsCache = null;
     this.dodgeStatsPromise = null;
     this.inspectablePlayers.clear();

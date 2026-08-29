@@ -47,7 +47,7 @@ async function syncOverlay() {
 
 function createService() {
   service?.disconnect?.();
-  service = new RiotClientService();
+  service = new RiotClientService({ cacheDirectory: app.getPath('userData') });
 
   if (service.on) {
     service.on('live-state', (state) => {
