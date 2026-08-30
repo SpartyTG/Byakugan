@@ -10,7 +10,7 @@ const {
   isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
-  summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mapWithConcurrency
+  summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -22,6 +22,22 @@ function metadata() {
     tiers: new Map([[21, { name: 'Ascendant 1', image: 'https://media.valorant-api.com/tiers/21.png' }]])
   };
 }
+
+test('detects a completed live match and merges it ahead of stale act-cache data', () => {
+  assert.equal(didActiveMatchEnd('INGAME', 'MENUS'), true);
+  assert.equal(didActiveMatchEnd('CORE_GAME', 'MENUS'), true);
+  assert.equal(didActiveMatchEnd('PREGAME', 'MENUS'), false);
+  assert.equal(didActiveMatchEnd('INGAME', 'CORE_GAME'), false);
+
+  const stale = [{ id: 'old', result: 'DEFEAT', kills: 8, deaths: 14, startedAt: 100 }];
+  const recent = [
+    { id: 'new', result: 'VICTORY', kills: 20, deaths: 10, startedAt: 200 },
+    { id: 'old', result: 'DEFEAT', kills: 9, deaths: 14, startedAt: 100 }
+  ];
+  const merged = mergeSessionMatches(stale, recent);
+  assert.deepEqual(merged.map((match) => match.id), ['new', 'old']);
+  assert.equal(merged.find((match) => match.id === 'old').kills, 9);
+});
 
 test('normalizes a Riot match-detail response for the current player', () => {
   const detail = {

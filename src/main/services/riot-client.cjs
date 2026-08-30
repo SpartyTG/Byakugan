@@ -8,7 +8,7 @@ const { readLockfile, getLockfilePath, canReachPort } = require('./riot-lockfile
 const { deriveRegion } = require('./region.cjs');
 const { requestJson } = require('./http.cjs');
 const { fetchMetadata, resolveById } = require('./valorant-metadata.cjs');
-const { buildActAnalytics } = require('./analytics.cjs');
+const { buildActAnalytics, buildSession } = require('./analytics.cjs');
 
 const CLIENT_PLATFORM = Buffer.from(JSON.stringify({
   platformType: 'PC',
@@ -537,6 +537,24 @@ function mergeObservedProfiles(...collections) {
     }
   }
   return merged;
+}
+
+function mergeSessionMatches(...collections) {
+  const matches = new Map();
+  for (const collection of collections) {
+    for (const match of collection || []) {
+      const id = String(match?.id || '');
+      if (!id) continue;
+      matches.set(id, match);
+    }
+  }
+  return [...matches.values()].sort((left, right) => Number(right.startedAt || 0) - Number(left.startedAt || 0));
+}
+
+function didActiveMatchEnd(previousState, nextState) {
+  const active = new Set(['INGAME', 'CORE_GAME']);
+  return active.has(String(previousState || '').toUpperCase())
+    && !active.has(String(nextState || '').toUpperCase());
 }
 
 function buildActStatsData(matches, observedProfiles, complete, progress = {}) {
@@ -1513,6 +1531,9 @@ class RiotClientService extends EventEmitter {
       friends,
       session: { ...this.session, currentRank: rank.name, currentRR: rr }
     });
+    analytics.session = buildSession(mergeSessionMatches(actMatches, matches), {
+      ...this.session, currentRank: rank.name, currentRR: rr
+    });
     const publicMatches = matches.map(({ teammateIds: _teammateIds, ...match }) => match);
     const sharedMatchIds = new Set(analytics.synergy.flatMap((friend) => friend.matchIds || []));
     const synergyMatches = actMatches
@@ -1666,10 +1687,22 @@ class RiotClientService extends EventEmitter {
 
   startPolling() {
     this.stopPolling();
+    let previousState = this.lastSnapshot?.live?.state || '';
+    let activeMatchId = ['INGAME', 'CORE_GAME'].includes(String(previousState).toUpperCase())
+      ? this.lastSnapshot?.live?.matchId || '' : '';
     this.pollTimer = setInterval(async () => {
       try {
         const live = await this.fetchLiveState();
+        const ended = didActiveMatchEnd(previousState, live.state);
+        const endedMatchId = activeMatchId;
+        if (['INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase())) activeMatchId = live.matchId || activeMatchId;
+        else if (!ended) activeMatchId = '';
+        previousState = live.state;
         this.emit('live-state', live);
+        if (ended) {
+          activeMatchId = '';
+          this.emit('match-ended', { matchId: endedMatchId });
+        }
       } catch (error) {
         this.emit('warning', error.message);
       }
@@ -1794,5 +1827,7 @@ module.exports = {
   selectCurrentActUpdates,
   isDodgePenaltyUpdate,
   summarizeDodgePenalties,
+  mergeSessionMatches,
+  didActiveMatchEnd,
   mapWithConcurrency
 };

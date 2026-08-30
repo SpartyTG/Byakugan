@@ -174,6 +174,7 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     const pageHtml = await page.text();
     assert.match(pageHtml, /BYAKUGAN Session Overlay/);
     assert.match(pageHtml, /rr-track[\s\S]*last-match-summary/);
+    assert.match(pageHtml, /current-rr-marker/);
 
     const beam = await fetch(`http://127.0.0.1:${status.port}/rr-energy-beam.gif`);
     assert.equal(beam.status, 200);

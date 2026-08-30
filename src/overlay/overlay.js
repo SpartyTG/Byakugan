@@ -74,6 +74,7 @@ function render(data) {
   text('#playerName', player.name || 'PLAYER');
   text('#playerRank', player.rank || 'Unrated');
   text('#playerRR', `${Number(player.rr) || 0} RR`);
+  text('#beamCurrentRR', `${Number(player.rr) || 0} RR`);
   const peakSeason = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
   text('#playerPeakRank', [player.peakRank || 'Unrated', peakSeason].filter(Boolean).join(' • '));
   setImage('#rankImage', '#rankFallback', player.rankImage, initials(player.rank));

@@ -1,6 +1,6 @@
 {
   "name": "byakugan",
-  "version": "0.8.0-beta.28",
+  "version": "0.8.0-beta.30",
   "description": "BYAKUGAN — a clean-room, extensible desktop companion for VALORANT.",
   "main": "src/main/index.cjs",
   "author": "Tyler",

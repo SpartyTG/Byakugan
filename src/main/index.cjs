@@ -16,6 +16,35 @@ let snapshot = null;
 let overlayServer = null;
 let updateService = null;
 let overlayPreviewWindow = null;
+let postMatchRefreshTimer = null;
+
+function clearPostMatchRefresh() {
+  if (postMatchRefreshTimer) clearTimeout(postMatchRefreshTimer);
+  postMatchRefreshTimer = null;
+}
+
+function snapshotHasMatch(matchId) {
+  return Boolean(matchId && (snapshot?.matches || []).some((match) => match?.id === matchId));
+}
+
+function schedulePostMatchRefresh(matchId, attempt = 0) {
+  const delays = [6_000, 12_000, 24_000];
+  clearPostMatchRefresh();
+  postMatchRefreshTimer = setTimeout(async () => {
+    postMatchRefreshTimer = null;
+    if (!(service instanceof RiotClientService)) return;
+    try {
+      snapshot = await service.refresh();
+      overlayServer?.publish();
+      mainWindow?.webContents.send('riot:snapshot', snapshot);
+      if (!snapshotHasMatch(matchId) && attempt + 1 < delays.length) schedulePostMatchRefresh(matchId, attempt + 1);
+    } catch (error) {
+      mainWindow?.webContents.send('app:warning', `Post-match refresh: ${error.message}`);
+      if (attempt + 1 < delays.length) schedulePostMatchRefresh(matchId, attempt + 1);
+    }
+  }, delays[attempt] || delays.at(-1));
+  postMatchRefreshTimer.unref?.();
+}
 
 function createUpdateService() {
   let updater = null;
@@ -61,6 +90,7 @@ function wireService(nextService) {
       overlayServer?.publish();
       mainWindow?.webContents.send('riot:snapshot', nextSnapshot);
     });
+    service.on('match-ended', ({ matchId } = {}) => schedulePostMatchRefresh(matchId));
     service.on('act-progress', (progress) => {
       if (snapshot?.profile) {
         snapshot.profile.actStatsLoading = progress.loading !== false;
@@ -82,6 +112,7 @@ function wireService(nextService) {
 }
 
 function createService({ preserveSession = false } = {}) {
+  clearPostMatchRefresh();
   const previousSession = preserveSession ? service?.session : null;
   service?.removeAllListeners?.();
   service?.disconnect?.();
@@ -202,7 +233,7 @@ function registerIpc() {
     overlayServer.publish();
     const layout = settings.get().streamOverlayLayout || 'horizontal';
     const sizes = {
-      rank: [590, 300], horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
+      rank: [590, 270], horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
     };
     const [width, height] = sizes[layout] || sizes.horizontal;
     overlayPreviewWindow = new BrowserWindow({
@@ -314,6 +345,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  clearPostMatchRefresh();
   service?.disconnect?.();
   overlayServer?.stop();
   updateService?.stop();
