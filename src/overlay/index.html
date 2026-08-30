@@ -20,7 +20,10 @@
         <small id="playerName">PLAYER</small>
         <strong id="playerRank">UNRATED</strong>
         <em id="playerRR">0 RR</em>
-        <span class="peak-rank-line"><b>ALL-TIME PEAK</b><i id="playerPeakRank">UNRATED</i></span>
+        <span class="peak-rank-line">
+          <span class="peak-rank-emblem"><img id="peakRankImage" alt="" hidden><i id="peakRankFallback">—</i></span>
+          <span class="peak-rank-copy"><b>ALL-TIME PEAK</b><i id="playerPeakRank">UNRATED</i></span>
+        </span>
       </div>
       <div class="rank-session-record">
         <small id="rankSessionLabel">SESSION RECORD</small>
@@ -45,6 +48,7 @@
     </section>
 
     <section class="last-match-strip">
+      <span class="rr-energy-beam" aria-hidden="true"><i></i><b></b></span>
       <small>LAST MATCH</small>
       <strong id="lastMatchRR">±0 RR</strong>
       <em id="lastMatchResult">NO MATCH</em>

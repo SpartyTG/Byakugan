@@ -4,6 +4,7 @@ const overlay = document.querySelector('#overlay');
 const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at(-1) || '');
 document.body.classList.toggle('preview-mode', new URLSearchParams(location.search).get('preview') === '1');
 let staleTimer = null;
+let currentBeamProgress = 0;
 
 function markAlive() {
   overlay.classList.remove('is-loading', 'is-offline');
@@ -55,11 +56,13 @@ function render(data) {
   overlay.classList.toggle('hide-map', preferences.showMap === false);
   overlay.classList.toggle('hide-live-details', preferences.showAgent === false && preferences.showMap === false);
   overlay.classList.toggle('hide-rr', !preferences.showRR);
+  overlay.classList.toggle('hide-rr-beam', !preferences.showRR);
+  overlay.classList.toggle('beam-static', preferences.animatedRrBeam === false);
   overlay.classList.toggle('hide-peak-rank', preferences.showPeakRank === false);
   overlay.classList.toggle('hide-rr-change', preferences.showRrChange === false);
   overlay.classList.toggle('hide-metrics', preferences.showWl === false && preferences.showKd === false && preferences.showRrChange === false);
   overlay.classList.toggle('hide-rank-record', preferences.showWl === false && preferences.showKd === false);
-  overlay.classList.toggle('hide-rank-footer', preferences.showRrChange === false && preferences.showAgent === false && preferences.showMap === false);
+  overlay.classList.toggle('hide-rank-footer', preferences.showRrChange === false && preferences.showAgent === false && preferences.showMap === false && preferences.showRR === false);
   overlay.classList.toggle('rr-positive', Number(session.rrChange) > 0);
   overlay.classList.toggle('rr-negative', Number(session.rrChange) < 0);
   overlay.classList.toggle('last-positive', Number(session.lastMatchRR) > 0);
@@ -71,6 +74,7 @@ function render(data) {
   const peakSeason = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
   text('#playerPeakRank', [player.peakRank || 'Unrated', peakSeason].filter(Boolean).join(' • '));
   setImage('#rankImage', '#rankFallback', player.rankImage, initials(player.rank));
+  setImage('#peakRankImage', '#peakRankFallback', player.peakRankImage, initials(player.peakRank));
 
   text('#sessionRecord', `${Number(session.wins) || 0}–${Number(session.losses) || 0}`);
   text('#rankSessionLabel', preferences.showWl === false ? 'SESSION K/D' : 'SESSION RECORD');
@@ -84,6 +88,11 @@ function render(data) {
     : session.currentRank || 'NO CHANGE');
   text('#lastMatchRR', signed(session.lastMatchRR, ' RR'));
   text('#lastMatchResult', session.lastMatchResult || 'NO MATCH');
+  const nextBeamProgress = Math.max(0, Math.min(100, Number(session.beamProgress) || 0));
+  overlay.classList.toggle('beam-empty', nextBeamProgress <= 0);
+  overlay.style.setProperty('--rr-beam-progress', `${currentBeamProgress}%`);
+  requestAnimationFrame(() => overlay.style.setProperty('--rr-beam-progress', `${nextBeamProgress}%`));
+  currentBeamProgress = nextBeamProgress;
 
   text('#liveLabel', live.label || 'IN MENUS');
   text('#liveMap', live.map || '—');

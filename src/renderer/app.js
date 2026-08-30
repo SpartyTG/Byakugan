@@ -545,7 +545,8 @@ const viewMeta = {
   journey: ['ACT SIGNAL', 'Act journey'], insights: ['ENHANCED VISION', 'Insights & goals'],
   loadout: ['COLLECTION', 'Loadout'], agents: ['AGENT LAB', 'Agent performance'], maps: ['MAP LAB', 'Map performance'],
   servers: ['NETWORK PROFILE', 'Server performance'],
-  social: ['RIOT SOCIAL', 'Social hub'], settings: ['PREFERENCES', 'Settings']
+  social: ['RIOT SOCIAL', 'Social hub'], stream: ['BROADCAST CONTROL', 'Live Stream Vision'],
+  settings: ['PREFERENCES', 'Settings']
 };
 
 function navigate(view) {
@@ -581,6 +582,7 @@ function syncSettingsForm() {
   $('#streamOverlayShowRR').checked = settings.streamOverlayShowRR !== false;
   $('#streamOverlayShowPeakRank').checked = settings.streamOverlayShowPeakRank !== false;
   $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
+  $('#streamOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
 }
 
 function renderOverlayDimensions(layout) {
@@ -849,7 +851,7 @@ function bindEvents() {
     try {
       const status = await window.companion.copyRemoteUrl();
       renderRemoteStatus(status);
-      toast('Connection URL copied', 'Paste it into Two-PC mode on the streaming PC. Treat this URL like a password.');
+      toast('Connection URL copied', 'Paste it into Dual PC Streaming Mode on the streaming PC. Treat this URL like a password.');
     } catch (error) {
       toast('Remote Viewer unavailable', error.message, 'error');
     }
@@ -882,6 +884,7 @@ function bindEvents() {
   $('#streamOverlayShowRR').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRR: event.target.checked }, false));
   $('#streamOverlayShowPeakRank').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowPeakRank: event.target.checked }, false));
   $('#streamOverlayShowRrChange').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRrChange: event.target.checked }, false));
+  $('#streamOverlayAnimatedRrBeam').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayAnimatedRrBeam: event.target.checked }, false));
   $('#copyOverlayUrl').addEventListener('click', async () => {
     try {
       const status = await window.companion.copyOverlayUrl();
@@ -986,7 +989,8 @@ async function initialize() {
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
       streamOverlayShowWl: true, streamOverlayShowKd: true,
       streamOverlayShowAgent: true, streamOverlayShowMap: true,
-      streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true
+      streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true,
+      streamOverlayAnimatedRrBeam: true
     }));
     syncSettingsForm();
     applyPrivacy();

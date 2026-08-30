@@ -10,6 +10,7 @@ const {
   buildOverlayPayload,
   findLanHost,
   isPrivateIpv4,
+  rrBeamProgress,
   tokenMatches
 } = require('../src/main/services/overlay-server.cjs');
 
@@ -27,6 +28,7 @@ function settings(patch = {}) {
     streamOverlayShowRR: true,
     streamOverlayShowPeakRank: true,
     streamOverlayShowRrChange: true,
+    streamOverlayAnimatedRrBeam: true,
     streamOverlayToken: token,
     ...patch
   };
@@ -41,11 +43,14 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(payload.player.peakRank, 'Immortal 1');
   assert.equal(payload.player.peakEpisode, 'Episode 8');
   assert.equal(payload.player.peakAct, 'Act 2');
+  assert.equal(payload.player.peakRankImage, '');
   assert.equal(payload.live.agent, 'Omen');
   assert.equal(payload.live.map, 'Ascent');
   assert.equal(payload.session.games, 3);
   assert.equal(payload.session.lastMatchRR, 19);
   assert.equal(payload.session.lastMatchResult, 'VICTORY');
+  assert.equal(payload.session.beamProgress, 72);
+  assert.equal(payload.preferences.animatedRrBeam, true);
   assert.equal(serialized.includes('PixelPilot'), false);
   assert.equal(serialized.includes('EchoBloom'), false);
   assert.equal(serialized.includes('Sova'), false);
@@ -58,6 +63,14 @@ test('awakened rank layout is accepted for OBS', () => {
   assert.equal(payload.layout, 'rank');
 });
 
+test('RR energy beam follows current rank rating from empty to full', () => {
+  assert.equal(rrBeamProgress(0), 0);
+  assert.equal(rrBeamProgress(42), 42);
+  assert.equal(rrBeamProgress(100), 100);
+  assert.equal(rrBeamProgress(-20), 0);
+  assert.equal(rrBeamProgress(250), 100);
+});
+
 test('overlay visibility settings are enforced in the server payload', () => {
   const payload = buildOverlayPayload(snapshot, settings({
     streamOverlayShowIdentity: true,
@@ -68,17 +81,20 @@ test('overlay visibility settings are enforced in the server payload', () => {
     streamOverlayShowRR: false,
     streamOverlayShowPeakRank: false,
     streamOverlayShowRrChange: false,
+    streamOverlayAnimatedRrBeam: false,
     streamOverlayLayout: 'vertical'
   }));
 
   assert.equal(payload.player.name, 'Nova');
   assert.equal(payload.player.rr, 0);
   assert.equal(payload.player.peakRank, '');
+  assert.equal(payload.player.peakRankImage, '');
   assert.equal(payload.live.agent, '—');
   assert.equal(payload.live.map, '—');
   assert.equal(payload.session.games, 0);
   assert.equal(payload.session.kd, 0);
   assert.equal(payload.session.rrChange, 0);
+  assert.equal(payload.session.beamProgress, 0);
   assert.equal(payload.session.lastMatchRR, 0);
   assert.equal(payload.preferences.showWl, false);
   assert.equal(payload.preferences.showKd, false);
@@ -87,6 +103,7 @@ test('overlay visibility settings are enforced in the server payload', () => {
   assert.equal(payload.preferences.showRR, false);
   assert.equal(payload.preferences.showPeakRank, false);
   assert.equal(payload.preferences.showRrChange, false);
+  assert.equal(payload.preferences.animatedRrBeam, false);
   assert.equal(payload.layout, 'vertical');
 });
 

@@ -40,6 +40,7 @@
         <button class="nav-item" data-view="maps"><i>⬡</i><span>Map lab</span></button>
         <button class="nav-item" data-view="servers"><i>⌖</i><span>Servers</span></button>
         <button class="nav-item" data-view="social"><i>◉</i><span>Social</span><b id="onlineBadge">0</b></button>
+        <button class="nav-item" data-view="stream"><i>◍</i><span>Stream Vision</span></button>
         <div class="nav-divider"></div>
         <button class="nav-item" data-view="settings"><i>⚙</i><span>Settings</span></button>
       </nav>
@@ -273,27 +274,14 @@
         </div>
       </section>
 
-      <section class="view" id="view-settings">
-        <div class="settings-grid">
-          <article class="glass settings-card">
-            <div class="settings-heading"><span class="setting-icon">↻</span><div><h2>Refresh</h2><p>Control background updates.</p></div></div>
-            <label class="toggle-row"><span><strong>Automatic refresh</strong><small>Keep profile and history data current.</small></span><input type="checkbox" id="autoRefresh"><i></i></label>
-            <label class="range-row"><span>Refresh interval</span><select id="refreshSeconds"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select></label>
-          </article>
-
-          <article class="glass settings-card">
-            <div class="settings-heading"><span class="setting-icon">◐</span><div><h2>Application</h2><p>Desktop behavior and privacy.</p></div></div>
-            <label class="toggle-row"><span><strong>Launch at startup</strong><small>Start minimized when Windows signs in.</small></span><input type="checkbox" id="launchAtStartup"><i></i></label>
-            <label class="toggle-row"><span><strong>Privacy mode</strong><small>Hide Riot names and tags on screen.</small></span><input type="checkbox" id="privacyMode"><i></i></label>
-            <label class="toggle-row"><span><strong>Compact match rows</strong><small>Show more history at once.</small></span><input type="checkbox" id="compactMatches"><i></i></label>
-            <div class="app-update-row">
-              <span><strong>Beta updates</strong><small id="settingsUpdateStatus">Checking is available after installation.</small></span>
-              <button class="ghost-button" id="checkForUpdatesButton">Check now</button>
-            </div>
-          </article>
-
+      <section class="view" id="view-stream">
+        <div class="stream-vision-intro glass">
+          <div class="stream-vision-mark"><span></span></div>
+          <div><p class="eyebrow">BROADCAST CONTROL</p><h2>One place for your live production setup</h2><p>Configure the BYAKUGAN overlay and link a trusted streaming PC without leaving your broadcast workspace.</p></div>
+        </div>
+        <div class="stream-vision-grid">
           <article class="glass settings-card remote-viewer-card">
-            <div class="settings-heading"><span class="setting-icon">⇄</span><div><h2>Two-PC mode</h2><p>Run VALORANT on the gaming PC and view BYAKUGAN from the streaming PC.</p></div><span class="overlay-status" id="remoteStatus">LOCAL</span></div>
+            <div class="settings-heading"><span class="setting-icon">⇄</span><div><h2>Dual PC Streaming Mode</h2><p>Run VALORANT on the gaming PC and operate BYAKUGAN from the streaming PC.</p></div><span class="overlay-status" id="remoteStatus">LOCAL</span></div>
             <label class="range-row"><span>This computer</span><select id="pcRole"><option value="gaming">Gaming PC — Host</option><option value="viewer">Streaming PC — Viewer</option></select></label>
             <div id="remoteHostControls">
               <label class="toggle-row"><span><strong>Allow Remote Viewer</strong><small>Share BYAKUGAN data with one trusted PC on your private network.</small></span><input type="checkbox" id="remoteViewerEnabled"><i></i></label>
@@ -331,6 +319,7 @@
               <label class="toggle-row"><span><strong>Current RR</strong><small>Your current rank-rating total.</small></span><input type="checkbox" id="streamOverlayShowRR"><i></i></label>
               <label class="toggle-row"><span><strong>Peak rank</strong><small>Your all-time peak rank and the act it was earned.</small></span><input type="checkbox" id="streamOverlayShowPeakRank"><i></i></label>
               <label class="toggle-row"><span><strong>RR gain/loss</strong><small>Session movement and last-match RR.</small></span><input type="checkbox" id="streamOverlayShowRrChange"><i></i></label>
+              <label class="toggle-row"><span><strong>Animated RR energy beam</strong><small>Animate the current 0–100 RR bar; turn off for a clean static bar.</small></span><input type="checkbox" id="streamOverlayAnimatedRrBeam"><i></i></label>
               <label class="toggle-row"><span><strong>Agent</strong><small>Your selected agent and portrait.</small></span><input type="checkbox" id="streamOverlayShowAgent"><i></i></label>
               <label class="toggle-row"><span><strong>Map</strong><small>The map for your active match.</small></span><input type="checkbox" id="streamOverlayShowMap"><i></i></label>
             </div>
@@ -341,6 +330,27 @@
               <button class="ghost-button" id="regenerateOverlayUrl" disabled>Regenerate</button>
             </div>
             <p class="overlay-security-note" id="overlaySecurityNote">The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="settings-grid">
+          <article class="glass settings-card">
+            <div class="settings-heading"><span class="setting-icon">↻</span><div><h2>Refresh</h2><p>Control background updates.</p></div></div>
+            <label class="toggle-row"><span><strong>Automatic refresh</strong><small>Keep profile and history data current.</small></span><input type="checkbox" id="autoRefresh"><i></i></label>
+            <label class="range-row"><span>Refresh interval</span><select id="refreshSeconds"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select></label>
+          </article>
+
+          <article class="glass settings-card">
+            <div class="settings-heading"><span class="setting-icon">◐</span><div><h2>Application</h2><p>Desktop behavior and privacy.</p></div></div>
+            <label class="toggle-row"><span><strong>Launch at startup</strong><small>Start minimized when Windows signs in.</small></span><input type="checkbox" id="launchAtStartup"><i></i></label>
+            <label class="toggle-row"><span><strong>Privacy mode</strong><small>Hide Riot names and tags on screen.</small></span><input type="checkbox" id="privacyMode"><i></i></label>
+            <label class="toggle-row"><span><strong>Compact match rows</strong><small>Show more history at once.</small></span><input type="checkbox" id="compactMatches"><i></i></label>
+            <div class="app-update-row">
+              <span><strong>Beta updates</strong><small id="settingsUpdateStatus">Checking is available after installation.</small></span>
+              <button class="ghost-button" id="checkForUpdatesButton">Check now</button>
+            </div>
           </article>
 
           <article class="glass settings-card about-card">

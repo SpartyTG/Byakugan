@@ -25,6 +25,7 @@ const DEFAULTS = Object.freeze({
   streamOverlayShowRR: true,
   streamOverlayShowPeakRank: true,
   streamOverlayShowRrChange: true,
+  streamOverlayAnimatedRrBeam: true,
   streamOverlayToken: ''
 });
 

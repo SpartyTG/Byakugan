@@ -73,6 +73,11 @@ function liveLabel(value) {
   }[state] || 'CONNECTING';
 }
 
+function rrBeamProgress(value) {
+  const rr = Number(value) || 0;
+  return Math.round(Math.max(0, Math.min(100, rr)));
+}
+
 function buildOverlayPayload(snapshot = {}, settings = {}) {
   const profile = snapshot.profile || {};
   const session = snapshot.analytics?.session || {};
@@ -86,6 +91,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const showRR = settings.streamOverlayShowRR !== false;
   const showPeakRank = settings.streamOverlayShowPeakRank !== false;
   const showRrChange = settings.streamOverlayShowRrChange !== false;
+  const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const lastMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
     ? settings.streamOverlayLayout
@@ -95,13 +101,14 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     version: 1,
     updatedAt: new Date().toISOString(),
     layout,
-    preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange },
+    preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange, animatedRrBeam },
     player: {
       name: showIdentity ? cleanText(profile.gameName, 'PLAYER', 32) : 'PLAYER',
       rank: cleanText(profile.rank, 'Unrated', 40),
       rankImage: mediaUrl(profile.rankImage),
       rr: showRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0,
       peakRank: showPeakRank ? cleanText(profile.peakRank, 'Unrated', 40) : '',
+      peakRankImage: showPeakRank ? mediaUrl(profile.peakRankImage) : '',
       peakEpisode: showPeakRank ? cleanText(profile.peakEpisode, '', 32) : '',
       peakAct: showPeakRank ? cleanText(profile.peakAct, '', 32) : ''
     },
@@ -111,6 +118,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       losses: showWl ? Number(session.losses) || 0 : 0,
       kd: showKd && Number.isFinite(Number(session.kd)) ? Number(session.kd) : 0,
       rrChange: showRrChange ? Number(session.rrChange) || 0 : 0,
+      beamProgress: showRR ? rrBeamProgress(profile.rr) : 0,
       lastMatchRR: showRrChange ? Number(lastMatch.rr) || 0 : 0,
       lastMatchResult: showRrChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
       startingRank: showRrChange ? cleanText(session.startingRank, 'Unrated', 40) : 'Unrated',
@@ -352,5 +360,6 @@ module.exports = {
   createOverlayToken,
   findLanHost,
   isPrivateIpv4,
+  rrBeamProgress,
   tokenMatches
 };

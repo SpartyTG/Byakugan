@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.23
+## Included in version 0.8.0-beta.24
 
 - Original desktop dashboard and navigation
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -26,7 +26,8 @@ source, brand, or proprietary assets.
 - Riot-compatible 20-record history pagination that continues past the endpoint's first-page cap
 - Fast full-act discovery with older RR enrichment removed from the critical stats-loading path
 - Distinct Refresh Data and Reconnect Riot actions: soft snapshot refresh versus full lockfile, authentication, and connection reset
-- Two-PC mode with separate **Gaming PC — Host** and **Streaming PC — Viewer** roles
+- Dedicated **Live Stream Vision** workspace for OBS and dual-PC production controls
+- **Dual PC Streaming Mode** with separate **Gaming PC — Host** and **Streaming PC — Viewer** roles
 - Token-protected private-LAN dashboard transfer with automatic reconnect and ETag-based change detection
 - Remote player-profile inspection proxied through the gaming PC without transferring Riot credentials
 - Full Act Journey milestones retained from competitive-rating updates even when an older match-detail call is temporarily unavailable
@@ -46,7 +47,10 @@ source, brand, or proprietary assets.
 - Personal challenges, current-session tracking, and post-match summaries
 - OBS Browser Source overlay with Awakened Rank, horizontal, compact, and vertical stream layouts
 - One-click live overlay preview window with a transparent-grid backdrop and the exact data/layout OBS receives
-- Original Awakened Rank stream card with rank emblem, RR, session W/L and K/D, plus a win/loss-colored last-match RR strip
+- Original Awakened Rank stream card with current and peak-rank emblems, larger peak text, RR, session W/L, and K/D
+- Animated Awakened Rank energy beam that is empty at 0 RR and extends or retracts with the player's current 0–100 RR progress
+- Independent animated-beam toggle that falls back to a clean static 0–100 RR bar
+- Frameless lower-left agent presentation without the decorative diamond backdrop
 - Live session W/L, K/D, RR movement, rank, and optional current agent/map on stream
 - Recommended OBS Browser Source dimensions shown live for the selected overlay layout
 - Independent live overlay switches for Riot name, W/L, K/D, current RR, peak rank, RR gain/loss, agent, and map
@@ -97,7 +101,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.23-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.24-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -126,10 +130,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.23`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.24`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.23`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.24`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -137,8 +141,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.23
-git push origin v0.8.0-beta.23
+git tag v0.8.0-beta.24
+git push origin v0.8.0-beta.24
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -160,9 +164,9 @@ releases.
 
 ## OBS Browser Source
 
-1. Open **Settings → OBS stream overlay** in BYAKUGAN.
+1. Open **Stream Vision → OBS stream overlay** in BYAKUGAN.
 2. Choose a layout and select **Preview overlay** to inspect the exact live output.
-3. Choose exactly which fields are visible. Riot name, W/L, K/D, current RR, peak rank, RR gain/loss, agent, and map are independent switches.
+3. Choose exactly which fields are visible. Riot name, W/L, K/D, current RR, peak rank, RR gain/loss, agent, and map are independent switches. The animated RR energy beam can also be replaced with a static RR bar.
 4. Turn on **Enable Browser Source**.
 5. When OBS is on another computer, also turn on **Allow streaming PC**. Both PCs must be connected to the same private network. If Windows Firewall asks, allow BYAKUGAN on **Private networks** only.
 6. Select **Copy OBS URL**.
