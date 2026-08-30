@@ -1171,7 +1171,7 @@ class RiotClientService extends EventEmitter {
     this.actStatsDiskLoadedFor = accountKey;
     try {
       const cached = JSON.parse(fs.readFileSync(this.actStatsCacheFile, 'utf8'));
-      const valid = cached?.schema === 3
+      const valid = cached?.schema === 4
         && cached.puuid === this.identity.puuid
         && cached.seasonId === activeSeasonId
         && typeof cached.newestMatchId === 'string'
@@ -1200,7 +1200,7 @@ class RiotClientService extends EventEmitter {
       fs.mkdirSync(path.dirname(this.actStatsCacheFile), { recursive: true });
       const temporary = `${this.actStatsCacheFile}.tmp`;
       fs.writeFileSync(temporary, JSON.stringify({
-        schema: 3,
+        schema: 4,
         puuid: this.identity.puuid,
         seasonId: cache.seasonId,
         newestMatchId: cache.newestMatchId,
@@ -1216,7 +1216,7 @@ class RiotClientService extends EventEmitter {
     const actStart = timestampMillis(season.startTime) || Number(this.activeSeason.startTime) || 0;
     if (!this.identity?.puuid || !actStart) return { rows: [], complete: false };
 
-    const pageSize = 100;
+    const pageSize = 1000;
     const maximumMatches = 1000;
     const rows = [];
     const seen = new Set();
@@ -1260,8 +1260,6 @@ class RiotClientService extends EventEmitter {
       return this.actStatsCache.data;
     }
 
-    const initialPageSize = 20;
-    const pageSize = 50;
     const maximumMatches = 1000;
     const updates = [];
     const seen = new Set();
@@ -1273,8 +1271,8 @@ class RiotClientService extends EventEmitter {
       .map((match) => [match.id, match]));
     const cachedMatchIds = new Set(cachedMatchesById.keys());
     let reachedCachedData = false;
-    let complete = true;
-    let page = selectCurrentActUpdates(initialRows, activeSeasonId);
+    let complete = false;
+    const page = selectCurrentActUpdates(initialRows, activeSeasonId);
     const collectRows = (rows) => {
       for (const row of rows) {
         const matchId = updateMatchId(row);
@@ -1287,36 +1285,44 @@ class RiotClientService extends EventEmitter {
     };
     collectRows(page.rows);
 
-    let startIndex = initialRows.length;
-    while (!reachedCachedData && !page.reachedPreviousAct && initialRows.length >= initialPageSize && startIndex < maximumMatches) {
-      const endIndex = Math.min(startIndex + pageSize, maximumMatches);
-      const next = await this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=${startIndex}&endIndex=${endIndex}&queue=competitive`);
-      if (!next) { complete = false; break; }
-      const nextRows = next?.Matches || next?.matches || [];
-      page = selectCurrentActUpdates(nextRows, activeSeasonId);
-      collectRows(page.rows);
-      if (reachedCachedData || page.reachedPreviousAct || nextRows.length < pageSize) break;
-      startIndex += nextRows.length;
-    }
-    if (!reachedCachedData && !page.reachedPreviousAct && startIndex >= maximumMatches) complete = false;
-
-    // Competitive-update pagination is occasionally limited to the first 20
-    // records by Riot. Match history provides an independent, timestamp-based
-    // index so older current-act matches are still discovered.
+    // A completed cache makes the common post-match refresh cheap: fetch only
+    // the new rows before the cached newest match. A first or interrupted scan
+    // uses match history as the authoritative act index instead of waiting for
+    // Riot's frequently capped 20-row rating feed.
     if (!reachedCachedData) {
-      const historyIndex = await this.fetchCurrentActHistory(activeSeasonId);
-      const updatesById = new Map(updates.map((row) => [updateMatchId(row), row]));
+      const olderRatingPromise = initialRows.length >= 20
+        ? this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=20&endIndex=${maximumMatches}&queue=competitive`)
+        : Promise.resolve(null);
+      const [historyIndex, olderRatingPage] = await Promise.all([
+        this.fetchCurrentActHistory(activeSeasonId),
+        olderRatingPromise
+      ]);
+      const ratingRows = [
+        ...page.rows,
+        ...selectCurrentActUpdates(olderRatingPage?.Matches || olderRatingPage?.matches || [], activeSeasonId).rows
+      ];
+      const ratingById = new Map(ratingRows.map((row) => [updateMatchId(row), row]));
+      updates.length = 0;
+      seen.clear();
       for (const row of historyIndex.rows) {
         const matchId = updateMatchId(row);
         if (!matchId || seen.has(matchId)) continue;
         seen.add(matchId);
-        updates.push(updatesById.get(matchId) || row);
+        updates.push(ratingById.get(matchId) || row);
       }
-      if (historyIndex.complete) complete = true;
+      for (const row of ratingRows) {
+        const matchId = updateMatchId(row);
+        if (!matchId || seen.has(matchId)) continue;
+        seen.add(matchId);
+        updates.push(row);
+      }
+      complete = historyIndex.complete || page.reachedPreviousAct || initialRows.length < 20;
+    } else {
+      complete = true;
     }
 
     const hydrated = [];
-    const batchSize = 36;
+    const batchSize = 40;
     const carriedMatches = reachedCachedData ? previousCache.data.matches : [];
     const totalMatches = updates.length + carriedMatches.length;
     this.actStatsProgress = { loaded: carriedMatches.length, total: totalMatches };
@@ -1324,7 +1330,7 @@ class RiotClientService extends EventEmitter {
 
     for (let offset = 0; offset < updates.length; offset += batchSize) {
       const batch = updates.slice(offset, offset + batchSize);
-      const batchResults = await mapWithConcurrency(batch, 12, async (row) => {
+      const batchResults = await mapWithConcurrency(batch, 20, async (row) => {
         const matchId = updateMatchId(row);
         const cachedMatch = cachedMatchesById.get(matchId);
         if (cachedMatch) return { match: cachedMatch, observedProfiles: {}, cached: true };
