@@ -547,7 +547,7 @@ function buildActStatsData(matches, observedProfiles, complete, progress = {}) {
     stats: {
       ...calculateStats(completedMatches),
       games: completedMatches.length,
-      scope: complete ? 'THIS ACT' : total ? `LOADING ${loaded}/${total} ACT MATCHES` : 'LOADING FULL ACT STATS'
+      scope: complete ? 'ACT' : 'PARTIAL ACT'
     },
     matches: matches || [],
     observedProfiles: observedProfiles || {},
@@ -1171,7 +1171,7 @@ class RiotClientService extends EventEmitter {
     this.actStatsDiskLoadedFor = accountKey;
     try {
       const cached = JSON.parse(fs.readFileSync(this.actStatsCacheFile, 'utf8'));
-      const valid = cached?.schema === 4
+      const valid = cached?.schema === 5
         && cached.puuid === this.identity.puuid
         && cached.seasonId === activeSeasonId
         && typeof cached.newestMatchId === 'string'
@@ -1200,7 +1200,7 @@ class RiotClientService extends EventEmitter {
       fs.mkdirSync(path.dirname(this.actStatsCacheFile), { recursive: true });
       const temporary = `${this.actStatsCacheFile}.tmp`;
       fs.writeFileSync(temporary, JSON.stringify({
-        schema: 4,
+        schema: 5,
         puuid: this.identity.puuid,
         seasonId: cache.seasonId,
         newestMatchId: cache.newestMatchId,
@@ -1216,7 +1216,10 @@ class RiotClientService extends EventEmitter {
     const actStart = timestampMillis(season.startTime) || Number(this.activeSeason.startTime) || 0;
     if (!this.identity?.puuid || !actStart) return { rows: [], complete: false };
 
-    const pageSize = 1000;
+    // Riot caps this endpoint at 20 records even when a much larger range is
+    // requested. Walk it in supported 20-record pages so the scan can advance
+    // beyond the first page and stop as soon as it reaches the act boundary.
+    const pageSize = 20;
     const maximumMatches = 1000;
     const rows = [];
     const seen = new Set();
@@ -1260,7 +1263,6 @@ class RiotClientService extends EventEmitter {
       return this.actStatsCache.data;
     }
 
-    const maximumMatches = 1000;
     const updates = [];
     const seen = new Set();
     const previousCache = this.actStatsCache?.seasonId === activeSeasonId
@@ -1290,17 +1292,12 @@ class RiotClientService extends EventEmitter {
     // uses match history as the authoritative act index instead of waiting for
     // Riot's frequently capped 20-row rating feed.
     if (!reachedCachedData) {
-      const olderRatingPromise = initialRows.length >= 20
-        ? this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=20&endIndex=${maximumMatches}&queue=competitive`)
-        : Promise.resolve(null);
-      const [historyIndex, olderRatingPage] = await Promise.all([
-        this.fetchCurrentActHistory(activeSeasonId),
-        olderRatingPromise
-      ]);
-      const ratingRows = [
-        ...page.rows,
-        ...selectCurrentActUpdates(olderRatingPage?.Matches || olderRatingPage?.matches || [], activeSeasonId).rows
-      ];
+      // Match history is the authoritative current-act index. Do not hold act
+      // stats behind an oversized rating-history request that Riot commonly
+      // caps or times out; the recent rating rows still enrich matches where
+      // Riot supplied them.
+      const historyIndex = await this.fetchCurrentActHistory(activeSeasonId);
+      const ratingRows = page.rows;
       const ratingById = new Map(ratingRows.map((row) => [updateMatchId(row), row]));
       updates.length = 0;
       seen.clear();
@@ -1505,7 +1502,7 @@ class RiotClientService extends EventEmitter {
     const level = xp?.Progress?.Level || 0;
     const rank = this.metadata.tiers.get(rankNumber) || { name: rankNumber ? `Competitive tier ${rankNumber}` : 'Unrated', color: '#735cff' };
     const recentStats = calculateStats(matches.filter((match) => match.isCompetitive || match.queueId === 'competitive'));
-    const stats = actData?.stats || { ...recentStats, scope: 'LOADING FULL ACT STATS' };
+    const stats = actData?.stats || { ...recentStats, scope: 'PARTIAL ACT' };
     const allTimePeak = selectAllTimePeak(mmr, this.metadata);
     if (!this.session.initialized) {
       this.session = { ...this.session, startingRank: rank.name, startingRR: rr, initialized: true };

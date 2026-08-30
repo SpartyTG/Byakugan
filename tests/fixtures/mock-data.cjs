@@ -69,7 +69,7 @@ const snapshot = Object.freeze({
   profile: {
     gameName: 'Nova', tagLine: '0420', level: 187,
     rank: 'Ascendant 2', rankImage: '', rr: 72, peakRank: 'Immortal 1', peakRankImage: '', peakAct: 'Act 2', peakEpisode: 'Episode 8',
-    wins: analytics.summary.wins, losses: analytics.summary.losses, kd: analytics.summary.kd, headshot: analytics.summary.headshot, statsScope: 'THIS ACT',
+    wins: analytics.summary.wins, losses: analytics.summary.losses, kd: analytics.summary.kd, headshot: analytics.summary.headshot, statsScope: 'ACT',
     card: { initials: 'NO', color: '#735cff' }
   },
   live: {

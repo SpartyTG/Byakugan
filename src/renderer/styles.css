@@ -390,13 +390,6 @@ button { color: inherit; }
 @keyframes breathe { 50% { transform: scale(1.08); box-shadow: 0 0 40px rgba(123,103,246,.35); } }
 .privacy #profileName, .privacy #profileTag, .privacy .friend-name strong, .privacy .live-player-name { filter: blur(6px); user-select: none; }
 
-.act-loading-notice { display: grid; grid-template-columns: auto 1fr; gap: 13px; align-items: center; margin: -2px 0 18px; padding: 13px 16px; border-color: rgba(139,108,255,.24); background: linear-gradient(90deg, rgba(139,108,255,.12), rgba(13,15,28,.8)); }
-.act-loading-notice[hidden] { display: none; }
-.act-loading-notice strong { display: block; color: var(--violet-light); font-size: 10px; text-transform: uppercase; letter-spacing: .09em; }
-.act-loading-notice p { margin: 4px 0 0; color: var(--muted); font-size: 8px; line-height: 1.5; }
-.loading-ring { width: 22px; height: 22px; border: 2px solid rgba(194,180,255,.16); border-top-color: var(--violet-light); border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
 .server-intro { background: radial-gradient(circle at 82% 48%, rgba(57,230,193,.12), transparent 29%), linear-gradient(120deg, rgba(20,22,40,.94), rgba(10,12,23,.88)); }
 .server-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 15px; margin-top: 17px; }
 .server-card { position: relative; overflow: hidden; padding: 20px; min-height: 210px; }

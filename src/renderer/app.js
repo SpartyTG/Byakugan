@@ -60,7 +60,7 @@ function setConnection(connection) {
 }
 
 function renderStats(profile) {
-  const scope = profile.statsScope || 'THIS ACT';
+  const scope = profile.statsScope || 'ACT';
   const values = [
     ['WIN / LOSS', `${profile.wins} / ${profile.losses}`, scope],
     ['K/D RATIO', profile.kd, scope],
@@ -208,7 +208,7 @@ function renderJourney() {
   const analytics = state.snapshot?.analytics || {};
   text('#journeyRank', profile.rank);
   text('#journeyRR', `${profile.rr ?? 0} RR`);
-  text('#journeyScope', profile.statsScope || 'THIS ACT');
+  text('#journeyScope', profile.statsScope || 'ACT');
   const image = safeImage(profile.rankImage);
   const element = $('#journeyRankImage');
   if (image) { element.src = image; element.hidden = false; }
@@ -476,13 +476,6 @@ function renderSnapshot(snapshot) {
   text('#profileRR', profile.rr);
   text('#peakRank', profile.peakRank);
   text('#peakSeason', [profile.peakEpisode, profile.peakAct].filter(Boolean).join(' • ') || 'Peak act unavailable');
-  $('#actLoadingNotice').hidden = !profile.actStatsLoading;
-  const actLoaded = Number(profile.actStatsLoaded) || 0;
-  const actTotal = Number(profile.actStatsTotal) || 0;
-  text('#actLoadingTitle', actTotal ? `Loading full act stats • ${actLoaded}/${actTotal}` : 'Loading full act stats');
-  text('#actLoadingDetail', actTotal
-    ? 'Completed matches are saved as they load. You can close BYAKUGAN and continue later.'
-    : 'Finding current-act competitive matches…');
   const rankImage = safeImage(profile.rankImage);
   const peakRankImage = safeImage(profile.peakRankImage);
   const rankImageElement = $('#profileRankImage');
@@ -865,16 +858,11 @@ function bindEvents() {
   window.companion.onLiveState(updateLive);
   window.companion.onSnapshot((snapshot) => {
     renderSnapshot(snapshot);
-    toast('Full act stats updated', 'BYAKUGAN finished another pass through your current-act history.');
+    toast('Act stats updated', 'BYAKUGAN refreshed your current-act competitive history.');
   });
   window.companion.onActProgress((progress) => {
     const loaded = Number(progress.loaded) || 0;
     const total = Number(progress.total) || 0;
-    $('#actLoadingNotice').hidden = progress.loading === false;
-    text('#actLoadingTitle', total ? `Loading full act stats • ${loaded}/${total}` : 'Loading full act stats');
-    text('#actLoadingDetail', total
-      ? 'Completed matches are saved as they load. You can close BYAKUGAN and continue later.'
-      : 'Finding current-act competitive matches…');
     if (state.snapshot?.profile && progress.stats) {
       Object.assign(state.snapshot.profile, {
         wins: progress.stats.wins,

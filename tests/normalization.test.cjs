@@ -435,7 +435,33 @@ test('discovers current-act matches from history when rating pagination stops at
   assert.equal(result.complete, true);
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['newest', 'older']);
   assert.equal(requests.length, 2);
+  assert.match(requests[0], /startIndex=0&endIndex=20/);
   assert.match(requests[1], /startIndex=2/);
+});
+
+test('advances current-act history in Riot-compatible 20-record pages', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.metadata.seasons = new Map([['current-act', { startTime: '2026-08-01T00:00:00Z' }]]);
+  const requests = [];
+  service.safeRemote = async (endpoint) => {
+    requests.push(endpoint);
+    if (endpoint.includes('startIndex=0')) return { History: Array.from({ length: 20 }, (_, index) => ({
+      MatchID: `current-${index}`,
+      GameStartTime: Date.parse('2026-08-20T00:00:00Z') - index * 60_000
+    })) };
+    return { History: [
+      { MatchID: 'current-20', GameStartTime: Date.parse('2026-08-05T00:00:00Z') },
+      { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
+    ] };
+  };
+
+  const result = await service.fetchCurrentActHistory('current-act');
+  assert.equal(result.complete, true);
+  assert.equal(result.rows.length, 21);
+  assert.equal(requests.length, 2);
+  assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
 
 test('player inspection falls back to observed shared matches when Riot history is private', async () => {
