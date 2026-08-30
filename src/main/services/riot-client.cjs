@@ -474,6 +474,10 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       rank: tier.name,
       rankImage: tier.image,
       rankColor: tier.color,
+      peakRank: player.BYAKUGANPeakRank || '',
+      peakRankImage: player.BYAKUGANPeakRankImage || '',
+      peakEpisode: player.BYAKUGANPeakEpisode || '',
+      peakAct: player.BYAKUGANPeakAct || '',
       locked: Boolean(player.CharacterSelectionState === 'locked' || player.characterSelectionState === 'locked')
     };
   });
@@ -763,7 +767,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayerIds = new Map();
     this.friendIds = new Set();
     this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
-    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
+    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [] };
   }
 
   localUrl(endpoint) {
@@ -1000,14 +1004,13 @@ class RiotClientService extends EventEmitter {
     return id;
   }
 
-  async fetchRosterTier(player, activeSeasonId) {
+  async fetchRosterRankSummary(player, activeSeasonId) {
     const subject = player.Subject || player.subject || player.puuid;
     const fallbackTier = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
-    if (fallbackTier > 0) return fallbackTier;
-    if (!subject) return 0;
+    if (!subject) return { tier: fallbackTier, peakRank: '', peakRankImage: '', peakEpisode: '', peakAct: '' };
 
     const cached = this.rankCache.get(subject);
-    if (cached?.expiresAt > Date.now()) return cached.tier;
+    if (cached?.expiresAt > Date.now()) return cached;
 
     let mmr = null;
     let updates = null;
@@ -1034,11 +1037,21 @@ class RiotClientService extends EventEmitter {
       });
     }
 
-    this.rankCache.set(subject, {
+    const peak = selectAllTimePeak(mmr, this.metadata || { tiers: new Map(), seasons: new Map() });
+    const summary = {
       tier,
-      expiresAt: Date.now() + (tier ? 10 * 60_000 : 2 * 60_000)
-    });
-    return tier;
+      peakRank: peak.tier ? peak.rank : '',
+      peakRankImage: peak.tier ? peak.image : '',
+      peakEpisode: peak.tier ? peak.episode : '',
+      peakAct: peak.tier ? peak.act : '',
+      expiresAt: Date.now() + (tier && peak.tier ? 10 * 60_000 : 2 * 60_000)
+    };
+    this.rankCache.set(subject, summary);
+    return summary;
+  }
+
+  async fetchRosterTier(player, activeSeasonId) {
+    return (await this.fetchRosterRankSummary(player, activeSeasonId)).tier;
   }
 
   async hydrateRosterTiers(players, { allowOpponentRanks = false } = {}) {
@@ -1046,15 +1059,23 @@ class RiotClientService extends EventEmitter {
     const activeSeasonId = await this.fetchActiveSeasonId();
     const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === this.identity.puuid);
     const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
-    return mapWithConcurrency(players, 5, async (player) => ({
-      ...player,
+    return mapWithConcurrency(players, 5, async (player) => {
       // Opponent rank hydration is permitted only after the local Riot session
       // has entered the active core game. Pregame filtering removes opponents
       // before this method runs, and callers must opt in explicitly.
-      CompetitiveTier: shouldHydrateRosterTier(player, ownTeam, allowOpponentRanks)
-        ? await this.fetchRosterTier(player, activeSeasonId)
-        : Number(player.CompetitiveTier ?? player.competitiveTier ?? 0)
-    }));
+      const allowed = shouldHydrateRosterTier(player, ownTeam, allowOpponentRanks);
+      const summary = allowed
+        ? await this.fetchRosterRankSummary(player, activeSeasonId)
+        : { tier: Number(player.CompetitiveTier ?? player.competitiveTier ?? 0) };
+      return {
+        ...player,
+        CompetitiveTier: summary.tier,
+        BYAKUGANPeakRank: summary.peakRank || '',
+        BYAKUGANPeakRankImage: summary.peakRankImage || '',
+        BYAKUGANPeakEpisode: summary.peakEpisode || '',
+        BYAKUGANPeakAct: summary.peakAct || ''
+      };
+    });
   }
 
   async fetchPartyPlayers(puuid) {
@@ -1113,6 +1134,11 @@ class RiotClientService extends EventEmitter {
       if (matchId) match = await this.safeRemote(`/core-game/v1/matches/${matchId}`, 'glz');
     }
 
+    if (['INGAME', 'CORE_GAME'].includes(loopState) && matchId) {
+      const trackedMatchIds = [...new Set([...(this.session.trackedMatchIds || []), String(matchId)])].slice(-20);
+      this.session = { ...this.session, trackedMatchIds };
+    }
+
     const mapId = match?.MapID || match?.mapId || session.map || session.MapID;
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
     let players = match?.Players || match?.players || match?.AllyTeam?.Players || match?.allyTeam?.players || [];
@@ -1151,7 +1177,7 @@ class RiotClientService extends EventEmitter {
         : loopState === 'PREGAME'
         ? 'Enemy agents and ranks unlock only after the active match begins.'
         : roster.length
-          ? 'Active match roster: enemy cards show agent and rank only; names and profiles remain protected.'
+          ? 'Active match roster: enemy cards show agent, current rank, and peak rank only; names and profiles remain protected.'
           : 'Waiting for Riot to expose the active roster.'
     };
   }
@@ -1755,7 +1781,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayerIds.clear();
     this.friendIds.clear();
     this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
-    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false };
+    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [] };
   }
 }
 

@@ -24,7 +24,9 @@ function clearPostMatchRefresh() {
 }
 
 function snapshotHasMatch(matchId) {
-  return Boolean(matchId && (snapshot?.matches || []).some((match) => match?.id === matchId));
+  return Boolean(matchId
+    && (snapshot?.matches || []).some((match) => match?.id === matchId)
+    && (snapshot?.analytics?.session?.matchIds || []).includes(matchId));
 }
 
 function schedulePostMatchRefresh(matchId, attempt = 0) {

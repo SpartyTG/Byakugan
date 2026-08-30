@@ -392,13 +392,15 @@ function exportMatchRecap() {
 function livePlayerRow(player) {
   const agentImage = safeImage(player.agentImage);
   const rankImage = safeImage(player.rankImage);
+  const peakLabel = player.peakRank ? `PEAK ${player.peakRank}` : 'PEAK —';
+  const peakContext = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
   const identity = player.side === 'enemy' && !player.friend
     ? `<strong>${escapeHtml(player.agent)}</strong><small>ENEMY AGENT${player.locked ? ' • LOCKED' : ''}</small>`
     : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : player.hidden ? '◌ ' : ''}${escapeHtml(player.name)}</strong><small>${escapeHtml(player.agent)}${player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}</small>`;
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
     <div class="live-player-identity">${identity}</div>
-    <div class="live-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>RANK</small><strong>${escapeHtml(player.rank)}</strong></span></div>
+    <div class="live-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>CURRENT</small><strong>${escapeHtml(player.rank)}</strong><em${peakContext ? ` title="${escapeHtml(peakContext)}"` : ''}>${escapeHtml(peakLabel)}</em></span></div>
   </div>`;
 }
 
@@ -432,7 +434,7 @@ function closePlayerProfile() {
 }
 
 function hiddenOpponentSlot(index) {
-  return `<div class="live-player-row concealed"><div class="live-agent"><span>?</span></div><div class="live-player-identity"><strong>Opponent concealed</strong><small>Agent and rank reveal after the match begins</small></div><div class="live-rank"><i></i><span><small>RANK</small><strong>Hidden</strong></span></div></div>`;
+  return `<div class="live-player-row concealed"><div class="live-agent"><span>?</span></div><div class="live-player-identity"><strong>Opponent concealed</strong><small>Agent and ranks reveal after the match begins</small></div><div class="live-rank"><i></i><span><small>CURRENT</small><strong>Hidden</strong><em>PEAK HIDDEN</em></span></div></div>`;
 }
 
 function renderLiveMatch() {

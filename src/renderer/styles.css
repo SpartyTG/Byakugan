@@ -268,7 +268,7 @@ button { color: inherit; }
 .team-count { padding: 5px 9px; border-radius: 20px; color: var(--teal); background: rgba(35,212,184,.08); border: 1px solid rgba(35,212,184,.16); font-size: 8px; font-weight: 800; }
 .team-count.enemy { color: var(--red); background: rgba(238,92,120,.07); border-color: rgba(238,92,120,.16); }
 .live-player-list { min-height: 325px; }
-.live-player-row { display: grid; grid-template-columns: 47px minmax(0,1fr) auto; gap: 11px; align-items: center; min-height: 65px; padding: 7px 8px; border-top: 1px solid var(--border); }
+.live-player-row { display: grid; grid-template-columns: 47px minmax(0,1fr) auto; gap: 11px; align-items: center; min-height: 70px; padding: 7px 8px; border-top: 1px solid var(--border); }
 .live-player-row.self { background: linear-gradient(90deg, rgba(123,103,246,.11), transparent); border-radius: 9px; border-top-color: rgba(123,103,246,.2); }
 .live-player-row.inspectable { cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
 .live-player-row.inspectable:hover { transform: translateX(4px); border-color: rgba(194,180,255,.25); background: linear-gradient(90deg, rgba(139,108,255,.16), rgba(139,108,255,.025)); }
@@ -283,9 +283,10 @@ button { color: inherit; }
 .live-rank { display: flex; align-items: center; gap: 7px; text-align: right; }
 .live-rank img, .live-rank > i { width: 34px; height: 34px; object-fit: contain; }
 .live-rank > i { display: block; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,.03); }
-.live-rank small, .live-rank strong { display: block; }
+.live-rank small, .live-rank strong, .live-rank em { display: block; }
 .live-rank small { color: var(--muted-2); font-size: 7px; letter-spacing: .1em; }
 .live-rank strong { margin-top: 3px; font-size: 8px; }
+.live-rank em { margin-top: 3px; color: var(--violet-light); font-size: 7px; font-style: normal; font-weight: 800; white-space: nowrap; }
 .match-rating { display: flex; align-items: center; gap: 6px; }
 .match-rating img { width: 25px; height: 25px; object-fit: contain; flex: 0 0 auto; }
 .roster-empty { display: grid; place-items: center; min-height: 285px; padding: 30px; text-align: center; color: var(--muted); font-size: 10px; line-height: 1.6; }

@@ -34,6 +34,17 @@ test('builds journey, map, agent, insight, challenge, and session analytics', ()
   assert.deepEqual(result.synergy[0].matchIds, ['new', 'old']);
 });
 
+test('session counts a match observed in progress even when it started before the app', () => {
+  const result = buildActAnalytics(matches, {
+    session: { startedAt: 300, trackedMatchIds: ['new'], startingRR: 60, currentRR: 45 }
+  });
+  assert.equal(result.session.games, 1);
+  assert.equal(result.session.wins, 1);
+  assert.equal(result.session.losses, 0);
+  assert.equal(result.session.kd, 2);
+  assert.deepEqual(result.session.matchIds, ['new']);
+});
+
 test('keeps a rating-only update in the full act journey', () => {
   const result = buildActAnalytics([...matches, { id: 'earliest', result: 'RATING', tierAfter: 18, rrAfter: 22, rr: 18, startedAt: 50 }]);
   assert.deepEqual(result.journey.map((point) => point.matchId), ['earliest', 'old', 'new']);

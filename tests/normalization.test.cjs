@@ -246,7 +246,7 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
     { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
     { Subject: 'visible', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
     { Subject: 'party-hidden-in-game', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANPartyMember: true },
-    { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
+    { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2' },
     { Subject: 'hidden', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true } },
     { Subject: 'unknown-privacy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21 },
     { Subject: 'friend-hidden-in-game', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true }
@@ -282,6 +282,9 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(roster[6].side, 'enemy');
   assert.equal(roster[6].inspectable, true);
   assert.equal(roster[3].rank, 'Ascendant 1');
+  assert.equal(roster[3].peakRank, 'Immortal 1');
+  assert.equal(roster[3].peakEpisode, 'Episode 9');
+  assert.equal(roster[3].peakAct, 'Act 2');
   assert.equal(roster[3].agent, 'Jett');
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('EnemyMustNotAppear'), false);
@@ -317,9 +320,13 @@ test('active core-game hydration resolves a missing enemy tier', async () => {
   service.identity = { puuid: 'self' };
   service.fetchActiveSeasonId = async () => 'current-act';
   const calls = [];
-  service.fetchRosterTier = async (player) => {
+  service.fetchRosterRankSummary = async (player) => {
     calls.push(player.Subject);
-    return player.Subject === 'enemy' ? 21 : 20;
+    return {
+      tier: player.Subject === 'enemy' ? 21 : 20,
+      peakRank: player.Subject === 'enemy' ? 'Immortal 1' : 'Ascendant 1',
+      peakRankImage: '', peakEpisode: 'Episode 9', peakAct: 'Act 2'
+    };
   };
   const players = [
     { Subject: 'self', TeamID: 'Blue', CompetitiveTier: 20 },
@@ -333,6 +340,7 @@ test('active core-game hydration resolves a missing enemy tier', async () => {
   calls.length = 0;
   const active = await service.hydrateRosterTiers(players, { allowOpponentRanks: true });
   assert.equal(active[1].CompetitiveTier, 21);
+  assert.equal(active[1].BYAKUGANPeakRank, 'Immortal 1');
   assert.equal(calls.includes('enemy'), true);
 });
 
