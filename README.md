@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.32
+## Included in version 0.8.0-beta.33
 
 - Original desktop dashboard and navigation
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -50,7 +50,7 @@ source, brand, or proprietary assets.
 - Original Awakened Rank stream card with current and peak-rank emblems, larger peak text, RR, session W/L, and K/D
 - Animated GIF-based Awakened Rank energy beam, horizontally flipped so its blast head faces right, that is empty at 0 RR and extends or retracts with the player's current 0–100 RR progress
 - Independent animated-beam toggle that falls back to a clean static 0–100 RR bar
-- Redesigned `560 × 190` Awakened Rank card with denser spacing and larger, stream-legible rank, peak, session, and match text
+- Reduced-width `480 × 190` Awakened Rank card that keeps the same height while making its information larger and more legible at stream scale
 - Live background-opacity control from fully transparent at 0% to completely solid at 100%
 - Awakened Rank footer with the agent/map block removed, a full left-aligned RR track, and session W/L plus K/D anchored at the lower-right
 - Compact last-match RR and victory/defeat panel moved into the unused header space
@@ -108,7 +108,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.32-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.33-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -137,10 +137,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.32`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.33`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.32`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.33`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -148,8 +148,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.32
-git push origin v0.8.0-beta.32
+git tag v0.8.0-beta.33
+git push origin v0.8.0-beta.33
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -178,7 +178,7 @@ releases.
 5. When OBS is on another computer, also turn on **Allow streaming PC**. Both PCs must be connected to the same private network. If Windows Firewall asks, allow BYAKUGAN on **Private networks** only.
 6. Select **Copy OBS URL**.
 7. BYAKUGAN displays the recommended width and height beneath the selected layout. In OBS, add **Sources → Browser**, paste the URL, and use the displayed size:
-   - Awakened rank card: `560 × 190`
+   - Awakened rank card: `480 × 190`
    - Horizontal bar: `1600 × 180`
    - Compact card: `560 × 240`
    - Vertical panel: `380 × 660`
