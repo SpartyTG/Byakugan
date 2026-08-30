@@ -63,7 +63,7 @@ function render(data) {
   overlay.classList.toggle('hide-rr-change', preferences.showRrChange === false);
   overlay.classList.toggle('hide-metrics', preferences.showWl === false && preferences.showKd === false && preferences.showRrChange === false);
   overlay.classList.toggle('hide-rank-record', preferences.showWl === false && preferences.showKd === false);
-  overlay.classList.toggle('hide-rank-footer', preferences.showRrChange === false && preferences.showAgent === false && preferences.showMap === false && preferences.showRR === false);
+  overlay.classList.toggle('hide-rank-footer', preferences.showRR === false && preferences.showWl === false && preferences.showKd === false);
   overlay.classList.toggle('rr-positive', Number(session.rrChange) > 0);
   overlay.classList.toggle('rr-negative', Number(session.rrChange) < 0);
   overlay.classList.toggle('last-positive', Number(session.lastMatchRR) > 0);
