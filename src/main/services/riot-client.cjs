@@ -431,6 +431,12 @@ function filterPregameRoster(players, ownPuuid) {
   });
 }
 
+function shouldHydrateRosterTier(player, ownTeam, allowOpponentRanks = false) {
+  const teamId = player.TeamID || player.teamId;
+  const isUnknownOpponent = Boolean(ownTeam && teamId !== ownTeam && !isKnownFriend(player));
+  return !isUnknownOpponent || allowOpponentRanks;
+}
+
 function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
   const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
   const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId || 'Blue';
@@ -1035,19 +1041,19 @@ class RiotClientService extends EventEmitter {
     return tier;
   }
 
-  async hydrateRosterTiers(players) {
+  async hydrateRosterTiers(players, { allowOpponentRanks = false } = {}) {
     if (!players.length) return players;
     const activeSeasonId = await this.fetchActiveSeasonId();
     const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === this.identity.puuid);
     const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
-    return mapWithConcurrency(players, 3, async (player) => ({
+    return mapWithConcurrency(players, 5, async (player) => ({
       ...player,
-      // Never query an opponent's profile to fill a missing rank. If Riot
-      // supplies a tier in the active roster we can display it; otherwise the
-      // opponent stays Unrated/Unavailable.
-      CompetitiveTier: ownTeam && (player.TeamID || player.teamId) !== ownTeam && !isKnownFriend(player)
-        ? Number(player.CompetitiveTier ?? player.competitiveTier ?? 0)
-        : await this.fetchRosterTier(player, activeSeasonId)
+      // Opponent rank hydration is permitted only after the local Riot session
+      // has entered the active core game. Pregame filtering removes opponents
+      // before this method runs, and callers must opt in explicitly.
+      CompetitiveTier: shouldHydrateRosterTier(player, ownTeam, allowOpponentRanks)
+        ? await this.fetchRosterTier(player, activeSeasonId)
+        : Number(player.CompetitiveTier ?? player.competitiveTier ?? 0)
     }));
   }
 
@@ -1125,7 +1131,7 @@ class RiotClientService extends EventEmitter {
     players = this.markKnownFriends(players);
     const [names, rankedPlayers] = await Promise.all([
       this.lookupVisibleNames(players),
-      this.hydrateRosterTiers(players)
+      this.hydrateRosterTiers(players, { allowOpponentRanks: ['INGAME', 'CORE_GAME'].includes(loopState) })
     ]);
     const roster = normalizeLivePlayers(rankedPlayers, puuid, this.metadata || { agents: new Map(), tiers: new Map() }, names);
     this.rememberInspectablePlayers(rankedPlayers, roster, names);
@@ -1832,6 +1838,7 @@ module.exports = {
   isKnownFriend,
   visiblePlayerIds,
   filterPregameRoster,
+  shouldHydrateRosterTier,
   normalizeLivePlayers,
   normalizeHistoricalRoster,
   normalizeServer,

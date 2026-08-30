@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.36
+## Included in version 0.8.0-beta.37
 
 - Original desktop dashboard and navigation
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -74,6 +74,7 @@ source, brand, or proprietary assets.
 - Selectable Friend Synergy profiles with tracked shared-match history and direct Match Autopsy access
 - Awakened Eye visual system with stronger hierarchy, artwork, motion, and depth
 - Match-start enemy reveal boundary: every opponent card stays concealed throughout agent select and loading, then exposes only selected agent and competitive rank after Riot reports an active core game
+- Active-match opponent rank hydration with five concurrent tier lookups when Riot's core-game roster reports zero for every enemy, while keeping the lookup path disabled throughout pregame
 - Detailed match scores, K/D/A, K/D ratio, RR changes, and recent-game statistics
 - Paginated current-act competitive W/L, K/D, and headshot statistics
 - Live Match tab with map, ally/enemy rosters, agents, and competitive ranks
@@ -110,7 +111,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.36-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.37-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -139,10 +140,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.36`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.37`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.36`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.37`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -150,8 +151,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.36
-git push origin v0.8.0-beta.36
+git tag v0.8.0-beta.37
+git push origin v0.8.0-beta.37
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -221,7 +222,8 @@ Electron main process
   connector isolated and verify Riot's current policies before distribution.
 - Riot prohibits opponent scouting before a match. BYAKUGAN therefore conceals
   every enemy card until the active core game begins and never looks up live
-  enemy identities, missing enemy ranks, stats, skins, or profiles.
+  enemy identities, stats, skins, or profiles. Missing competitive tiers may be
+  resolved only after the active core game begins and only the tier is retained.
 - Another product exposing a feature is not itself Riot approval. Register and
   submit BYAKUGAN's live-match flow for Riot audit before public distribution.
 - `BYAKUGAN_LOCKFILE_PATH` can override lockfile discovery for development.

@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, filterPregameRoster, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency
@@ -300,6 +300,40 @@ test('pregame roster excludes every opponent until the core game begins', () => 
     filterPregameRoster(players, 'self').map((player) => player.Subject),
     ['self', 'ally', 'party-without-team']
   );
+});
+
+test('opponent rank hydration requires the active core-game opt-in', () => {
+  const ally = { Subject: 'ally', TeamID: 'Blue' };
+  const enemy = { Subject: 'enemy', TeamID: 'Red' };
+  const enemyFriend = { Subject: 'enemy-friend', TeamID: 'Red', BYAKUGANFriend: true };
+  assert.equal(shouldHydrateRosterTier(ally, 'Blue', false), true);
+  assert.equal(shouldHydrateRosterTier(enemyFriend, 'Blue', false), true);
+  assert.equal(shouldHydrateRosterTier(enemy, 'Blue', false), false);
+  assert.equal(shouldHydrateRosterTier(enemy, 'Blue', true), true);
+});
+
+test('active core-game hydration resolves a missing enemy tier', async () => {
+  const service = Object.create(RiotClientService.prototype);
+  service.identity = { puuid: 'self' };
+  service.fetchActiveSeasonId = async () => 'current-act';
+  const calls = [];
+  service.fetchRosterTier = async (player) => {
+    calls.push(player.Subject);
+    return player.Subject === 'enemy' ? 21 : 20;
+  };
+  const players = [
+    { Subject: 'self', TeamID: 'Blue', CompetitiveTier: 20 },
+    { Subject: 'enemy', TeamID: 'Red', CompetitiveTier: 0 }
+  ];
+
+  const pregame = await service.hydrateRosterTiers(players);
+  assert.equal(pregame[1].CompetitiveTier, 0);
+  assert.equal(calls.includes('enemy'), false);
+
+  calls.length = 0;
+  const active = await service.hydrateRosterTiers(players, { allowOpponentRanks: true });
+  assert.equal(active[1].CompetitiveTier, 21);
+  assert.equal(calls.includes('enemy'), true);
 });
 
 test('historical roster keeps incognito identities hidden and includes match performance', () => {
