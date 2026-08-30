@@ -330,6 +330,17 @@ button { color: inherit; }
 .app-update-row .ghost-button { flex: 0 0 auto; padding-inline: 13px; }
 .stream-overlay-card { grid-column: 1 / -1; }
 .stream-overlay-card .settings-heading { align-items: center; }
+.remote-viewer-card { grid-column: 1 / -1; }
+.remote-viewer-card .settings-heading { align-items: center; }
+.remote-connection-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; min-height: 78px; padding-top: 12px; border-top: 1px solid var(--border); }
+.remote-connection-row small, .remote-connection-row strong { display: block; }
+.remote-connection-row small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .13em; }
+.remote-connection-row strong { margin-top: 6px; color: var(--muted); font-size: 10px; word-break: break-all; }
+.remote-security-note { margin: 10px 0 0; color: var(--muted-2); font-size: 8px; line-height: 1.55; }
+.remote-url-input { display: grid; gap: 8px; padding: 17px 0 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 9px; }
+.remote-url-input input { width: 100%; border: 1px solid var(--border); border-radius: 10px; outline: none; background: #111522; color: white; padding: 12px 13px; font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.remote-url-input input:focus { border-color: rgba(139,108,255,.7); box-shadow: 0 0 0 3px rgba(139,108,255,.09); }
+#remoteViewerControls > .primary-button { margin-top: 0; }
 .overlay-options-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 9px; padding: 18px 0 11px; border-top: 1px solid var(--border); }
 .overlay-options-heading small, .overlay-options-heading strong { display: block; }
 .overlay-options-heading small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
@@ -454,7 +465,8 @@ button { color: inherit; }
   .nav-item { grid-template-columns: 1fr; text-align: center; padding: 0; }
   .nav-item i { margin: auto; }
   .hero-grid, .social-layout, .settings-grid, .roster-grid { grid-template-columns: 1fr; }
-  .stream-overlay-card { grid-column: auto; }
+  .stream-overlay-card, .remote-viewer-card { grid-column: auto; }
+  .remote-connection-row { grid-template-columns: 1fr; padding-bottom: 12px; }
   .overlay-field-grid { grid-template-columns: 1fr; }
   .overlay-preview { grid-template-columns: 50px 1fr repeat(3, 58px); }
   .overlay-url-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }

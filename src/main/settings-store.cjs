@@ -10,6 +10,10 @@ const DEFAULTS = Object.freeze({
   refreshSeconds: 30,
   compactMatches: false,
   privacyMode: false,
+  pcRole: 'gaming',
+  remoteViewerEnabled: false,
+  remoteViewerToken: '',
+  remoteSourceUrl: '',
   streamOverlayEnabled: false,
   streamOverlayLanEnabled: false,
   streamOverlayLayout: 'horizontal',
@@ -52,7 +56,12 @@ class SettingsStore {
       if (typeof DEFAULTS[key] === 'boolean' && typeof value !== 'boolean') continue;
       if (typeof DEFAULTS[key] === 'number' && (!Number.isFinite(value) || value < 1)) continue;
       if (key === 'streamOverlayLayout' && !['rank', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
-      if (key === 'streamOverlayToken' && !/^[a-f0-9]{48}$/.test(value)) continue;
+      if (key === 'pcRole' && !['gaming', 'viewer'].includes(value)) continue;
+      if (['streamOverlayToken', 'remoteViewerToken'].includes(key) && !/^[a-f0-9]{48}$/.test(value)) continue;
+      if (key === 'remoteSourceUrl') {
+        if (typeof value !== 'string' || value.length > 300) continue;
+        if (value && !/^http:\/\/(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|100\.(?:6[4-9]|[789]\d|1[01]\d|12[0-7])\.)/.test(value)) continue;
+      }
       this.data[key] = value;
     }
     fs.mkdirSync(path.dirname(this.file), { recursive: true });

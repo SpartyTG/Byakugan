@@ -5,6 +5,7 @@ const { app, BrowserWindow, clipboard, ipcMain, shell } = require('electron');
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
+const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
 
@@ -32,7 +33,9 @@ function createUpdateService() {
 
 async function syncOverlay() {
   if (!overlayServer) return { enabled: false, running: false, url: '', error: '' };
-  if (!settings.get().streamOverlayEnabled && !overlayPreviewWindow) {
+  const current = settings.get();
+  const remoteHostEnabled = current.pcRole === 'gaming' && current.remoteViewerEnabled;
+  if (!current.streamOverlayEnabled && !remoteHostEnabled && !overlayPreviewWindow) {
     await overlayServer.stop();
     return overlayServer.status();
   }
@@ -45,13 +48,8 @@ async function syncOverlay() {
   return overlayServer.status();
 }
 
-function createService({ preserveSession = false } = {}) {
-  const previousSession = preserveSession ? service?.session : null;
-  service?.removeAllListeners?.();
-  service?.disconnect?.();
-  service = new RiotClientService({ cacheDirectory: app.getPath('userData') });
-  if (previousSession) service.session = previousSession;
-
+function wireService(nextService) {
+  service = nextService;
   if (service.on) {
     service.on('live-state', (state) => {
       if (snapshot) snapshot.live = state;
@@ -83,15 +81,35 @@ function createService({ preserveSession = false } = {}) {
   return service;
 }
 
-async function connectRiotClient() {
-  if (!service || !(service instanceof RiotClientService)) createService();
+function createService({ preserveSession = false } = {}) {
+  const previousSession = preserveSession ? service?.session : null;
+  service?.removeAllListeners?.();
+  service?.disconnect?.();
+  const nextService = new RiotClientService({ cacheDirectory: app.getPath('userData') });
+  if (previousSession) nextService.session = previousSession;
+  return wireService(nextService);
+}
+
+function createRemoteService() {
+  service?.removeAllListeners?.();
+  service?.disconnect?.();
+  return wireService(new RemoteViewerClient({ sourceUrl: settings.get().remoteSourceUrl }));
+}
+
+function remoteMode() { return settings.get().pcRole === 'viewer'; }
+
+async function connectDataSource() {
+  if (remoteMode()) {
+    if (!(service instanceof RemoteViewerClient)) createRemoteService();
+  } else if (!(service instanceof RiotClientService)) createService();
   snapshot = await service.connect();
   overlayServer?.publish();
   return snapshot;
 }
 
-async function reconnectRiotClient() {
-  createService({ preserveSession: true });
+async function reconnectDataSource() {
+  if (remoteMode()) createRemoteService();
+  else createService({ preserveSession: true });
   snapshot = await service.connect();
   overlayServer?.publish();
   return snapshot;
@@ -99,7 +117,7 @@ async function reconnectRiotClient() {
 
 function registerIpc() {
   ipcMain.handle('app:bootstrap', async () => {
-    if (!snapshot) snapshot = await connectRiotClient();
+    if (!snapshot) snapshot = await connectDataSource();
     return {
       snapshot,
       settings: settings.get(),
@@ -109,10 +127,11 @@ function registerIpc() {
     };
   });
 
-  ipcMain.handle('riot:connect', connectRiotClient);
-  ipcMain.handle('riot:reconnect', reconnectRiotClient);
+  ipcMain.handle('riot:connect', connectDataSource);
+  ipcMain.handle('riot:reconnect', reconnectDataSource);
   ipcMain.handle('riot:refresh', async () => {
-    if (!service) return connectRiotClient();
+    if (!service || (remoteMode() && !(service instanceof RemoteViewerClient))
+      || (!remoteMode() && !(service instanceof RiotClientService))) return connectDataSource();
     snapshot = await service.refresh();
     overlayServer?.publish();
     return snapshot;
@@ -132,6 +151,13 @@ function registerIpc() {
   ipcMain.handle('settings:update', async (_event, patch) => {
     const before = settings.get();
     const after = settings.update(patch);
+
+    if (before.pcRole !== after.pcRole || before.remoteSourceUrl !== after.remoteSourceUrl) {
+      service?.removeAllListeners?.();
+      service?.disconnect?.();
+      service = null;
+      snapshot = null;
+    }
 
     if (process.platform === 'win32' && before.launchAtStartup !== after.launchAtStartup) {
       app.setLoginItemSettings({ openAtLogin: Boolean(after.launchAtStartup), args: ['--hidden'] });
@@ -158,6 +184,15 @@ function registerIpc() {
     await overlayServer?.stop();
     return syncOverlay();
   });
+  ipcMain.handle('remote:status', () => overlayServer?.status() || { remoteEnabled: false, running: false, remoteUrl: '', error: '' });
+  ipcMain.handle('remote:copy-url', () => {
+    const status = overlayServer?.status();
+    if (!status?.remoteEnabled || !status?.running || !status.remoteUrl) {
+      throw new Error(status?.error || 'Enable Remote Viewer hosting on the gaming PC first.');
+    }
+    clipboard.writeText(status.remoteUrl);
+    return status;
+  });
   ipcMain.handle('overlay:preview', async () => {
     if (overlayPreviewWindow && !overlayPreviewWindow.isDestroyed()) {
       overlayPreviewWindow.focus();
@@ -183,7 +218,8 @@ function registerIpc() {
     overlayPreviewWindow.show();
     overlayPreviewWindow.on('closed', () => {
       overlayPreviewWindow = null;
-      if (!settings.get().streamOverlayEnabled) overlayServer.stop();
+      const current = settings.get();
+      if (!current.streamOverlayEnabled && !(current.pcRole === 'gaming' && current.remoteViewerEnabled)) overlayServer.stop();
     });
     return { ok: true };
   });
@@ -248,13 +284,24 @@ function createWindow() {
 app.whenReady().then(() => {
   settings = new SettingsStore(app.getPath('userData'));
   if (!settings.get().streamOverlayToken) settings.update({ streamOverlayToken: createOverlayToken() });
+  if (!settings.get().remoteViewerToken) settings.update({ remoteViewerToken: createOverlayToken() });
   overlayServer = new OverlayServer({
     getSnapshot: () => snapshot || {},
-    getSettings: () => settings.get(),
-    getHost: () => settings.get().streamOverlayLanEnabled ? findLanHost() : LOOPBACK_HOST,
+    getSettings: () => {
+      const current = settings.get();
+      return { ...current, remoteViewerEnabled: current.pcRole === 'gaming' && current.remoteViewerEnabled };
+    },
+    getHost: () => {
+      const current = settings.get();
+      return current.streamOverlayLanEnabled || (current.pcRole === 'gaming' && current.remoteViewerEnabled)
+        ? findLanHost()
+        : LOOPBACK_HOST;
+    },
+    inspectPlayer: (playerId) => service?.inspectPlayer?.(playerId),
     assetDirectory: path.join(__dirname, '..', 'overlay')
   });
-  createService();
+  if (remoteMode()) createRemoteService();
+  else createService();
   createUpdateService();
   registerIpc();
   createWindow();

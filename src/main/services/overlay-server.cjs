@@ -38,6 +38,13 @@ function createOverlayToken() {
   return crypto.randomBytes(24).toString('hex');
 }
 
+function buildRemotePayload(snapshot = {}) {
+  return {
+    version: 1,
+    snapshot: JSON.parse(JSON.stringify(snapshot || {}))
+  };
+}
+
 function tokenMatches(provided, expected) {
   const left = Buffer.from(String(provided || ''));
   const right = Buffer.from(String(expected || ''));
@@ -117,12 +124,13 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
 }
 
 class OverlayServer {
-  constructor({ getSnapshot, getSettings, getHost, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
+  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
     this.getSnapshot = getSnapshot || (() => ({}));
     this.getSettings = getSettings || (() => ({}));
     this.assetDirectory = assetDirectory || path.join(__dirname, '..', '..', 'overlay');
     this.host = host;
     this.getHost = getHost || (() => host);
+    this.inspectPlayer = inspectPlayer || null;
     this.port = port;
     this.server = null;
     this.clients = new Set();
@@ -135,13 +143,18 @@ class OverlayServer {
     const running = Boolean(this.server?.listening && address);
     const port = running && typeof address === 'object' ? address.port : this.port;
     const token = this.getSettings().streamOverlayToken || '';
+    const remoteToken = this.getSettings().remoteViewerToken || '';
+    const overlayEnabled = Boolean(this.getSettings().streamOverlayEnabled);
+    const remoteEnabled = Boolean(this.getSettings().remoteViewerEnabled);
     return {
-      enabled: Boolean(this.getSettings().streamOverlayEnabled),
+      enabled: overlayEnabled,
+      remoteEnabled,
       running,
       port,
       host: running ? this.host : '',
       access: running && this.host !== LOOPBACK_HOST ? 'network' : 'local',
-      url: running && token ? `http://${this.host}:${port}/overlay/${encodeURIComponent(token)}` : '',
+      url: running && overlayEnabled && token ? `http://${this.host}:${port}/overlay/${encodeURIComponent(token)}` : '',
+      remoteUrl: running && remoteEnabled && remoteToken ? `http://${this.host}:${port}/remote/${encodeURIComponent(remoteToken)}` : '',
       error: this.lastError
     };
   }
@@ -156,7 +169,12 @@ class OverlayServer {
     if (this.server?.listening) await this.stop();
     this.host = desiredHost;
     this.lastError = '';
-    this.server = http.createServer((request, response) => this.handle(request, response));
+    this.server = http.createServer((request, response) => {
+      Promise.resolve(this.handle(request, response)).catch(() => {
+        if (!response.headersSent) response.writeHead(500, this.headers('application/json; charset=utf-8'));
+        if (!response.writableEnded) response.end(JSON.stringify({ error: 'Remote request failed.' }));
+      });
+    });
     this.server.on('clientError', (_error, socket) => socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'));
 
     try {
@@ -204,6 +222,35 @@ class OverlayServer {
     return tokenMatches(provided, this.getSettings().streamOverlayToken);
   }
 
+  authorizeRemote(url, pathToken = '') {
+    const provided = pathToken || url.searchParams.get('token') || '';
+    return Boolean(this.getSettings().remoteViewerEnabled)
+      && tokenMatches(provided, this.getSettings().remoteViewerToken);
+  }
+
+  sendJson(response, value, request = null) {
+    const body = JSON.stringify(value);
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex')}"`;
+    if (request?.headers?.['if-none-match'] === etag) {
+      response.writeHead(304, { 'Cache-Control': 'no-store, max-age=0', ETag: etag });
+      response.end();
+      return;
+    }
+    response.writeHead(200, { ...this.headers('application/json; charset=utf-8'), ETag: etag });
+    response.end(body);
+  }
+
+  async readJson(request, maximumBytes = 4096) {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size > maximumBytes) throw new Error('Request too large.');
+      chunks.push(chunk);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  }
+
   headers(contentType) {
     return {
       'Content-Type': contentType,
@@ -226,14 +273,25 @@ class OverlayServer {
     }
   }
 
-  handle(request, response) {
+  async handle(request, response) {
+    const url = new URL(request.url || '/', `http://${this.host}`);
+
+    if (request.method === 'POST' && url.pathname.startsWith('/remote-inspect/')) {
+      let token = '';
+      try { token = decodeURIComponent(url.pathname.slice('/remote-inspect/'.length)); } catch { return this.notFound(response); }
+      if (!this.authorizeRemote(url, token) || !this.inspectPlayer) return this.notFound(response);
+      const body = await this.readJson(request);
+      const playerId = String(body.playerId || '').trim();
+      if (!playerId || playerId.length > 100) return this.notFound(response);
+      return this.sendJson(response, { version: 1, profile: await this.inspectPlayer(playerId) });
+    }
+
     if (request.method !== 'GET') {
       response.writeHead(405, this.headers('text/plain; charset=utf-8'));
       response.end('Method not allowed.');
       return;
     }
 
-    const url = new URL(request.url || '/', `http://${this.host}`);
     if (url.pathname === '/overlay.css') return this.sendFile(response, 'overlay.css', 'text/css; charset=utf-8');
     if (url.pathname === '/overlay.js') return this.sendFile(response, 'overlay.js', 'text/javascript; charset=utf-8');
 
@@ -242,6 +300,13 @@ class OverlayServer {
       try { token = decodeURIComponent(url.pathname.slice('/overlay/'.length)); } catch { return this.notFound(response); }
       if (!this.authorize(url, token)) return this.notFound(response);
       return this.sendFile(response, 'index.html', 'text/html; charset=utf-8');
+    }
+
+    if (url.pathname.startsWith('/remote/')) {
+      let token = '';
+      try { token = decodeURIComponent(url.pathname.slice('/remote/'.length)); } catch { return this.notFound(response); }
+      if (!this.authorizeRemote(url, token)) return this.notFound(response);
+      return this.sendJson(response, buildRemotePayload(this.getSnapshot()), request);
     }
 
     if (url.pathname === '/snapshot') {
@@ -279,6 +344,7 @@ module.exports = {
   LOOPBACK_HOST,
   OverlayServer,
   buildOverlayPayload,
+  buildRemotePayload,
   createOverlayToken,
   findLanHost,
   isPrivateIpv4,

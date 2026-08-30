@@ -292,6 +292,24 @@
             </div>
           </article>
 
+          <article class="glass settings-card remote-viewer-card">
+            <div class="settings-heading"><span class="setting-icon">⇄</span><div><h2>Two-PC mode</h2><p>Run VALORANT on the gaming PC and view BYAKUGAN from the streaming PC.</p></div><span class="overlay-status" id="remoteStatus">LOCAL</span></div>
+            <label class="range-row"><span>This computer</span><select id="pcRole"><option value="gaming">Gaming PC — Host</option><option value="viewer">Streaming PC — Viewer</option></select></label>
+            <div id="remoteHostControls">
+              <label class="toggle-row"><span><strong>Allow Remote Viewer</strong><small>Share BYAKUGAN data with one trusted PC on your private network.</small></span><input type="checkbox" id="remoteViewerEnabled"><i></i></label>
+              <div class="remote-connection-row">
+                <div><small>STREAMING-PC CONNECTION</small><strong id="remoteHostUrl">Enable Remote Viewer to create a connection.</strong></div>
+                <button class="primary-button" id="copyRemoteUrl" disabled>Copy connection URL</button>
+              </div>
+              <p class="remote-security-note">Keep BYAKUGAN open or minimized on the gaming PC. Riot credentials never leave it; only the dashboard snapshot and permitted profile lookups are shared.</p>
+            </div>
+            <div id="remoteViewerControls" hidden>
+              <label class="remote-url-input"><span>Gaming PC connection URL</span><input type="text" id="remoteSourceUrl" autocomplete="off" spellcheck="false" placeholder="Paste the URL copied from the gaming PC"></label>
+              <button class="primary-button" id="connectRemoteViewer">Connect to gaming PC</button>
+              <p class="remote-security-note">Both computers must be on the same private network. BYAKUGAN will reconnect automatically while this viewer is open.</p>
+            </div>
+          </article>
+
           <article class="glass settings-card stream-overlay-card">
             <div class="settings-heading"><span class="setting-icon">◉</span><div><h2>OBS stream overlay</h2><p>Broadcast your personal BYAKUGAN session as a transparent Browser Source.</p></div><span class="overlay-status" id="overlayStatus">OFF</span></div>
             <div class="overlay-preview" aria-hidden="true">

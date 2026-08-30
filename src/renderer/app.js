@@ -12,6 +12,7 @@ const state = {
   openPlayerId: '',
   selectedSynergyFriendId: '',
   overlayStatus: null,
+  remoteStatus: null,
   updateStatus: null
 };
 
@@ -50,13 +51,14 @@ function initials(name) {
 
 function setConnection(connection) {
   const connected = connection?.status === 'connected';
+  const remote = connection?.source === 'remote' || state.settings?.pcRole === 'viewer';
   $('#statusPill').classList.toggle('disconnected', !connected);
   $('#miniDot').classList.toggle('error', !connected);
-  text('#statusText', connected ? connection.label : 'Disconnected');
-  text('#statusSubtext', connected ? `${connection.region} • Live` : 'Riot Client unavailable');
-  text('#miniStatus', connected ? connection.label : 'Disconnected');
-  text('#miniRegion', connected ? `${connection.region} region` : 'Retry connection');
-  text('#connectButton', connected ? 'Reconnect Riot' : 'Connect Riot');
+  text('#statusText', connected ? connection.label : remote ? 'Gaming PC disconnected' : 'Disconnected');
+  text('#statusSubtext', connected ? (remote ? `${connection.remoteHost || 'LAN'} • Remote` : `${connection.region} • Live`) : remote ? 'Remote Viewer unavailable' : 'Riot Client unavailable');
+  text('#miniStatus', connected ? connection.label : remote ? 'Gaming PC disconnected' : 'Disconnected');
+  text('#miniRegion', connected ? (remote ? `${connection.remoteHost || 'LAN'} host` : `${connection.region} region`) : 'Retry connection');
+  text('#connectButton', remote ? 'Reconnect Host' : connected ? 'Reconnect Riot' : 'Connect Riot');
 }
 
 function renderStats(profile) {
@@ -556,6 +558,11 @@ function syncSettingsForm() {
   $('#privacyMode').checked = Boolean(settings.privacyMode);
   $('#compactMatches').checked = Boolean(settings.compactMatches);
   $('#refreshSeconds').value = String(settings.refreshSeconds || 30);
+  $('#pcRole').value = settings.pcRole || 'gaming';
+  $('#remoteViewerEnabled').checked = Boolean(settings.remoteViewerEnabled);
+  $('#remoteSourceUrl').value = settings.remoteSourceUrl || '';
+  $('#remoteHostControls').hidden = settings.pcRole === 'viewer';
+  $('#remoteViewerControls').hidden = settings.pcRole !== 'viewer';
   $('#streamOverlayEnabled').checked = Boolean(settings.streamOverlayEnabled);
   $('#streamOverlayLanEnabled').checked = Boolean(settings.streamOverlayLanEnabled);
   $('#streamOverlayLayout').value = settings.streamOverlayLayout || 'horizontal';
@@ -566,6 +573,26 @@ function syncSettingsForm() {
   $('#streamOverlayShowMap').checked = settings.streamOverlayShowMap !== false;
   $('#streamOverlayShowRR').checked = settings.streamOverlayShowRR !== false;
   $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
+}
+
+function renderRemoteStatus(status = {}) {
+  state.remoteStatus = status;
+  const viewer = state.settings?.pcRole === 'viewer';
+  const viewerConnected = viewer && state.snapshot?.connection?.source === 'remote'
+    && state.snapshot.connection.status === 'connected';
+  const hostReady = !viewer && Boolean(status.remoteEnabled && status.running && status.remoteUrl);
+  const statusElement = $('#remoteStatus');
+  statusElement.textContent = viewer ? (viewerConnected ? 'CONNECTED' : 'VIEWER') : (hostReady ? 'HOST LIVE' : 'LOCAL');
+  statusElement.classList.toggle('live', viewerConnected || hostReady);
+  text('#remoteHostUrl', hostReady
+    ? `http://${status.host}:${status.port}/remote/••••••••••••`
+    : status.error || 'Enable Remote Viewer to create a connection.');
+  $('#copyRemoteUrl').disabled = !hostReady;
+}
+
+async function refreshRemoteStatus() {
+  try { renderRemoteStatus(await window.companion.getRemoteStatus()); }
+  catch (error) { renderRemoteStatus({ remoteEnabled: false, running: false, error: error.message }); }
 }
 
 function renderOverlayStatus(status = {}) {
@@ -706,7 +733,10 @@ async function reconnect(showFeedback = true) {
   try {
     const snapshot = await window.companion.reconnect();
     renderSnapshot(snapshot);
-    if (showFeedback) toast('Riot reconnected', 'Connection, authentication, and live Riot data were restarted.');
+    await refreshRemoteStatus();
+    if (showFeedback) toast(state.settings?.pcRole === 'viewer' ? 'Gaming PC connected' : 'Riot reconnected', state.settings?.pcRole === 'viewer'
+      ? 'The streaming PC is now receiving live BYAKUGAN data.'
+      : 'Connection, authentication, and live Riot data were restarted.');
   } catch (error) {
     setConnection({ status: 'disconnected' });
     toast('Reconnection failed', error.message || 'Could not reconnect to Riot Client.', 'error');
@@ -720,6 +750,7 @@ async function saveSettingsPatch(patch, feedback = true) {
   renderMatches();
   scheduleRefresh();
   await refreshOverlayStatus();
+  await refreshRemoteStatus();
   if (feedback) toast('Settings saved', 'Your preferences were updated.');
 }
 
@@ -788,6 +819,38 @@ function bindEvents() {
   $('#privacyMode').addEventListener('change', (event) => saveSettingsPatch({ privacyMode: event.target.checked }, false));
   $('#compactMatches').addEventListener('change', (event) => saveSettingsPatch({ compactMatches: event.target.checked }, false));
   $('#refreshSeconds').addEventListener('change', (event) => saveSettingsPatch({ refreshSeconds: Number(event.target.value) }, false));
+  $('#pcRole').addEventListener('change', async (event) => {
+    const role = event.target.value;
+    await saveSettingsPatch({ pcRole: role }, false);
+    setConnection({ status: 'disconnected', source: role === 'viewer' ? 'remote' : 'local' });
+    toast(role === 'viewer' ? 'Streaming PC mode selected' : 'Gaming PC mode selected', role === 'viewer'
+      ? 'Paste the connection URL from the gaming PC, then select Connect to gaming PC.'
+      : 'Use Reconnect Riot to restore the local VALORANT connection.');
+  });
+  $('#remoteViewerEnabled').addEventListener('change', async (event) => {
+    await saveSettingsPatch({ remoteViewerEnabled: event.target.checked }, false);
+    if (event.target.checked) toast('Remote Viewer host enabled', 'Copy the connection URL and paste it into BYAKUGAN on the streaming PC. Allow Private networks if Windows asks.');
+  });
+  $('#copyRemoteUrl').addEventListener('click', async () => {
+    try {
+      const status = await window.companion.copyRemoteUrl();
+      renderRemoteStatus(status);
+      toast('Connection URL copied', 'Paste it into Two-PC mode on the streaming PC. Treat this URL like a password.');
+    } catch (error) {
+      toast('Remote Viewer unavailable', error.message, 'error');
+    }
+  });
+  $('#connectRemoteViewer').addEventListener('click', async () => {
+    try {
+      const remoteSourceUrl = $('#remoteSourceUrl').value.trim();
+      state.settings = await window.companion.updateSettings({ pcRole: 'viewer', remoteSourceUrl });
+      syncSettingsForm();
+      await reconnect(true);
+    } catch (error) {
+      setConnection({ status: 'disconnected', source: 'remote' });
+      toast('Gaming PC connection failed', error.message || 'Could not connect to the gaming PC.', 'error');
+    }
+  });
   $('#streamOverlayEnabled').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayEnabled: event.target.checked }, false));
   $('#streamOverlayLanEnabled').addEventListener('change', async (event) => {
     await saveSettingsPatch({ streamOverlayLanEnabled: event.target.checked }, false);
@@ -858,6 +921,7 @@ function bindEvents() {
   window.companion.onLiveState(updateLive);
   window.companion.onSnapshot((snapshot) => {
     renderSnapshot(snapshot);
+    renderRemoteStatus(state.remoteStatus || {});
     toast('Act stats updated', 'BYAKUGAN refreshed your current-act competitive history.');
   });
   window.companion.onActProgress((progress) => {
@@ -887,16 +951,19 @@ async function initialize() {
     const bootstrap = await window.companion.bootstrap();
     state.settings = bootstrap.settings;
     renderOverlayStatus(bootstrap.overlay);
+    renderRemoteStatus(bootstrap.overlay);
     renderUpdateStatus(bootstrap.update);
     text('#versionLabel', `v${bootstrap.version}`);
     text('#aboutVersion', bootstrap.version);
     syncSettingsForm();
     renderSnapshot(bootstrap.snapshot);
+    renderRemoteStatus(bootstrap.overlay);
     scheduleRefresh();
   } catch (error) {
     state.settings = await window.companion.getSettings().catch(() => ({
       autoRefresh: false, refreshSeconds: 30,
       launchAtStartup: false, privacyMode: false, compactMatches: false,
+      pcRole: 'gaming', remoteViewerEnabled: false, remoteSourceUrl: '',
       streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
       streamOverlayShowWl: true, streamOverlayShowKd: true,
@@ -905,6 +972,7 @@ async function initialize() {
     }));
     syncSettingsForm();
     applyPrivacy();
+    renderRemoteStatus({});
     setConnection({ status: 'disconnected' });
     toast('Startup failed', error.message || 'BYAKUGAN could not initialize.', 'error');
   } finally {

@@ -136,3 +136,43 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     await server.stop();
   }
 });
+
+test('remote viewer endpoint exposes the dashboard snapshot with a separate token', async () => {
+  const remoteToken = 'b'.repeat(48);
+  const currentSettings = settings({ remoteViewerEnabled: true, remoteViewerToken: remoteToken });
+  const server = new OverlayServer({
+    getSnapshot: () => snapshot,
+    getSettings: () => currentSettings,
+    inspectPlayer: async (playerId) => ({ playerId, name: 'Visible Friend' }),
+    assetDirectory: path.join(__dirname, '..', 'src', 'overlay'),
+    port: 0
+  });
+
+  try {
+    const status = await server.start();
+    assert.equal(status.remoteEnabled, true);
+    assert.match(status.remoteUrl, /\/remote\/b{48}$/);
+    const endpoint = `http://127.0.0.1:${status.port}/remote/${remoteToken}`;
+    const denied = await fetch(`${endpoint.slice(0, -1)}a`);
+    assert.equal(denied.status, 404);
+
+    const accepted = await fetch(endpoint);
+    assert.equal(accepted.status, 200);
+    const etag = accepted.headers.get('etag');
+    const payload = await accepted.json();
+    assert.equal(payload.version, 1);
+    assert.equal(payload.snapshot.profile.gameName, snapshot.profile.gameName);
+    assert.equal(payload.snapshot.friends.length, snapshot.friends.length);
+
+    const unchanged = await fetch(endpoint, { headers: { 'If-None-Match': etag } });
+    assert.equal(unchanged.status, 304);
+
+    const inspected = await fetch(`http://127.0.0.1:${status.port}/remote-inspect/${remoteToken}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: 'friend-1' })
+    });
+    assert.equal(inspected.status, 200);
+    assert.deepEqual((await inspected.json()).profile, { playerId: 'friend-1', name: 'Visible Friend' });
+  } finally {
+    await server.stop();
+  }
+});

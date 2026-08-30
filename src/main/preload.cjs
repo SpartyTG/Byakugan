@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   copyOverlayUrl: () => ipcRenderer.invoke('overlay:copy-url'),
   regenerateOverlayToken: () => ipcRenderer.invoke('overlay:regenerate-token'),
   previewOverlay: () => ipcRenderer.invoke('overlay:preview'),
+  getRemoteStatus: () => ipcRenderer.invoke('remote:status'),
+  copyRemoteUrl: () => ipcRenderer.invoke('remote:copy-url'),
   getUpdateStatus: () => ipcRenderer.invoke('update:status'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadAndInstallUpdate: () => ipcRenderer.invoke('update:download-install'),
