@@ -204,11 +204,11 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .layout-rank .peak-rank-emblem { width: 30px; height: 30px; }
 .layout-rank .peak-rank-copy b { font-size: 8px; }
 .layout-rank .peak-rank-copy i { margin-top: 3px; color: #eeeaff; font-size: 11px; font-weight: 800; }
-.layout-rank .rank-session-record { align-self: flex-end; display: block; margin: 0 2px 5px auto; padding-left: 14px; border-left: 1px solid rgba(194,180,255,.13); text-align: right; }
+.layout-rank .rank-session-record { align-self: center; display: block; min-width: 116px; margin: 18px 0 0; padding: 8px 10px; border: 1px solid rgba(194,180,255,.16); border-radius: 10px; background: rgba(5,9,20,calc(var(--overlay-bg-opacity) * .76)); box-shadow: inset 0 1px rgba(255,255,255,.025); text-align: center; }
 .layout-rank .rank-session-record small, .layout-rank .rank-session-record strong, .layout-rank .rank-session-record em { display: block; }
 .layout-rank .rank-session-record small { color: var(--muted); font-size: 8px; letter-spacing: .12em; }
-.layout-rank .rank-session-record strong { margin-top: 5px; font-size: 17px; }
-.layout-rank .rank-session-record em { margin-top: 3px; color: #b4b8ca; font-size: 10px; font-style: normal; }
+.layout-rank .rank-session-record strong { margin-top: 4px; font-size: 16px; }
+.layout-rank .rank-session-record em { margin-top: 2px; color: #c4c8d8; font-size: 9px; font-style: normal; }
 .layout-rank .metrics-block { display: none; }
 .layout-rank .live-block { grid-column: 1; grid-row: 2; display: flex; gap: 7px; min-width: 0; margin: 0 7px 7px 9px; padding: 4px 7px; overflow: hidden; border: 1px solid rgba(56,230,193,.2); border-radius: 11px; background: rgba(10,22,27,var(--overlay-bg-opacity)); clip-path: none; }
 .layout-rank .live-block::before, .layout-rank .live-block::after { content: none !important; display: none !important; }
