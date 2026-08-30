@@ -47,6 +47,7 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(payload.player.peakAct, 'Act 2');
   assert.equal(payload.player.peakRankImage, '');
   assert.equal(payload.live.agent, 'Omen');
+  assert.equal(payload.live.agentLabel, 'AGENT SELECT');
   assert.equal(payload.live.map, 'Ascent');
   assert.equal(payload.session.games, 3);
   assert.equal(payload.session.lastMatchRR, 19);
@@ -59,6 +60,17 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(serialized.includes('Sova'), false);
   assert.equal(serialized.includes('demo-match-9f31'), false);
   assert.equal(serialized.includes('players'), false);
+});
+
+test('overlay agent falls back to the last played agent while in menus', () => {
+  const menuSnapshot = {
+    ...snapshot,
+    live: { state: 'MENUS', queue: 'Not queued', map: '—', players: [] }
+  };
+  const payload = buildOverlayPayload(menuSnapshot, settings());
+  assert.equal(payload.live.agent, snapshot.matches[0].agent);
+  assert.equal(payload.live.agentImage, snapshot.matches[0].agentImage);
+  assert.equal(payload.live.agentLabel, 'LAST PLAYED');
 });
 
 test('awakened rank layout is accepted for OBS', () => {

@@ -97,7 +97,7 @@ function render(data) {
   requestAnimationFrame(() => overlay.style.setProperty('--rr-beam-progress', `${nextBeamProgress}%`));
   currentBeamProgress = nextBeamProgress;
 
-  text('#liveLabel', live.label || 'IN MENUS');
+  text('#liveLabel', live.agentLabel || live.label || 'WAITING FOR AGENT');
   text('#liveMap', live.map || '—');
   text('#liveAgent', live.agent || live.queue || '—');
   setImage('#agentImage', '#agentFallback', live.agentImage, initials(live.agent));

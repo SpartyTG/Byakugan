@@ -87,7 +87,8 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const profile = snapshot.profile || {};
   const session = snapshot.analytics?.session || {};
   const live = snapshot.live || {};
-  const self = (live.players || []).find((player) => player?.isSelf) || {};
+  const self = (live.players || []).find((player) => player?.isSelf)
+    || (live.players || []).find((player) => player?.name === 'You') || {};
   const showIdentity = Boolean(settings.streamOverlayShowIdentity);
   const showWl = settings.streamOverlayShowWl !== false;
   const showKd = settings.streamOverlayShowKd !== false;
@@ -98,6 +99,10 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const showRrChange = settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const lastMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
+  const liveAgentAvailable = self.agent && !['—', 'Selecting…', 'Unknown agent'].includes(self.agent);
+  const fallbackAgentAvailable = lastMatch.agent && lastMatch.agent !== '—';
+  const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? lastMatch : {};
+  const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
   const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
     ? settings.streamOverlayLayout
     : 'horizontal';
@@ -133,10 +138,11 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     live: {
       state: cleanText(live.state, 'MENUS', 24).toUpperCase(),
       label: liveLabel(live.state),
+      agentLabel: showAgent ? agentLabel : '',
       queue: cleanText(live.queue, 'Not queued', 40),
       map: showMap ? cleanText(live.map, '—', 40) : '—',
-      agent: showAgent ? cleanText(self.agent, '—', 40) : '—',
-      agentImage: showAgent ? mediaUrl(self.agentImage) : ''
+      agent: showAgent ? cleanText(overlayAgent.agent, 'Waiting…', 40) : '—',
+      agentImage: showAgent ? mediaUrl(overlayAgent.agentImage) : ''
     }
   };
 }
