@@ -146,7 +146,13 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     const page = await fetch(status.url);
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-security-policy'), /connect-src 'self'/);
+    assert.match(page.headers.get('content-security-policy'), /img-src 'self'/);
     assert.match(await page.text(), /BYAKUGAN Session Overlay/);
+
+    const beam = await fetch(`http://127.0.0.1:${status.port}/rr-energy-beam.gif`);
+    assert.equal(beam.status, 200);
+    assert.equal(beam.headers.get('content-type'), 'image/gif');
+    assert.equal(Buffer.from(await beam.arrayBuffer()).subarray(0, 6).toString('ascii'), 'GIF89a');
 
     const denied = await fetch(`http://127.0.0.1:${status.port}/snapshot?token=wrong`);
     assert.equal(denied.status, 404);
