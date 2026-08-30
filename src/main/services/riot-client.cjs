@@ -419,6 +419,18 @@ function visiblePlayerIds(players, ownPuuid) {
     .filter(Boolean);
 }
 
+function filterPregameRoster(players, ownPuuid) {
+  const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
+  const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
+  return players.filter((player) => {
+    const subject = player.Subject || player.subject || player.puuid;
+    if (subject === ownPuuid) return true;
+    const teamId = player.TeamID || player.teamId;
+    if (ownTeam && teamId) return teamId === ownTeam;
+    return isKnownPartyMember(player);
+  });
+}
+
 function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
   const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
   const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId || 'Blue';
@@ -1109,6 +1121,7 @@ class RiotClientService extends EventEmitter {
     } else if (!players.length && loopState === 'MENUS') {
       players = party.players;
     }
+    if (loopState === 'PREGAME') players = filterPregameRoster(players, puuid);
     players = this.markKnownFriends(players);
     const [names, rankedPlayers] = await Promise.all([
       this.lookupVisibleNames(players),
@@ -1130,9 +1143,9 @@ class RiotClientService extends EventEmitter {
       rosterStatus: loopState === 'MENUS' && roster.length
         ? 'Party members and Riot friends can be inspected. Unknown private identities remain unavailable.'
         : loopState === 'PREGAME'
-        ? 'Unknown opponents remain hidden during agent select. Riot friends stay visible.'
+        ? 'Enemy agents and ranks unlock only after the active match begins.'
         : roster.length
-          ? 'Roster supplied by the active Riot match session.'
+          ? 'Active match roster: enemy cards show agent and rank only; names and profiles remain protected.'
           : 'Waiting for Riot to expose the active roster.'
     };
   }
@@ -1818,6 +1831,7 @@ module.exports = {
   isKnownPartyMember,
   isKnownFriend,
   visiblePlayerIds,
+  filterPregameRoster,
   normalizeLivePlayers,
   normalizeHistoricalRoster,
   normalizeServer,

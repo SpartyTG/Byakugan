@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, filterPregameRoster, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency
@@ -286,6 +286,20 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('EnemyMustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);
+});
+
+test('pregame roster excludes every opponent until the core game begins', () => {
+  const players = [
+    { Subject: 'self', TeamID: 'Blue' },
+    { Subject: 'ally', TeamID: 'Blue' },
+    { Subject: 'enemy', TeamID: 'Red' },
+    { Subject: 'enemy-friend', TeamID: 'Red', BYAKUGANFriend: true },
+    { Subject: 'party-without-team', BYAKUGANPartyMember: true }
+  ];
+  assert.deepEqual(
+    filterPregameRoster(players, 'self').map((player) => player.Subject),
+    ['self', 'ally', 'party-without-team']
+  );
 });
 
 test('historical roster keeps incognito identities hidden and includes match performance', () => {

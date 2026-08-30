@@ -432,15 +432,17 @@ function closePlayerProfile() {
 }
 
 function hiddenOpponentSlot(index) {
-  return `<div class="live-player-row concealed"><div class="live-agent"><span>?</span></div><div class="live-player-identity"><strong>Opponent hidden</strong><small>Revealed when Riot exposes the roster</small></div><div class="live-rank"><i></i><span><small>RANK</small><strong>Hidden</strong></span></div></div>`;
+  return `<div class="live-player-row concealed"><div class="live-agent"><span>?</span></div><div class="live-player-identity"><strong>Opponent concealed</strong><small>Agent and rank reveal after the match begins</small></div><div class="live-rank"><i></i><span><small>RANK</small><strong>Hidden</strong></span></div></div>`;
 }
 
 function renderLiveMatch() {
   const live = state.snapshot?.live || {};
   const players = live.players || [];
+  const liveState = String(live.state || '').toUpperCase();
+  const coreGameActive = ['INGAME', 'CORE_GAME'].includes(liveState);
   const allies = players.filter((player) => player.side === 'ally');
-  const enemies = players.filter((player) => player.side === 'enemy');
-  const active = !['MENUS', 'IDLE', ''].includes(String(live.state || '').toUpperCase());
+  const enemies = coreGameActive ? players.filter((player) => player.side === 'enemy') : [];
+  const active = !['MENUS', 'IDLE', ''].includes(liveState);
 
   text('#rosterMap', active ? live.map : 'Waiting for match');
   text('#rosterStatus', live.rosterStatus || 'Open VALORANT and enter a match to populate the roster.');
@@ -456,8 +458,8 @@ function renderLiveMatch() {
   else { backdrop.removeAttribute('src'); backdrop.hidden = true; }
 
   $('#allyRoster').innerHTML = allies.map(livePlayerRow).join('') || '<div class="roster-empty">Your team will appear when Riot exposes the active roster.</div>';
-  if (enemies.length) $('#enemyRoster').innerHTML = enemies.map(livePlayerRow).join('');
-  else if (String(live.state || '').toUpperCase() === 'PREGAME') $('#enemyRoster').innerHTML = Array.from({ length: 5 }, (_, index) => hiddenOpponentSlot(index)).join('');
+  if (coreGameActive && enemies.length) $('#enemyRoster').innerHTML = enemies.map(livePlayerRow).join('');
+  else if (liveState === 'PREGAME') $('#enemyRoster').innerHTML = Array.from({ length: 5 }, (_, index) => hiddenOpponentSlot(index)).join('');
   else $('#enemyRoster').innerHTML = '<div class="roster-empty">Enemy players will appear after the active match loads.</div>';
 }
 
