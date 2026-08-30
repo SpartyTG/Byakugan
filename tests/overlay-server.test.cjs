@@ -25,6 +25,7 @@ function settings(patch = {}) {
     streamOverlayShowAgent: true,
     streamOverlayShowMap: true,
     streamOverlayShowRR: true,
+    streamOverlayShowPeakRank: true,
     streamOverlayShowRrChange: true,
     streamOverlayToken: token,
     ...patch
@@ -37,6 +38,9 @@ test('overlay payload exposes only personal stream fields', () => {
 
   assert.equal(payload.player.name, 'PLAYER');
   assert.equal(payload.player.rank, 'Ascendant 2');
+  assert.equal(payload.player.peakRank, 'Immortal 1');
+  assert.equal(payload.player.peakEpisode, 'Episode 8');
+  assert.equal(payload.player.peakAct, 'Act 2');
   assert.equal(payload.live.agent, 'Omen');
   assert.equal(payload.live.map, 'Ascent');
   assert.equal(payload.session.games, 3);
@@ -62,12 +66,14 @@ test('overlay visibility settings are enforced in the server payload', () => {
     streamOverlayShowAgent: false,
     streamOverlayShowMap: false,
     streamOverlayShowRR: false,
+    streamOverlayShowPeakRank: false,
     streamOverlayShowRrChange: false,
     streamOverlayLayout: 'vertical'
   }));
 
   assert.equal(payload.player.name, 'Nova');
   assert.equal(payload.player.rr, 0);
+  assert.equal(payload.player.peakRank, '');
   assert.equal(payload.live.agent, '—');
   assert.equal(payload.live.map, '—');
   assert.equal(payload.session.games, 0);
@@ -79,6 +85,7 @@ test('overlay visibility settings are enforced in the server payload', () => {
   assert.equal(payload.preferences.showAgent, false);
   assert.equal(payload.preferences.showMap, false);
   assert.equal(payload.preferences.showRR, false);
+  assert.equal(payload.preferences.showPeakRank, false);
   assert.equal(payload.preferences.showRrChange, false);
   assert.equal(payload.layout, 'vertical');
 });

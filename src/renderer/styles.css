@@ -342,6 +342,11 @@ button { color: inherit; }
 .remote-url-input input:focus { border-color: rgba(139,108,255,.7); box-shadow: 0 0 0 3px rgba(139,108,255,.09); }
 #remoteViewerControls > .primary-button { margin-top: 0; }
 .overlay-options-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 9px; padding: 18px 0 11px; border-top: 1px solid var(--border); }
+.overlay-dimensions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: -1px 0 9px; padding: 12px 14px; border: 1px solid rgba(57,230,193,.16); border-radius: 12px; background: linear-gradient(100deg,rgba(57,230,193,.055),rgba(139,108,255,.045)); }
+.overlay-dimensions span small, .overlay-dimensions span strong { display: block; }
+.overlay-dimensions span small { color: var(--teal); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
+.overlay-dimensions span strong { margin-top: 5px; font-size: 15px; letter-spacing: .02em; }
+.overlay-dimensions em { color: var(--muted); font-size: 8px; font-style: normal; line-height: 1.4; text-align: right; }
 .overlay-options-heading small, .overlay-options-heading strong { display: block; }
 .overlay-options-heading small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
 .overlay-options-heading strong { margin-top: 4px; font-size: 13px; }
@@ -467,6 +472,8 @@ button { color: inherit; }
   .hero-grid, .social-layout, .settings-grid, .roster-grid { grid-template-columns: 1fr; }
   .stream-overlay-card, .remote-viewer-card { grid-column: auto; }
   .remote-connection-row { grid-template-columns: 1fr; padding-bottom: 12px; }
+  .overlay-dimensions { align-items: flex-start; flex-direction: column; }
+  .overlay-dimensions em { text-align: left; }
   .overlay-field-grid { grid-template-columns: 1fr; }
   .overlay-preview { grid-template-columns: 50px 1fr repeat(3, 58px); }
   .overlay-url-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }

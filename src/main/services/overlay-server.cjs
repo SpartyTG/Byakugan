@@ -84,6 +84,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const showAgent = settings.streamOverlayShowAgent !== false;
   const showMap = settings.streamOverlayShowMap !== false;
   const showRR = settings.streamOverlayShowRR !== false;
+  const showPeakRank = settings.streamOverlayShowPeakRank !== false;
   const showRrChange = settings.streamOverlayShowRrChange !== false;
   const lastMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
@@ -94,12 +95,15 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     version: 1,
     updatedAt: new Date().toISOString(),
     layout,
-    preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showRrChange },
+    preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange },
     player: {
       name: showIdentity ? cleanText(profile.gameName, 'PLAYER', 32) : 'PLAYER',
       rank: cleanText(profile.rank, 'Unrated', 40),
       rankImage: mediaUrl(profile.rankImage),
-      rr: showRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0
+      rr: showRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0,
+      peakRank: showPeakRank ? cleanText(profile.peakRank, 'Unrated', 40) : '',
+      peakEpisode: showPeakRank ? cleanText(profile.peakEpisode, '', 32) : '',
+      peakAct: showPeakRank ? cleanText(profile.peakAct, '', 32) : ''
     },
     session: {
       games: showWl ? Number(session.games) || 0 : 0,

@@ -23,6 +23,7 @@ const DEFAULTS = Object.freeze({
   streamOverlayShowAgent: true,
   streamOverlayShowMap: true,
   streamOverlayShowRR: true,
+  streamOverlayShowPeakRank: true,
   streamOverlayShowRrChange: true,
   streamOverlayToken: ''
 });

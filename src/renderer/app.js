@@ -19,6 +19,12 @@ const state = {
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const text = (selector, value) => { const element = $(selector); if (element) element.textContent = String(value ?? '—'); };
+const OVERLAY_DIMENSIONS = Object.freeze({
+  rank: { width: 680, height: 300 },
+  horizontal: { width: 1600, height: 180 },
+  compact: { width: 560, height: 240 },
+  vertical: { width: 380, height: 660 }
+});
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const safeImage = (value) => {
   try {
@@ -566,13 +572,21 @@ function syncSettingsForm() {
   $('#streamOverlayEnabled').checked = Boolean(settings.streamOverlayEnabled);
   $('#streamOverlayLanEnabled').checked = Boolean(settings.streamOverlayLanEnabled);
   $('#streamOverlayLayout').value = settings.streamOverlayLayout || 'horizontal';
+  renderOverlayDimensions(settings.streamOverlayLayout);
   $('#streamOverlayShowIdentity').checked = Boolean(settings.streamOverlayShowIdentity);
   $('#streamOverlayShowWl').checked = settings.streamOverlayShowWl !== false;
   $('#streamOverlayShowKd').checked = settings.streamOverlayShowKd !== false;
   $('#streamOverlayShowAgent').checked = settings.streamOverlayShowAgent !== false;
   $('#streamOverlayShowMap').checked = settings.streamOverlayShowMap !== false;
   $('#streamOverlayShowRR').checked = settings.streamOverlayShowRR !== false;
+  $('#streamOverlayShowPeakRank').checked = settings.streamOverlayShowPeakRank !== false;
   $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
+}
+
+function renderOverlayDimensions(layout) {
+  const selected = OVERLAY_DIMENSIONS[layout] || OVERLAY_DIMENSIONS.horizontal;
+  text('#overlayDimensions', `${selected.width} × ${selected.height}`);
+  text('#overlayDimensionsHelp', `Set Width to ${selected.width} and Height to ${selected.height} in OBS.`);
 }
 
 function renderRemoteStatus(status = {}) {
@@ -856,13 +870,17 @@ function bindEvents() {
     await saveSettingsPatch({ streamOverlayLanEnabled: event.target.checked }, false);
     if (event.target.checked) toast('Streaming PC mode enabled', 'Use Copy OBS URL, then paste it into a Browser Source on the other PC. Allow Private networks if Windows asks.');
   });
-  $('#streamOverlayLayout').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayLayout: event.target.value }, false));
+  $('#streamOverlayLayout').addEventListener('change', (event) => {
+    renderOverlayDimensions(event.target.value);
+    saveSettingsPatch({ streamOverlayLayout: event.target.value }, false);
+  });
   $('#streamOverlayShowIdentity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowIdentity: event.target.checked }, false));
   $('#streamOverlayShowWl').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowWl: event.target.checked }, false));
   $('#streamOverlayShowKd').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowKd: event.target.checked }, false));
   $('#streamOverlayShowAgent').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowAgent: event.target.checked }, false));
   $('#streamOverlayShowMap').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowMap: event.target.checked }, false));
   $('#streamOverlayShowRR').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRR: event.target.checked }, false));
+  $('#streamOverlayShowPeakRank').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowPeakRank: event.target.checked }, false));
   $('#streamOverlayShowRrChange').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRrChange: event.target.checked }, false));
   $('#copyOverlayUrl').addEventListener('click', async () => {
     try {
@@ -968,7 +986,7 @@ async function initialize() {
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
       streamOverlayShowWl: true, streamOverlayShowKd: true,
       streamOverlayShowAgent: true, streamOverlayShowMap: true,
-      streamOverlayShowRR: true, streamOverlayShowRrChange: true
+      streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true
     }));
     syncSettingsForm();
     applyPrivacy();

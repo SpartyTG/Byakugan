@@ -17,7 +17,8 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
       remoteViewerToken: 'b'.repeat(48),
       remoteSourceUrl: `http://192.168.50.99:43871/remote/${'c'.repeat(48)}`,
       streamOverlayShowWl: false, streamOverlayShowKd: false, streamOverlayShowAgent: false,
-      streamOverlayShowMap: false, streamOverlayShowRrChange: false, unknown: 'ignored'
+      streamOverlayShowMap: false, streamOverlayShowPeakRank: false,
+      streamOverlayShowRrChange: false, unknown: 'ignored'
     });
     assert.equal(updated.dataMode, undefined);
     assert.equal(updated.privacyMode, true);
@@ -30,6 +31,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(updated.streamOverlayShowKd, false);
     assert.equal(updated.streamOverlayShowAgent, false);
     assert.equal(updated.streamOverlayShowMap, false);
+    assert.equal(updated.streamOverlayShowPeakRank, false);
     assert.equal(updated.streamOverlayShowRrChange, false);
     assert.equal(updated.unknown, undefined);
 
@@ -40,6 +42,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(restored.streamOverlayLayout, 'rank');
     assert.equal(restored.streamOverlayShowAgent, false);
     assert.equal(restored.streamOverlayShowMap, false);
+    assert.equal(restored.streamOverlayShowPeakRank, false);
 
     const rejected = store.update({
       dataMode: 'live', refreshSeconds: -1, privacyMode: 'yes', pcRole: 'relay',
