@@ -47,6 +47,7 @@ function render(data) {
   const session = data.session || {};
   const live = data.live || {};
   const preferences = data.preferences || {};
+  const appearance = data.appearance || {};
 
   overlay.className = `overlay layout-${data.layout || 'horizontal'}`;
   overlay.classList.toggle('hide-identity', !preferences.showIdentity);
@@ -67,6 +68,8 @@ function render(data) {
   overlay.classList.toggle('rr-negative', Number(session.rrChange) < 0);
   overlay.classList.toggle('last-positive', Number(session.lastMatchRR) > 0);
   overlay.classList.toggle('last-negative', Number(session.lastMatchRR) < 0);
+  const backgroundOpacity = Math.max(0, Math.min(100, Number(appearance.backgroundOpacity) || 0));
+  overlay.style.setProperty('--overlay-bg-opacity', String(backgroundOpacity / 100));
 
   text('#playerName', player.name || 'PLAYER');
   text('#playerRank', player.rank || 'Unrated');

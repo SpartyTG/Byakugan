@@ -10,6 +10,7 @@ const {
   buildOverlayPayload,
   findLanHost,
   isPrivateIpv4,
+  overlayBackgroundOpacity,
   rrBeamProgress,
   tokenMatches
 } = require('../src/main/services/overlay-server.cjs');
@@ -29,6 +30,7 @@ function settings(patch = {}) {
     streamOverlayShowPeakRank: true,
     streamOverlayShowRrChange: true,
     streamOverlayAnimatedRrBeam: true,
+    streamOverlayBackgroundOpacity: 35,
     streamOverlayToken: token,
     ...patch
   };
@@ -51,6 +53,7 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(payload.session.lastMatchResult, 'VICTORY');
   assert.equal(payload.session.beamProgress, 72);
   assert.equal(payload.preferences.animatedRrBeam, true);
+  assert.equal(payload.appearance.backgroundOpacity, 35);
   assert.equal(serialized.includes('PixelPilot'), false);
   assert.equal(serialized.includes('EchoBloom'), false);
   assert.equal(serialized.includes('Sova'), false);
@@ -69,6 +72,15 @@ test('RR energy beam follows current rank rating from empty to full', () => {
   assert.equal(rrBeamProgress(100), 100);
   assert.equal(rrBeamProgress(-20), 0);
   assert.equal(rrBeamProgress(250), 100);
+});
+
+test('overlay background opacity supports transparent through solid', () => {
+  assert.equal(overlayBackgroundOpacity(0), 0);
+  assert.equal(overlayBackgroundOpacity(70), 70);
+  assert.equal(overlayBackgroundOpacity(100), 100);
+  assert.equal(overlayBackgroundOpacity(-10), 0);
+  assert.equal(overlayBackgroundOpacity(140), 100);
+  assert.equal(overlayBackgroundOpacity(undefined), 70);
 });
 
 test('overlay visibility settings are enforced in the server payload', () => {

@@ -20,7 +20,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const text = (selector, value) => { const element = $(selector); if (element) element.textContent = String(value ?? '—'); };
 const OVERLAY_DIMENSIONS = Object.freeze({
-  rank: { width: 680, height: 300 },
+  rank: { width: 560, height: 220 },
   horizontal: { width: 1600, height: 180 },
   compact: { width: 560, height: 240 },
   vertical: { width: 380, height: 660 }
@@ -583,6 +583,9 @@ function syncSettingsForm() {
   $('#streamOverlayShowPeakRank').checked = settings.streamOverlayShowPeakRank !== false;
   $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
   $('#streamOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
+  const backgroundOpacity = Number.isFinite(Number(settings.streamOverlayBackgroundOpacity)) ? Number(settings.streamOverlayBackgroundOpacity) : 70;
+  $('#streamOverlayBackgroundOpacity').value = String(backgroundOpacity);
+  text('#streamOverlayBackgroundOpacityValue', `${backgroundOpacity}%`);
 }
 
 function renderOverlayDimensions(layout) {
@@ -876,6 +879,8 @@ function bindEvents() {
     renderOverlayDimensions(event.target.value);
     saveSettingsPatch({ streamOverlayLayout: event.target.value }, false);
   });
+  $('#streamOverlayBackgroundOpacity').addEventListener('input', (event) => text('#streamOverlayBackgroundOpacityValue', `${event.target.value}%`));
+  $('#streamOverlayBackgroundOpacity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayBackgroundOpacity: Number(event.target.value) }, false));
   $('#streamOverlayShowIdentity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowIdentity: event.target.checked }, false));
   $('#streamOverlayShowWl').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowWl: event.target.checked }, false));
   $('#streamOverlayShowKd').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowKd: event.target.checked }, false));
@@ -990,7 +995,7 @@ async function initialize() {
       streamOverlayShowWl: true, streamOverlayShowKd: true,
       streamOverlayShowAgent: true, streamOverlayShowMap: true,
       streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true,
-      streamOverlayAnimatedRrBeam: true
+      streamOverlayAnimatedRrBeam: true, streamOverlayBackgroundOpacity: 70
     }));
     syncSettingsForm();
     applyPrivacy();

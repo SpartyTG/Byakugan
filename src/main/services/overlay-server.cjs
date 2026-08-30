@@ -78,6 +78,11 @@ function rrBeamProgress(value) {
   return Math.round(Math.max(0, Math.min(100, rr)));
 }
 
+function overlayBackgroundOpacity(value) {
+  const opacity = Number(value);
+  return Number.isFinite(opacity) ? Math.round(Math.max(0, Math.min(100, opacity))) : 70;
+}
+
 function buildOverlayPayload(snapshot = {}, settings = {}) {
   const profile = snapshot.profile || {};
   const session = snapshot.analytics?.session || {};
@@ -102,6 +107,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     updatedAt: new Date().toISOString(),
     layout,
     preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange, animatedRrBeam },
+    appearance: { backgroundOpacity: overlayBackgroundOpacity(settings.streamOverlayBackgroundOpacity) },
     player: {
       name: showIdentity ? cleanText(profile.gameName, 'PLAYER', 32) : 'PLAYER',
       rank: cleanText(profile.rank, 'Unrated', 40),
@@ -361,6 +367,7 @@ module.exports = {
   createOverlayToken,
   findLanHost,
   isPrivateIpv4,
+  overlayBackgroundOpacity,
   rrBeamProgress,
   tokenMatches
 };

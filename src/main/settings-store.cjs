@@ -26,6 +26,7 @@ const DEFAULTS = Object.freeze({
   streamOverlayShowPeakRank: true,
   streamOverlayShowRrChange: true,
   streamOverlayAnimatedRrBeam: true,
+  streamOverlayBackgroundOpacity: 70,
   streamOverlayToken: ''
 });
 
@@ -56,7 +57,12 @@ class SettingsStore {
     for (const [key, value] of Object.entries(patch || {})) {
       if (!allowed.includes(key)) continue;
       if (typeof DEFAULTS[key] === 'boolean' && typeof value !== 'boolean') continue;
-      if (typeof DEFAULTS[key] === 'number' && (!Number.isFinite(value) || value < 1)) continue;
+      if (typeof DEFAULTS[key] === 'number') {
+        if (!Number.isFinite(value)) continue;
+        if (key === 'streamOverlayBackgroundOpacity') {
+          if (value < 0 || value > 100) continue;
+        } else if (value < 1) continue;
+      }
       if (key === 'streamOverlayLayout' && !['rank', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
       if (key === 'pcRole' && !['gaming', 'viewer'].includes(value)) continue;
       if (['streamOverlayToken', 'remoteViewerToken'].includes(key) && !/^[a-f0-9]{48}$/.test(value)) continue;

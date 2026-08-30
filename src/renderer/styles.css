@@ -357,6 +357,12 @@ button { color: inherit; }
 .overlay-dimensions span small { color: var(--teal); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
 .overlay-dimensions span strong { margin-top: 5px; font-size: 15px; letter-spacing: .02em; }
 .overlay-dimensions em { color: var(--muted); font-size: 8px; font-style: normal; line-height: 1.4; text-align: right; }
+.overlay-opacity-control { display: grid; grid-template-columns: minmax(180px, .55fr) minmax(220px, 1fr) 44px; align-items: center; gap: 16px; min-height: 72px; border-top: 1px solid var(--border); }
+.overlay-opacity-control strong, .overlay-opacity-control small { display: block; }
+.overlay-opacity-control strong { font-size: 10px; }
+.overlay-opacity-control small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+.overlay-opacity-control input { width: 100%; accent-color: var(--violet-light); cursor: pointer; }
+.overlay-opacity-control output { padding: 7px 8px; border: 1px solid rgba(139,108,255,.24); border-radius: 8px; background: rgba(139,108,255,.08); color: var(--violet-light); font-size: 10px; font-weight: 850; text-align: center; }
 .overlay-options-heading small, .overlay-options-heading strong { display: block; }
 .overlay-options-heading small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
 .overlay-options-heading strong { margin-top: 4px; font-size: 13px; }
@@ -484,6 +490,8 @@ button { color: inherit; }
   .remote-connection-row { grid-template-columns: 1fr; padding-bottom: 12px; }
   .overlay-dimensions { align-items: flex-start; flex-direction: column; }
   .overlay-dimensions em { text-align: left; }
+  .overlay-opacity-control { grid-template-columns: 1fr 44px; padding: 12px 0; }
+  .overlay-opacity-control > span { grid-column: 1 / -1; }
   .overlay-field-grid { grid-template-columns: 1fr; }
   .overlay-preview { grid-template-columns: 50px 1fr repeat(3, 58px); }
   .overlay-url-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
