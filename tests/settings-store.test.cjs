@@ -13,7 +13,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     const store = new SettingsStore(directory);
     const updated = store.update({
       dataMode: 'mock', privacyMode: true, streamOverlayLanEnabled: true, streamOverlayLayout: 'rank',
-      pcRole: 'viewer', remoteViewerEnabled: true,
+      pcRole: 'viewer', gamingRelayMode: true, remoteViewerEnabled: true,
       remoteViewerToken: 'b'.repeat(48),
       remoteSourceUrl: `http://192.168.50.99:43871/remote/${'c'.repeat(48)}`,
       streamOverlayShowWl: false, streamOverlayShowKd: false, streamOverlayShowAgent: false,
@@ -25,6 +25,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(updated.privacyMode, true);
     assert.equal(updated.streamOverlayLanEnabled, true);
     assert.equal(updated.pcRole, 'viewer');
+    assert.equal(updated.gamingRelayMode, true);
     assert.equal(updated.remoteViewerEnabled, true);
     assert.match(updated.remoteSourceUrl, /^http:\/\/192\.168\.50\.99/);
     assert.equal(updated.streamOverlayLayout, 'rank');
@@ -43,6 +44,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(restored.dataMode, undefined);
     assert.equal(restored.privacyMode, true);
     assert.equal(restored.streamOverlayLanEnabled, true);
+    assert.equal(restored.gamingRelayMode, true);
     assert.equal(restored.streamOverlayLayout, 'rank');
     assert.equal(restored.streamOverlayShowAgent, false);
     assert.equal(restored.streamOverlayShowMap, false);

@@ -13,6 +13,7 @@ const DEFAULTS = Object.freeze({
   privacyMode: false,
   uiScale: 100,
   pcRole: 'gaming',
+  gamingRelayMode: false,
   remoteViewerEnabled: false,
   remoteViewerToken: '',
   remoteSourceUrl: '',

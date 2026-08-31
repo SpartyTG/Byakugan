@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.41
+## Included in version 0.8.0-beta.42
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -29,6 +29,10 @@ source, brand, or proprietary assets.
 - Distinct Refresh Data and Reconnect Riot actions: soft snapshot refresh versus full lockfile, authentication, and connection reset
 - Dedicated **Live Stream Vision** workspace for OBS and dual-PC production controls
 - **Dual PC Streaming Mode** with separate **Gaming PC — Host** and **Streaming PC — Viewer** roles
+- Toggleable **Gaming PC Relay Mode** that restarts into a tray-only, low-resource host without loading the dashboard renderer
+- Full-speed Relay Mode collection with the same 5-second live polling, configured snapshot refresh, 40-match/20-concurrent act hydration, five-concurrent live-rank lookups, and post-match retry cadence as the full dashboard
+- Relay tray controls for connection health, opening the full dashboard, refreshing data, reconnecting Riot, copying the streaming-PC URL, checking updates, disabling Relay Mode, and quitting
+- Mandatory startup updates automatically reopen the full dashboard from Relay Mode so confirmation and installation cannot be missed
 - Token-protected private-LAN dashboard transfer with automatic reconnect and ETag-based change detection
 - Remote player-profile inspection proxied through the gaming PC without transferring Riot credentials
 - Full Act Journey milestones retained from competitive-rating updates even when an older match-detail call is temporarily unavailable
@@ -120,7 +124,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.41-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.42-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -149,10 +153,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.41`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.42`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.41`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.42`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -160,8 +164,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.41
-git push origin v0.8.0-beta.41
+git tag v0.8.0-beta.42
+git push origin v0.8.0-beta.42
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -203,6 +207,20 @@ in BYAKUGAN settings and can be regenerated at any time. The stream payload is
 deliberately limited to the signed-in player's profile, current session totals,
 and optional personal agent/map state. It never includes Riot credentials,
 friends, teammate names, or enemy roster data.
+
+## Gaming PC Relay Mode
+
+1. On the gaming PC, open **Live Stream Vision → Dual PC Streaming Mode**.
+2. Select **Gaming PC — Host**, then enable **Gaming PC Relay Mode**.
+3. Confirm the restart. BYAKUGAN returns as a system-tray app without loading the dashboard window.
+4. Right-click the tray icon and select **Copy Streaming PC URL**.
+5. On the streaming PC, select **Streaming PC — Viewer**, paste that URL, and connect.
+
+Relay Mode uses the same collection pipeline and timings as the full app. The
+resource savings come from not creating the Electron dashboard renderer. Use
+the tray menu to refresh, reconnect Riot, check for updates, or reopen the full
+dashboard. Closing that dashboard returns the gaming PC to the tray-only relay;
+select **Disable Relay Mode and restart** to restore normal startup permanently.
 
 ## Architecture
 

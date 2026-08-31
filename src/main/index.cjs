@@ -1,7 +1,8 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, clipboard, ipcMain, shell } = require('electron');
+const fs = require('node:fs');
+const { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, shell, Tray } = require('electron');
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
@@ -18,6 +19,118 @@ let overlayServer = null;
 let updateService = null;
 let overlayPreviewWindow = null;
 let postMatchRefreshTimer = null;
+let relayRefreshTimer = null;
+let relayRefreshBusy = false;
+let relayError = '';
+let tray = null;
+let trayBusy = false;
+let quitting = false;
+let lastTrayUpdateNotice = '';
+
+function relayModeEnabled() {
+  const current = settings?.get?.() || {};
+  return current.pcRole === 'gaming' && current.gamingRelayMode === true;
+}
+
+function requestRestart() {
+  quitting = true;
+  app.relaunch();
+  app.exit(0);
+}
+
+function trayNotice(title, body) {
+  if (!tray || tray.isDestroyed()) return;
+  try { tray.displayBalloon({ iconType: 'info', title, content: body }); } catch {}
+}
+
+function connectionSummary() {
+  if (relayError) return relayError;
+  const status = snapshot?.connection?.status;
+  if (status === 'connected') return 'Riot connected • full-speed collection active';
+  if (status === 'disconnected') return 'Riot disconnected';
+  return snapshot ? 'Riot data available' : 'Connecting to Riot…';
+}
+
+function rebuildTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  const remote = overlayServer?.status?.() || {};
+  const update = updateService?.status?.() || {};
+  const updateBusy = ['checking', 'downloading', 'downloaded', 'installing'].includes(update.state);
+  const updateAvailable = update.state === 'available';
+  const remoteReady = Boolean(remote.running && remote.remoteEnabled && remote.remoteUrl);
+  const menu = Menu.buildFromTemplate([
+    { label: 'BYAKUGAN Gaming PC Relay', enabled: false },
+    { label: connectionSummary(), enabled: false },
+    { label: remoteReady ? `Streaming link ready • ${remote.host}:${remote.port}` : 'Streaming link is starting…', enabled: false },
+    { type: 'separator' },
+    { label: 'Open full BYAKUGAN', click: () => openMainWindow() },
+    {
+      label: 'Refresh Data', enabled: !trayBusy,
+      click: () => runTrayTask('Data refreshed', async () => { await refreshDataSource(); })
+    },
+    {
+      label: 'Reconnect Riot', enabled: !trayBusy,
+      click: () => runTrayTask('Riot reconnected', async () => { await reconnectDataSource(); })
+    },
+    {
+      label: 'Copy Streaming PC URL', enabled: remoteReady,
+      click: () => {
+        clipboard.writeText(remote.remoteUrl);
+        trayNotice('Connection URL copied', 'Paste it into BYAKUGAN on the streaming PC.');
+      }
+    },
+    { type: 'separator' },
+    {
+      label: updateAvailable ? `Update available • ${update.version}` : updateBusy ? (update.message || 'Update in progress…') : 'Check for updates',
+      enabled: !updateBusy,
+      click: () => updateAvailable
+        ? openMainWindow()
+        : runTrayTask('Update check complete', async () => {
+          const status = await updateService?.check(true, false);
+          if (status?.state === 'available') openMainWindow();
+        })
+    },
+    { type: 'separator' },
+    {
+      label: 'Disable Relay Mode and restart',
+      click: () => {
+        settings.update({ gamingRelayMode: false });
+        requestRestart();
+      }
+    },
+    { label: 'Quit BYAKUGAN', click: () => { quitting = true; app.quit(); } }
+  ]);
+  tray.setContextMenu(menu);
+  tray.setToolTip(`BYAKUGAN Relay — ${connectionSummary()}`);
+}
+
+async function runTrayTask(successTitle, task) {
+  if (trayBusy) return;
+  trayBusy = true;
+  rebuildTrayMenu();
+  try {
+    await task();
+    relayError = '';
+    trayNotice(successTitle, connectionSummary());
+  } catch (error) {
+    relayError = String(error?.message || 'The relay task failed.');
+    trayNotice('BYAKUGAN Relay', relayError);
+  } finally {
+    trayBusy = false;
+    rebuildTrayMenu();
+  }
+}
+
+async function createTray() {
+  if (tray && !tray.isDestroyed()) return tray;
+  const svg = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'app-icon.svg'), 'utf8');
+  let icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
+  if (icon.isEmpty()) icon = await app.getFileIcon(process.execPath, { size: 'small' });
+  tray = new Tray(icon.resize({ width: 32, height: 32 }));
+  tray.on('double-click', () => openMainWindow());
+  rebuildTrayMenu();
+  return tray;
+}
 
 function applyUiScale(value) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -29,6 +142,32 @@ function applyUiScale(value) {
 function clearPostMatchRefresh() {
   if (postMatchRefreshTimer) clearTimeout(postMatchRefreshTimer);
   postMatchRefreshTimer = null;
+}
+
+function clearRelayRefresh() {
+  if (relayRefreshTimer) clearInterval(relayRefreshTimer);
+  relayRefreshTimer = null;
+}
+
+function scheduleRelayRefresh() {
+  clearRelayRefresh();
+  const current = settings?.get?.() || {};
+  if (!relayModeEnabled() || !current.autoRefresh) return;
+  const seconds = Math.max(15, Number(current.refreshSeconds) || 30);
+  relayRefreshTimer = setInterval(async () => {
+    if (relayRefreshBusy) return;
+    relayRefreshBusy = true;
+    try {
+      await refreshDataSource();
+      relayError = '';
+    } catch (error) {
+      relayError = String(error?.message || 'Automatic relay refresh failed.');
+    } finally {
+      relayRefreshBusy = false;
+      rebuildTrayMenu();
+    }
+  }, seconds * 1000);
+  relayRefreshTimer.unref?.();
 }
 
 function snapshotHasMatch(matchId) {
@@ -66,7 +205,17 @@ function createUpdateService() {
     updater,
     feedConfigured: appMetadata.updateFeedConfigured === true
   });
-  updateService.on('status', (status) => mainWindow?.webContents.send('update:status', status));
+  updateService.on('status', (status) => {
+    mainWindow?.webContents.send('update:status', status);
+    rebuildTrayMenu();
+    if (!relayModeEnabled() || status.state !== 'available') return;
+    const noticeKey = `${status.version}:${status.mandatory}`;
+    if (lastTrayUpdateNotice !== noticeKey) {
+      lastTrayUpdateNotice = noticeKey;
+      trayNotice(status.mandatory ? 'BYAKUGAN update required' : 'BYAKUGAN update available', status.message);
+    }
+    if (status.mandatory) openMainWindow();
+  });
   return updateService;
 }
 
@@ -94,11 +243,14 @@ function wireService(nextService) {
       if (snapshot) snapshot.live = state;
       overlayServer?.publish();
       mainWindow?.webContents.send('riot:live-state', state);
+      rebuildTrayMenu();
     });
     service.on('snapshot', (nextSnapshot) => {
       snapshot = nextSnapshot;
       overlayServer?.publish();
       mainWindow?.webContents.send('riot:snapshot', nextSnapshot);
+      relayError = '';
+      rebuildTrayMenu();
     });
     service.on('match-ended', ({ matchId } = {}) => schedulePostMatchRefresh(matchId));
     service.on('act-progress', (progress) => {
@@ -116,7 +268,11 @@ function wireService(nextService) {
       }
       mainWindow?.webContents.send('riot:act-progress', progress);
     });
-    service.on('warning', (message) => mainWindow?.webContents.send('app:warning', message));
+    service.on('warning', (message) => {
+      mainWindow?.webContents.send('app:warning', message);
+      relayError = String(message || 'Riot connector warning.');
+      rebuildTrayMenu();
+    });
   }
   return service;
 }
@@ -156,7 +312,20 @@ async function reconnectDataSource() {
   return snapshot;
 }
 
+async function refreshDataSource() {
+  if (!service || (remoteMode() && !(service instanceof RemoteViewerClient))
+    || (!remoteMode() && !(service instanceof RiotClientService))) return connectDataSource();
+  snapshot = await service.refresh();
+  overlayServer?.publish();
+  return snapshot;
+}
+
 function registerIpc() {
+  ipcMain.handle('app:restart', () => {
+    setTimeout(requestRestart, 100);
+    return { ok: true };
+  });
+
   ipcMain.handle('app:bootstrap', async () => {
     if (!snapshot) snapshot = await connectDataSource();
     return {
@@ -170,13 +339,7 @@ function registerIpc() {
 
   ipcMain.handle('riot:connect', connectDataSource);
   ipcMain.handle('riot:reconnect', reconnectDataSource);
-  ipcMain.handle('riot:refresh', async () => {
-    if (!service || (remoteMode() && !(service instanceof RemoteViewerClient))
-      || (!remoteMode() && !(service instanceof RiotClientService))) return connectDataSource();
-    snapshot = await service.refresh();
-    overlayServer?.publish();
-    return snapshot;
-  });
+  ipcMain.handle('riot:refresh', refreshDataSource);
   ipcMain.handle('riot:disconnect', () => {
     service?.disconnect?.();
     snapshot = null;
@@ -191,7 +354,16 @@ function registerIpc() {
   ipcMain.handle('settings:get', () => settings.get());
   ipcMain.handle('settings:update', async (_event, patch) => {
     const before = settings.get();
-    const after = settings.update(patch);
+    const normalizedPatch = { ...(patch || {}) };
+    if (normalizedPatch.pcRole === 'viewer') normalizedPatch.gamingRelayMode = false;
+    const relayRequested = normalizedPatch.gamingRelayMode === undefined
+      ? before.gamingRelayMode
+      : normalizedPatch.gamingRelayMode;
+    if (relayRequested && normalizedPatch.pcRole !== 'viewer') {
+      normalizedPatch.pcRole = 'gaming';
+      normalizedPatch.remoteViewerEnabled = true;
+    }
+    const after = settings.update(normalizedPatch);
 
     if (before.pcRole !== after.pcRole || before.remoteSourceUrl !== after.remoteSourceUrl) {
       service?.removeAllListeners?.();
@@ -204,6 +376,8 @@ function registerIpc() {
       app.setLoginItemSettings({ openAtLogin: Boolean(after.launchAtStartup), args: ['--hidden'] });
     }
     if (before.uiScale !== after.uiScale) applyUiScale(after.uiScale);
+    if (before.autoRefresh !== after.autoRefresh || before.refreshSeconds !== after.refreshSeconds
+      || before.gamingRelayMode !== after.gamingRelayMode) scheduleRelayRefresh();
     const overlay = await syncOverlay();
     if (before.streamOverlayLanEnabled !== after.streamOverlayLanEnabled
       && overlayPreviewWindow && !overlayPreviewWindow.isDestroyed() && overlay.url) {
@@ -211,6 +385,7 @@ function registerIpc() {
       previewUrl.searchParams.set('preview', '1');
       await overlayPreviewWindow.loadURL(previewUrl.href);
     }
+    rebuildTrayMenu();
     return after;
   });
 
@@ -278,7 +453,14 @@ function registerIpc() {
   });
 }
 
-function createWindow() {
+function createWindow({ showOnReady = !process.argv.includes('--hidden') } = {}) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (showOnReady) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    return mainWindow;
+  }
   mainWindow = new BrowserWindow({
     width: 1480,
     height: 920,
@@ -301,7 +483,7 @@ function createWindow() {
   applyUiScale(settings.get().uiScale);
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => {
-    if (process.argv.includes('--hidden')) return;
+    if (!showOnReady) return;
     mainWindow.show();
   });
 
@@ -317,15 +499,50 @@ function createWindow() {
     if (url !== mainWindow.webContents.getURL()) event.preventDefault();
   });
 
+  mainWindow.on('close', (event) => {
+    const mandatoryUpdate = updateService?.status?.().state === 'available'
+      && updateService.status().mandatory === true;
+    if (!quitting && relayModeEnabled() && mandatoryUpdate) {
+      event.preventDefault();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
   mainWindow.on('closed', () => {
     overlayPreviewWindow?.close();
     overlayPreviewWindow = null;
     mainWindow = null;
+    rebuildTrayMenu();
   });
+  return mainWindow;
 }
 
-app.whenReady().then(() => {
+function openMainWindow() {
+  return createWindow({ showOnReady: true });
+}
+
+async function startRelayMode() {
+  await createTray();
+  await syncOverlay();
+  try {
+    await connectDataSource();
+    relayError = '';
+    rebuildTrayMenu();
+    trayNotice('BYAKUGAN Relay is active', 'Full-speed Riot collection is running for your streaming PC.');
+  } catch (error) {
+    relayError = String(error?.message || 'Could not connect to Riot.');
+    rebuildTrayMenu();
+    trayNotice('BYAKUGAN Relay needs attention', relayError);
+  }
+  scheduleRelayRefresh();
+}
+
+app.whenReady().then(async () => {
   settings = new SettingsStore(app.getPath('userData'));
+  if (settings.get().gamingRelayMode && (settings.get().pcRole !== 'gaming' || !settings.get().remoteViewerEnabled)) {
+    settings.update({ pcRole: 'gaming', remoteViewerEnabled: true });
+  }
   if (!settings.get().streamOverlayToken) settings.update({ streamOverlayToken: createOverlayToken() });
   if (!settings.get().remoteViewerToken) settings.update({ remoteViewerToken: createOverlayToken() });
   overlayServer = new OverlayServer({
@@ -347,20 +564,37 @@ app.whenReady().then(() => {
   else createService();
   createUpdateService();
   registerIpc();
-  createWindow();
-  syncOverlay();
+  if (relayModeEnabled()) await startRelayMode();
+  else {
+    createWindow();
+    await syncOverlay();
+  }
   updateService.initialize();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) openMainWindow();
   });
 });
 
 app.on('window-all-closed', () => {
+  if (relayModeEnabled() && !quitting) {
+    overlayPreviewWindow = null;
+    rebuildTrayMenu();
+    return;
+  }
   clearPostMatchRefresh();
+  clearRelayRefresh();
   service?.disconnect?.();
   overlayServer?.stop();
   updateService?.stop();
   overlayPreviewWindow = null;
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  quitting = true;
+  clearPostMatchRefresh();
+  clearRelayRefresh();
+  service?.disconnect?.();
+  updateService?.stop();
 });

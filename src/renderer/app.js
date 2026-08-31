@@ -643,7 +643,9 @@ function syncSettingsForm() {
   $('#uiScale').value = String(settings.uiScale || 100);
   $('#refreshSeconds').value = String(settings.refreshSeconds || 30);
   $('#pcRole').value = settings.pcRole || 'gaming';
+  $('#gamingRelayMode').checked = Boolean(settings.gamingRelayMode);
   $('#remoteViewerEnabled').checked = Boolean(settings.remoteViewerEnabled);
+  $('#remoteViewerEnabled').disabled = Boolean(settings.gamingRelayMode);
   $('#remoteSourceUrl').value = settings.remoteSourceUrl || '';
   $('#remoteHostControls').hidden = settings.pcRole === 'viewer';
   $('#remoteViewerControls').hidden = settings.pcRole !== 'viewer';
@@ -804,6 +806,7 @@ function closeUpdateDialog() {
 function scheduleRefresh() {
   if (state.refreshTimer) clearInterval(state.refreshTimer);
   state.refreshTimer = null;
+  if (state.settings?.gamingRelayMode) return;
   if (!state.settings?.autoRefresh) return;
   const seconds = Math.max(15, Number(state.settings.refreshSeconds) || 30);
   state.refreshTimer = setInterval(() => refresh(false), seconds * 1000);
@@ -937,6 +940,27 @@ function bindEvents() {
     toast(role === 'viewer' ? 'Streaming PC mode selected' : 'Gaming PC mode selected', role === 'viewer'
       ? 'Paste the connection URL from the gaming PC, then select Connect to gaming PC.'
       : 'Use Reconnect Riot to restore the local VALORANT connection.');
+  });
+  $('#gamingRelayMode').addEventListener('change', async (event) => {
+    const enabled = event.target.checked;
+    const confirmed = window.confirm(enabled
+      ? 'Enable Gaming PC Relay Mode and restart BYAKUGAN? The dashboard will close, full-speed data collection will continue from the system tray, and the streaming-PC link will remain active.'
+      : 'Disable Gaming PC Relay Mode and restart BYAKUGAN with the full dashboard?');
+    if (!confirmed) {
+      event.target.checked = !enabled;
+      return;
+    }
+    try {
+      await saveSettingsPatch({
+        gamingRelayMode: enabled,
+        ...(enabled ? { pcRole: 'gaming', remoteViewerEnabled: true } : {})
+      }, false);
+      toast(enabled ? 'Starting Gaming PC Relay Mode' : 'Restoring full BYAKUGAN', 'BYAKUGAN will restart automatically.');
+      await window.companion.restartApp();
+    } catch (error) {
+      event.target.checked = !enabled;
+      toast('Relay Mode could not restart', error.message || 'The setting could not be applied.', 'error');
+    }
   });
   $('#remoteViewerEnabled').addEventListener('change', async (event) => {
     await saveSettingsPatch({ remoteViewerEnabled: event.target.checked }, false);
@@ -1081,7 +1105,7 @@ async function initialize() {
     state.settings = await window.companion.getSettings().catch(() => ({
       autoRefresh: false, refreshSeconds: 30,
       launchAtStartup: false, privacyMode: false, compactMatches: false, uiScale: 100,
-      pcRole: 'gaming', remoteViewerEnabled: false, remoteSourceUrl: '',
+      pcRole: 'gaming', gamingRelayMode: false, remoteViewerEnabled: false, remoteSourceUrl: '',
       streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
       streamOverlayShowWl: true, streamOverlayShowKd: true,

@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('companion', Object.freeze({
   bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  restartApp: () => ipcRenderer.invoke('app:restart'),
   connect: () => ipcRenderer.invoke('riot:connect'),
   reconnect: () => ipcRenderer.invoke('riot:reconnect'),
   disconnect: () => ipcRenderer.invoke('riot:disconnect'),

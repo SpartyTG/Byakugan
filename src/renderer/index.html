@@ -284,12 +284,13 @@
             <div class="settings-heading"><span class="setting-icon">⇄</span><div><h2>Dual PC Streaming Mode</h2><p>Run VALORANT on the gaming PC and operate BYAKUGAN from the streaming PC.</p></div><span class="overlay-status" id="remoteStatus">LOCAL</span></div>
             <label class="range-row"><span>This computer</span><select id="pcRole"><option value="gaming">Gaming PC — Host</option><option value="viewer">Streaming PC — Viewer</option></select></label>
             <div id="remoteHostControls">
+              <label class="toggle-row relay-mode-toggle"><span><strong>Gaming PC Relay Mode</strong><small>After restart, run full-speed data collection and the streaming link from the system tray without loading the dashboard.</small></span><input type="checkbox" id="gamingRelayMode"><i></i></label>
               <label class="toggle-row"><span><strong>Allow Remote Viewer</strong><small>Share BYAKUGAN data with one trusted PC on your private network.</small></span><input type="checkbox" id="remoteViewerEnabled"><i></i></label>
               <div class="remote-connection-row">
                 <div><small>STREAMING-PC CONNECTION</small><strong id="remoteHostUrl">Enable Remote Viewer to create a connection.</strong></div>
                 <button class="primary-button" id="copyRemoteUrl" disabled>Copy connection URL</button>
               </div>
-              <p class="remote-security-note">Keep BYAKUGAN open or minimized on the gaming PC. Riot credentials never leave it; only the dashboard snapshot and permitted profile lookups are shared.</p>
+              <p class="remote-security-note">Relay Mode keeps the same Riot polling, act-stat hydration, and post-match refresh speed while removing the dashboard renderer. Double-click its tray icon to open the full app. Riot credentials never leave the gaming PC.</p>
             </div>
             <div id="remoteViewerControls" hidden>
               <label class="remote-url-input"><span>Gaming PC connection URL</span><input type="text" id="remoteSourceUrl" autocomplete="off" spellcheck="false" placeholder="Paste the URL copied from the gaming PC"></label>
