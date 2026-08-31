@@ -188,8 +188,10 @@ function buildSynergy(matches, friends) {
 function buildSession(matches, session = {}) {
   const start = Number(session.startedAt) || Date.now();
   const trackedMatchIds = new Set((session.trackedMatchIds || []).map(String));
+  const excludedMatchIds = new Set((session.excludedMatchIds || []).map(String));
   const rows = completed(matches).filter((match) =>
-    Number(match.startedAt) >= start || trackedMatchIds.has(String(match.id || ''))
+    !excludedMatchIds.has(String(match.id || ''))
+    && (Number(match.startedAt) >= start || trackedMatchIds.has(String(match.id || '')))
   );
   const stats = summarize(rows);
   return {
@@ -198,6 +200,7 @@ function buildSession(matches, session = {}) {
     startingRR: Number(session.startingRR) || 0,
     currentRank: session.currentRank || '',
     currentRR: Number(session.currentRR) || 0,
+    restored: session.restored === true,
     matchIds: rows.map((match) => match.id).filter(Boolean),
     rrChange: stats.rr,
     ...stats,

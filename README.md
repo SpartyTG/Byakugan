@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.42
+## Included in version 0.8.0-beta.43
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -69,6 +69,9 @@ source, brand, or proprietary assets.
 - Compact last-match RR and victory/defeat panel moved into the unused header space
 - Current-RR marker positioned above the beam endpoint that slides left or right with the player's live 0–100 RR
 - Automatic post-match snapshot refresh with Riot-history retries so session W/L, K/D, RR, and the overlay update even while BYAKUGAN is minimized
+- Per-account current-session persistence that automatically restores W/L, K/D, RR movement, and included match IDs after an app restart or update within an 18-hour stream window
+- Manual **Manage current session** recovery with recent-match checkboxes, duplicate-safe inclusion/removal, one-click latest-match recovery, and a separate **Start New Session** action that never deletes match history
+- Dual-PC session recovery proxied securely through the existing private-network token so the streaming PC can repair the gaming PC session and update OBS immediately
 - Session-stat merging that prioritizes the newest detailed match over a temporarily stale completed-act cache
 - Active-match ID tracking so a game completed during the BYAKUGAN session counts toward W/L and K/D even when the app launched, reconnected, or restarted after that match had already begun
 - Frameless lower-left agent presentation without the decorative diamond backdrop
@@ -124,7 +127,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.42-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.43-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -153,10 +156,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.42`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.43`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.42`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.43`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -164,8 +167,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.42
-git push origin v0.8.0-beta.42
+git tag v0.8.0-beta.43
+git push origin v0.8.0-beta.43
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -221,6 +224,20 @@ resource savings come from not creating the Electron dashboard renderer. Use
 the tray menu to refresh, reconnect Riot, check for updates, or reopen the full
 dashboard. Closing that dashboard returns the gaming PC to the tray-only relay;
 select **Disable Relay Mode and restart** to restore normal startup permanently.
+
+## Current-session recovery
+
+BYAKUGAN saves the active session separately for each Riot account and resumes
+it automatically after normal restarts and in-app updates. A saved session stays
+eligible for automatic recovery for 18 hours from its most recent refresh.
+
+To repair a session manually, select **Manage** on the Overview current-session
+card or **Manage or recover session games** under Insights & Goals. Check every
+recent match that belongs to the stream and select **Save Session**. The app
+deduplicates the selected IDs, recalculates W/L, K/D, and RR, and republishes the
+OBS overlay immediately. **Start New Session** clears only session totals; it
+does not delete match history. The same controls work from the streaming-PC
+viewer when both computers are running the same BYAKUGAN version.
 
 ## Architecture
 

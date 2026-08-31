@@ -45,6 +45,17 @@ test('session counts a match observed in progress even when it started before th
   assert.deepEqual(result.session.matchIds, ['new']);
 });
 
+test('session recovery can explicitly include old matches and exclude unwanted recent matches', () => {
+  const result = buildActAnalytics(matches, {
+    session: { startedAt: 150, trackedMatchIds: ['old'], excludedMatchIds: ['new'], startingRR: 40, currentRR: 25 }
+  });
+  assert.equal(result.session.games, 1);
+  assert.equal(result.session.wins, 0);
+  assert.equal(result.session.losses, 1);
+  assert.equal(result.session.kd, 0.5);
+  assert.deepEqual(result.session.matchIds, ['old']);
+});
+
 test('keeps a rating-only update in the full act journey', () => {
   const result = buildActAnalytics([...matches, { id: 'earliest', result: 'RATING', tierAfter: 18, rrAfter: 22, rr: 18, startedAt: 50 }]);
   assert.deepEqual(result.journey.map((point) => point.matchId), ['earliest', 'old', 'new']);

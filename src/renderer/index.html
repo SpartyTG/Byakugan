@@ -386,6 +386,18 @@
       <div id="playerProfileContent"></div>
     </article>
   </div>
+  <div class="modal-backdrop" id="sessionModal" hidden>
+    <article class="session-recovery-dialog glass" role="dialog" aria-modal="true" aria-labelledby="sessionDialogTitle">
+      <button class="icon-button session-recovery-close" id="closeSessionManager" aria-label="Close session manager">×</button>
+      <p class="eyebrow">STREAM SESSION RECOVERY</p>
+      <h2 id="sessionDialogTitle">Manage current session</h2>
+      <p class="session-recovery-copy">Select every recent match that belongs in the current stream session. Saving updates the dashboard and OBS overlay immediately without counting a match twice.</p>
+      <div class="session-recovery-summary"><strong id="sessionRecoveryCount">0 matches selected</strong><button class="text-button" id="selectLatestSessionMatch">Select latest match</button></div>
+      <div class="session-recovery-list" id="sessionRecoveryList"></div>
+      <p class="session-recovery-note">Future restarts and updates automatically resume this session for up to 18 hours. Use Start New Session when beginning a separate stream.</p>
+      <div class="session-recovery-actions"><button class="ghost-button danger" id="startNewSession">Start New Session</button><span></span><button class="ghost-button" id="cancelSessionManager">Cancel</button><button class="primary-button" id="saveSessionManager">Save Session</button></div>
+    </article>
+  </div>
   <div class="modal-backdrop" id="updateModal" hidden>
     <article class="update-dialog glass" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle">
       <div class="update-dialog-mark"><div class="brand-mark large"><span></span></div><i>UPDATE</i></div>

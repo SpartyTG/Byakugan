@@ -320,6 +320,15 @@ async function refreshDataSource() {
   return snapshot;
 }
 
+async function updateSessionDataSource(selection) {
+  if (!service?.updateSession) throw new Error('Session recovery is unavailable for this data source.');
+  snapshot = await service.updateSession(selection || {});
+  overlayServer?.publish();
+  mainWindow?.webContents.send('riot:snapshot', snapshot);
+  rebuildTrayMenu();
+  return snapshot;
+}
+
 function registerIpc() {
   ipcMain.handle('app:restart', () => {
     setTimeout(requestRestart, 100);
@@ -350,6 +359,7 @@ function registerIpc() {
     if (!service?.inspectPlayer) throw new Error('Player inspection is unavailable for this data source.');
     return service.inspectPlayer(String(playerId || ''));
   });
+  ipcMain.handle('session:update', (_event, selection) => updateSessionDataSource(selection));
 
   ipcMain.handle('settings:get', () => settings.get());
   ipcMain.handle('settings:update', async (_event, patch) => {
@@ -558,6 +568,7 @@ app.whenReady().then(async () => {
         : LOOPBACK_HOST;
     },
     inspectPlayer: (playerId) => service?.inspectPlayer?.(playerId),
+    updateSession: (selection) => updateSessionDataSource(selection),
     assetDirectory: path.join(__dirname, '..', 'overlay')
   });
   if (remoteMode()) createRemoteService();

@@ -98,10 +98,13 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const showPeakRank = settings.streamOverlayShowPeakRank !== false;
   const showRrChange = settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
-  const lastMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
+  const recentMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
+  const sessionMatchIds = new Set((session.matchIds || []).map(String));
+  const lastMatch = (snapshot.matches || []).find((match) => sessionMatchIds.has(String(match?.id || ''))
+    && ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const liveAgentAvailable = self.agent && !['—', 'Selecting…', 'Unknown agent'].includes(self.agent);
-  const fallbackAgentAvailable = lastMatch.agent && lastMatch.agent !== '—';
-  const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? lastMatch : {};
+  const fallbackAgentAvailable = recentMatch.agent && recentMatch.agent !== '—';
+  const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? recentMatch : {};
   const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
   const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
     ? settings.streamOverlayLayout
@@ -148,13 +151,14 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
 }
 
 class OverlayServer {
-  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
+  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, updateSession, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
     this.getSnapshot = getSnapshot || (() => ({}));
     this.getSettings = getSettings || (() => ({}));
     this.assetDirectory = assetDirectory || path.join(__dirname, '..', '..', 'overlay');
     this.host = host;
     this.getHost = getHost || (() => host);
     this.inspectPlayer = inspectPlayer || null;
+    this.updateSession = updateSession || null;
     this.port = port;
     this.server = null;
     this.clients = new Set();
@@ -308,6 +312,21 @@ class OverlayServer {
       const playerId = String(body.playerId || '').trim();
       if (!playerId || playerId.length > 100) return this.notFound(response);
       return this.sendJson(response, { version: 1, profile: await this.inspectPlayer(playerId) });
+    }
+
+    if (request.method === 'POST' && url.pathname.startsWith('/remote-session/')) {
+      let token = '';
+      try { token = decodeURIComponent(url.pathname.slice('/remote-session/'.length)); } catch { return this.notFound(response); }
+      if (!this.authorizeRemote(url, token) || !this.updateSession) return this.notFound(response);
+      const body = await this.readJson(request);
+      const selectedMatchIds = Array.isArray(body.selectedMatchIds) ? body.selectedMatchIds.slice(0, 20) : [];
+      const candidateMatchIds = Array.isArray(body.candidateMatchIds) ? body.candidateMatchIds.slice(0, 20) : [];
+      const snapshot = await this.updateSession({
+        selectedMatchIds,
+        candidateMatchIds,
+        reset: body.reset === true
+      });
+      return this.sendJson(response, buildRemotePayload(snapshot));
     }
 
     if (request.method !== 'GET') {

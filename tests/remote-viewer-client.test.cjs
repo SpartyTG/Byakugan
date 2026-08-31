@@ -21,6 +21,11 @@ test('remote viewer connects, labels the source, and proxies profile inspection'
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url, options });
+    if (options.method === 'POST' && url.includes('/remote-session/')) {
+      return new Response(JSON.stringify({ version: 1, snapshot }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    }
     if (options.method === 'POST') {
       return new Response(JSON.stringify({ version: 1, profile: { playerId: 'friend-1', name: 'Visible Friend' } }), {
         status: 200, headers: { 'Content-Type': 'application/json' }
@@ -39,6 +44,9 @@ test('remote viewer connects, labels the source, and proxies profile inspection'
     const profile = await client.inspectPlayer('friend-1');
     assert.deepEqual(profile, { playerId: 'friend-1', name: 'Visible Friend' });
     assert.match(calls[1].url, new RegExp(`/remote-inspect/${token}$`));
+    const recovered = await client.updateSession({ selectedMatchIds: ['match-1'], candidateMatchIds: ['match-1'] });
+    assert.equal(recovered.connection.source, 'remote');
+    assert.match(calls[2].url, new RegExp(`/remote-session/${token}$`));
   } finally {
     client.disconnect();
   }

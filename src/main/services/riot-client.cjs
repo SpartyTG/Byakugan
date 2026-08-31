@@ -9,6 +9,7 @@ const { deriveRegion } = require('./region.cjs');
 const { requestJson } = require('./http.cjs');
 const { fetchMetadata, resolveById } = require('./valorant-metadata.cjs');
 const { buildActAnalytics, buildSession } = require('./analytics.cjs');
+const { SessionStore, uniqueIds } = require('../session-store.cjs');
 
 const CLIENT_PLATFORM = Buffer.from(JSON.stringify({
   platformType: 'PC',
@@ -989,6 +990,7 @@ class RiotClientService extends EventEmitter {
     this.rankCache = new Map();
     this.matchDetailCache = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
+    this.sessionStore = options.cacheDirectory ? new SessionStore(options.cacheDirectory) : null;
     this.actStatsDiskLoadedFor = '';
     this.actStatsProgress = { loaded: 0, total: 0 };
     this.actStatsCache = null;
@@ -1000,7 +1002,27 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayerIds = new Map();
     this.friendIds = new Set();
     this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
-    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [] };
+    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [], excludedMatchIds: [], restored: false };
+  }
+
+  restorePersistedSession() {
+    const accountId = this.identity?.puuid;
+    if (!accountId || !this.sessionStore) return;
+    const hasActiveMemory = this.session.initialized
+      || (this.session.trackedMatchIds || []).length
+      || (this.session.excludedMatchIds || []).length;
+    if (hasActiveMemory) {
+      this.persistSession();
+      return;
+    }
+    const restored = this.sessionStore.get(accountId);
+    if (restored) this.session = { ...restored, restored: true };
+  }
+
+  persistSession() {
+    const accountId = this.identity?.puuid;
+    if (!accountId || !this.sessionStore) return;
+    this.sessionStore.save(accountId, this.session);
   }
 
   localUrl(endpoint) {
@@ -1368,8 +1390,12 @@ class RiotClientService extends EventEmitter {
     }
 
     if (['INGAME', 'CORE_GAME'].includes(loopState) && matchId) {
-      const trackedMatchIds = [...new Set([...(this.session.trackedMatchIds || []), String(matchId)])].slice(-20);
-      this.session = { ...this.session, trackedMatchIds };
+      const id = String(matchId);
+      if (!(this.session.trackedMatchIds || []).includes(id)) {
+        const trackedMatchIds = [...new Set([...(this.session.trackedMatchIds || []), id])].slice(-20);
+        this.session = { ...this.session, trackedMatchIds };
+        this.persistSession();
+      }
     }
 
     const mapId = match?.MapID || match?.mapId || session.map || session.MapID;
@@ -1818,6 +1844,8 @@ class RiotClientService extends EventEmitter {
       .filter((match) => sharedMatchIds.has(match.id))
       .map(({ teammateIds: _teammateIds, ...match }) => match);
 
+    this.persistSession();
+
     return {
       connection: {
         mode: 'live', status: 'connected', label: 'Riot Client connected',
@@ -1949,6 +1977,7 @@ class RiotClientService extends EventEmitter {
 
     await Promise.all([this.obtainTokens(), this.fetchClientVersion()]);
     await this.bootstrapIdentityAndRegion();
+    this.restorePersistedSession();
     this.lastSnapshot = await this.buildSnapshot();
     this.startPolling();
     return this.lastSnapshot;
@@ -1960,6 +1989,39 @@ class RiotClientService extends EventEmitter {
       await this.obtainTokens();
     }
     this.lastSnapshot = await this.buildSnapshot();
+    return this.lastSnapshot;
+  }
+
+  async updateSession({ selectedMatchIds = [], candidateMatchIds = [], reset = false } = {}) {
+    if (!this.identity) throw new Error('Riot Client must be connected before editing the current session.');
+    if (reset) {
+      this.session = {
+        startedAt: Date.now(),
+        startingRank: this.lastSnapshot?.profile?.rank || '',
+        startingRR: Number(this.lastSnapshot?.profile?.rr) || 0,
+        initialized: true,
+        trackedMatchIds: [],
+        excludedMatchIds: [],
+        restored: false
+      };
+    } else {
+      const availableIds = new Set((this.lastSnapshot?.matches || []).map((match) => String(match.id || '')).filter(Boolean));
+      const candidates = uniqueIds(candidateMatchIds).filter((id) => availableIds.has(id)).slice(0, 20);
+      const selected = new Set(uniqueIds(selectedMatchIds).filter((id) => candidates.includes(id)));
+      if (!candidates.length) throw new Error('No recent matches were available to update. Refresh Data and try again.');
+      const candidateSet = new Set(candidates);
+      const trackedMatchIds = uniqueIds([
+        ...(this.session.trackedMatchIds || []).filter((id) => !candidateSet.has(String(id))),
+        ...candidates.filter((id) => selected.has(id))
+      ]);
+      const excludedMatchIds = uniqueIds([
+        ...(this.session.excludedMatchIds || []).filter((id) => !candidateSet.has(String(id))),
+        ...candidates.filter((id) => !selected.has(id))
+      ]);
+      this.session = { ...this.session, trackedMatchIds, excludedMatchIds, restored: false };
+    }
+    this.persistSession();
+    this.lastSnapshot = await this.buildSnapshot({ hydrateAct: false, hydrateDodge: false });
     return this.lastSnapshot;
   }
 
@@ -2014,7 +2076,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayerIds.clear();
     this.friendIds.clear();
     this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
-    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [] };
+    this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [], excludedMatchIds: [], restored: false };
   }
 }
 

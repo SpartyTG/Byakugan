@@ -124,6 +124,39 @@ class RemoteViewerClient extends EventEmitter {
     if (payload?.version !== 1 || !payload?.profile) throw new Error('The gaming PC returned an incompatible player profile.');
     return payload.profile;
   }
+
+  async updateSession(selection = {}) {
+    const { url, token } = this.parsed();
+    const endpoint = new URL(`/remote-session/${token}`, url.origin);
+    const response = await this.fetchImpl(endpoint.href, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selectedMatchIds: Array.isArray(selection.selectedMatchIds) ? selection.selectedMatchIds.slice(0, 20) : [],
+        candidateMatchIds: Array.isArray(selection.candidateMatchIds) ? selection.candidateMatchIds.slice(0, 20) : [],
+        reset: selection.reset === true
+      }),
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000)
+    });
+    if (!response.ok) throw new Error(response.status === 404
+      ? 'Session recovery is unavailable on the gaming PC. Update both computers to the same BYAKUGAN version.'
+      : `Remote session recovery failed with HTTP ${response.status}.`);
+    const payload = await response.json();
+    if (payload?.version !== 1 || !payload?.snapshot?.profile || !payload?.snapshot?.connection) {
+      throw new Error('The gaming PC returned an incompatible session snapshot.');
+    }
+    const snapshot = payload.snapshot;
+    snapshot.connection = {
+      ...snapshot.connection,
+      status: 'connected',
+      label: 'Gaming PC connected',
+      source: 'remote',
+      remoteHost: url.hostname
+    };
+    this.lastSnapshot = snapshot;
+    this.etag = '';
+    return snapshot;
+  }
 }
 
 module.exports = { RemoteViewerClient, parseRemoteViewerUrl };

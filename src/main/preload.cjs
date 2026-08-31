@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   disconnect: () => ipcRenderer.invoke('riot:disconnect'),
   refresh: () => ipcRenderer.invoke('riot:refresh'),
   inspectPlayer: (playerId) => ipcRenderer.invoke('riot:inspect-player', playerId),
+  updateSession: (selection) => ipcRenderer.invoke('session:update', selection),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   getOverlayStatus: () => ipcRenderer.invoke('overlay:status'),

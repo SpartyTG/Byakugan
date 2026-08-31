@@ -73,6 +73,23 @@ test('overlay agent falls back to the last played agent while in menus', () => {
   assert.equal(payload.live.agentLabel, 'LAST PLAYED');
 });
 
+test('last-match overlay result follows recovered session membership', () => {
+  const newest = snapshot.matches[0];
+  const excluded = buildOverlayPayload({
+    ...snapshot,
+    analytics: { ...snapshot.analytics, session: { ...snapshot.analytics.session, matchIds: [] } }
+  }, settings());
+  assert.equal(excluded.session.lastMatchResult, 'NO MATCH');
+  assert.equal(excluded.session.lastMatchRR, 0);
+
+  const included = buildOverlayPayload({
+    ...snapshot,
+    analytics: { ...snapshot.analytics, session: { ...snapshot.analytics.session, matchIds: [newest.id] } }
+  }, settings());
+  assert.equal(included.session.lastMatchResult, newest.result);
+  assert.equal(included.session.lastMatchRR, newest.rr);
+});
+
 test('awakened rank layout is accepted for OBS', () => {
   const payload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'rank' }));
   assert.equal(payload.layout, 'rank');
@@ -202,6 +219,7 @@ test('remote viewer endpoint exposes the dashboard snapshot with a separate toke
     getSnapshot: () => snapshot,
     getSettings: () => currentSettings,
     inspectPlayer: async (playerId) => ({ playerId, name: 'Visible Friend' }),
+    updateSession: async ({ selectedMatchIds }) => ({ ...snapshot, recoveredMatchIds: selectedMatchIds }),
     assetDirectory: path.join(__dirname, '..', 'src', 'overlay'),
     port: 0
   });
@@ -230,6 +248,13 @@ test('remote viewer endpoint exposes the dashboard snapshot with a separate toke
     });
     assert.equal(inspected.status, 200);
     assert.deepEqual((await inspected.json()).profile, { playerId: 'friend-1', name: 'Visible Friend' });
+
+    const recovered = await fetch(`http://127.0.0.1:${status.port}/remote-session/${remoteToken}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selectedMatchIds: ['match-1'], candidateMatchIds: ['match-1', 'match-2'] })
+    });
+    assert.equal(recovered.status, 200);
+    assert.deepEqual((await recovered.json()).snapshot.recoveredMatchIds, ['match-1']);
   } finally {
     await server.stop();
   }

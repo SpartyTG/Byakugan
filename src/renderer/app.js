@@ -209,7 +209,81 @@ function renderOverviewAnalytics() {
   const rrDelta = journey.reduce((total, point) => total + (Number(point.rrChange) || 0), 0);
   text('#trajectoryDelta', `${rrDelta > 0 ? '+' : ''}${rrDelta} RR`);
   const session = analytics.session || {};
-  $('#sessionMini').innerHTML = `<p class="eyebrow">CURRENT SESSION</p><h2>${session.games || 0} ${Number(session.games) === 1 ? 'match' : 'matches'} analyzed</h2><div class="session-mini-grid"><span><small>W / L</small><strong>${escapeHtml(session.wins || 0)} / ${escapeHtml(session.losses || 0)}</strong></span><span><small>K/D</small><strong>${escapeHtml(session.kd ?? '—')}</strong></span><span><small>RR</small><strong>${session.rrChange > 0 ? '+' : ''}${escapeHtml(session.rrChange || 0)}</strong></span></div>`;
+  $('#sessionMini').innerHTML = `<div class="session-mini-head"><p class="eyebrow">CURRENT SESSION</p><button class="text-button" data-manage-session>Manage</button></div><h2>${session.games || 0} ${Number(session.games) === 1 ? 'match' : 'matches'} analyzed</h2><div class="session-mini-grid"><span><small>W / L</small><strong>${escapeHtml(session.wins || 0)} / ${escapeHtml(session.losses || 0)}</strong></span><span><small>K/D</small><strong>${escapeHtml(session.kd ?? '—')}</strong></span><span><small>RR</small><strong>${session.rrChange > 0 ? '+' : ''}${escapeHtml(session.rrChange || 0)}</strong></span></div>`;
+}
+
+function sessionCandidates() {
+  return (state.snapshot?.matches || [])
+    .filter((match) => match?.id && ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result))
+    .slice(0, 10);
+}
+
+function sessionMatchTime(match) {
+  const timestamp = Number(match?.startedAt) || 0;
+  if (!timestamp) return match?.ago || 'Recent match';
+  return new Date(timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function updateSessionRecoveryCount() {
+  const count = $$('#sessionRecoveryList input[type="checkbox"]:checked').length;
+  text('#sessionRecoveryCount', `${count} ${count === 1 ? 'match' : 'matches'} selected`);
+}
+
+function openSessionManager() {
+  const selected = new Set(state.snapshot?.analytics?.session?.matchIds || []);
+  const candidates = sessionCandidates();
+  $('#sessionRecoveryList').innerHTML = candidates.map((match, index) => {
+    const rr = Number(match.rr) || 0;
+    const rrLabel = match.isCompetitive || String(match.queueId || '').toLowerCase() === 'competitive'
+      ? `${rr > 0 ? '+' : ''}${rr} RR`
+      : match.playlist || 'Non-competitive';
+    return `<label class="session-recovery-match ${match.result === 'DEFEAT' ? 'loss' : 'win'}">
+      <input type="checkbox" value="${escapeHtml(match.id)}" ${selected.has(match.id) ? 'checked' : ''}>
+      <i></i><span><strong>${escapeHtml(match.result)} • ${escapeHtml(match.map || match.playlist || 'Match')}</strong><small>${escapeHtml(match.agent || 'Agent unavailable')} • ${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)} • ${escapeHtml(sessionMatchTime(match))}</small></span>
+      <em>${escapeHtml(rrLabel)}</em>${index === 0 ? '<b>LATEST</b>' : ''}
+    </label>`;
+  }).join('') || '<div class="empty-state">No completed recent matches are available yet. Select Refresh Data, then reopen session recovery.</div>';
+  $('#sessionModal').hidden = false;
+  updateSessionRecoveryCount();
+}
+
+function closeSessionManager() {
+  $('#sessionModal').hidden = true;
+}
+
+async function saveSessionManager() {
+  const candidates = sessionCandidates();
+  if (!candidates.length) return;
+  const selectedMatchIds = $$('#sessionRecoveryList input[type="checkbox"]:checked').map((input) => input.value);
+  $('#saveSessionManager').disabled = true;
+  try {
+    const snapshot = await window.companion.updateSession({
+      selectedMatchIds,
+      candidateMatchIds: candidates.map((match) => match.id)
+    });
+    renderSnapshot(snapshot);
+    closeSessionManager();
+    toast('Session restored', `${selectedMatchIds.length} recent ${selectedMatchIds.length === 1 ? 'match is' : 'matches are'} now included in the current session and OBS overlay.`);
+  } catch (error) {
+    toast('Session recovery failed', error.message || 'The current session could not be updated.', 'error');
+  } finally {
+    $('#saveSessionManager').disabled = false;
+  }
+}
+
+async function startNewSession() {
+  if (!window.confirm('Start a new session now? Current session games will be cleared from the dashboard and OBS overlay, but match history will not be deleted.')) return;
+  $('#startNewSession').disabled = true;
+  try {
+    const snapshot = await window.companion.updateSession({ reset: true });
+    renderSnapshot(snapshot);
+    closeSessionManager();
+    toast('New session started', 'Session W/L, K/D, and RR movement were reset. Match history was not changed.');
+  } catch (error) {
+    toast('Could not start a new session', error.message || 'Try Refresh Data and start again.', 'error');
+  } finally {
+    $('#startNewSession').disabled = false;
+  }
 }
 
 function renderJourney() {
@@ -272,7 +346,7 @@ function renderInsights() {
   const challenges = analytics.challenges || [];
   $('#challengeGrid').innerHTML = challenges.map((challenge) => `<div class="challenge-row"><div><h3>${escapeHtml(challenge.title)}</h3><p>${escapeHtml(challenge.description)}</p></div><div class="challenge-progress"><span><i style="width:${Math.max(0, Math.min(100, Number(challenge.current) || 0))}%"></i></span><strong>${escapeHtml(challenge.target)}</strong></div></div>`).join('') || '<div class="empty-state">Challenges appear after competitive matches load.</div>';
   const session = analytics.session || {};
-  $('#sessionCard').innerHTML = `<div class="panel-heading"><div><p class="eyebrow">SESSION MODE</p><h2>Current run</h2></div><span class="feature-chip">LIVE</span></div><p class="muted">Tracking from when BYAKUGAN connected.</p><div class="session-score"><div><small>MATCHES</small><strong>${escapeHtml(session.games || 0)}</strong></div><div><small>WIN / LOSS</small><strong>${escapeHtml(session.wins || 0)} / ${escapeHtml(session.losses || 0)}</strong></div><div><small>SESSION K/D</small><strong>${escapeHtml(session.kd ?? '—')}</strong></div><div><small>RR MOVEMENT</small><strong>${session.rrChange > 0 ? '+' : ''}${escapeHtml(session.rrChange || 0)}</strong></div></div>`;
+  $('#sessionCard').innerHTML = `<div class="panel-heading"><div><p class="eyebrow">SESSION MODE</p><h2>Current run</h2></div><span class="feature-chip">LIVE</span></div><p class="muted">Automatically preserved through app restarts and updates.</p><div class="session-score"><div><small>MATCHES</small><strong>${escapeHtml(session.games || 0)}</strong></div><div><small>WIN / LOSS</small><strong>${escapeHtml(session.wins || 0)} / ${escapeHtml(session.losses || 0)}</strong></div><div><small>SESSION K/D</small><strong>${escapeHtml(session.kd ?? '—')}</strong></div><div><small>RR MOVEMENT</small><strong>${session.rrChange > 0 ? '+' : ''}${escapeHtml(session.rrChange || 0)}</strong></div></div><button class="ghost-button session-manage-full" data-manage-session>Manage or recover session games</button>`;
   renderSynergy(analytics);
 }
 
@@ -856,6 +930,9 @@ async function saveSettingsPatch(patch, feedback = true) {
 function bindEvents() {
   $$('.nav-item').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.view)));
   $$('[data-jump]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.jump)));
+  document.body.addEventListener('click', (event) => {
+    if (event.target.closest('[data-manage-session]')) openSessionManager();
+  });
   $('#sidebarRefresh').addEventListener('click', () => refresh(true));
   $('#connectButton').addEventListener('click', () => reconnect(true));
   $('#privacyButton').addEventListener('click', () => saveSettingsPatch({ privacyMode: !state.settings.privacyMode }, false));
@@ -906,10 +983,22 @@ function bindEvents() {
   });
   $('#closePlayerProfile').addEventListener('click', closePlayerProfile);
   $('#playerModal').addEventListener('click', (event) => { if (event.target === $('#playerModal')) closePlayerProfile(); });
+  $('#closeSessionManager').addEventListener('click', closeSessionManager);
+  $('#cancelSessionManager').addEventListener('click', closeSessionManager);
+  $('#saveSessionManager').addEventListener('click', saveSessionManager);
+  $('#startNewSession').addEventListener('click', startNewSession);
+  $('#selectLatestSessionMatch').addEventListener('click', () => {
+    const latest = $('#sessionRecoveryList input[type="checkbox"]');
+    if (latest) latest.checked = true;
+    updateSessionRecoveryCount();
+  });
+  $('#sessionRecoveryList').addEventListener('change', updateSessionRecoveryCount);
+  $('#sessionModal').addEventListener('click', (event) => { if (event.target === $('#sessionModal')) closeSessionManager(); });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (!$('#matchModal').hidden) closeMatchAutopsy();
     if (!$('#playerModal').hidden) closePlayerProfile();
+    if (!$('#sessionModal').hidden) closeSessionManager();
     if (!$('#updateModal').hidden) closeUpdateDialog();
   });
 
