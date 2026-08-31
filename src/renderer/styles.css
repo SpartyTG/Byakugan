@@ -700,7 +700,7 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .update-download-state small { display: block; margin-top: 9px; color: var(--muted); font-size: 8px; }
 .update-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
 .update-dialog-actions .ghost-button { padding-inline: 18px; }
-.match-autopsy { position: relative; width: min(1020px, 94vw); max-height: 88vh; overflow-y: auto; border-radius: 22px; border-color: rgba(139,108,255,.3); box-shadow: 0 35px 120px rgba(0,0,0,.65), 0 0 80px rgba(139,108,255,.08); }
+.match-autopsy { position: relative; width: min(1120px, 94vw); max-height: 88vh; overflow-y: auto; border-radius: 22px; border-color: rgba(139,108,255,.3); box-shadow: 0 35px 120px rgba(0,0,0,.65), 0 0 80px rgba(139,108,255,.08); }
 .autopsy-actions { position: sticky; z-index: 5; top: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px 0; }
 .autopsy-hero { position: relative; min-height: 210px; display: flex; align-items: flex-end; padding: 30px; overflow: hidden; }
 .autopsy-hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .2; }
@@ -742,7 +742,8 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .history-player-rank i { border-radius: 8px; background: rgba(255,255,255,.05); }
 .history-player-rank strong { margin-top: 3px; font-size: 8px; }
 .round-timeline { display: grid; grid-template-columns: repeat(12,minmax(36px,1fr)); gap: 6px; }
-.round-chip { min-height: 57px; display: grid; place-content: center; text-align: center; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,.018); }
+.round-chip { min-height: 57px; display: grid; place-content: center; padding: 0; color: inherit; font: inherit; text-align: center; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,.018); cursor: pointer; transition: .16s ease; }
+.round-chip:hover, .round-chip:focus-visible, .round-chip.active { outline: 0; border-color: rgba(170,147,255,.65); background: rgba(139,108,255,.12); transform: translateY(-1px); }
 .round-chip.win { border-bottom-color: var(--teal); }
 .round-chip.loss { border-bottom-color: var(--red); }
 .round-chip.opening-kill { box-shadow: inset 0 0 18px rgba(57,230,193,.08); }
@@ -750,6 +751,72 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .round-chip small, .round-chip strong { display: block; }
 .round-chip small { color: var(--muted); font-size: 7px; }
 .round-chip strong { margin-top: 4px; font-size: 9px; }
+
+.tactical-section, .igl-review { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.tactical-round-picker { display: flex; gap: 5px; margin: 13px 0; overflow-x: auto; padding-bottom: 4px; }
+.tactical-round-picker button { flex: 0 0 auto; min-width: 35px; height: 29px; padding: 0 9px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,.02); color: var(--muted); font: inherit; font-size: 7px; font-weight: 850; cursor: pointer; }
+.tactical-round-picker button:hover, .tactical-round-picker button:focus-visible, .tactical-round-picker button.active { outline: 0; border-color: rgba(139,108,255,.65); background: rgba(139,108,255,.14); color: #fff; }
+.tactical-layout { display: grid; grid-template-columns: minmax(430px,580px) minmax(250px,1fr); gap: 14px; align-items: stretch; }
+.tactical-map { position: relative; min-height: 0; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(139,108,255,.25); border-radius: 16px; background: radial-gradient(circle at center, rgba(57,230,193,.04), transparent 65%), #070914; }
+.tactical-map > img { position: absolute; inset: 20px; width: calc(100% - 40px); height: calc(100% - 40px); object-fit: contain; opacity: .72; filter: contrast(1.08) saturate(.55) drop-shadow(0 0 14px rgba(139,108,255,.14)); }
+.tactical-map-layer { position: absolute; inset: 20px; }
+.tactical-legend { position: absolute; z-index: 4; left: 13px; bottom: 12px; display: flex; gap: 11px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: rgba(5,7,14,.78); backdrop-filter: blur(8px); }
+.tactical-legend span { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 6px; font-weight: 850; }
+.tactical-legend i { width: 7px; height: 7px; border-radius: 50%; }
+.tactical-legend i.kill { background: var(--teal); box-shadow: 0 0 8px rgba(57,230,193,.8); }
+.tactical-legend i.death { background: var(--red); box-shadow: 0 0 8px rgba(238,92,120,.8); }
+.heat-pulse { position: absolute; z-index: 2; width: 26px; height: 26px; border-radius: 50%; transform: translate(-50%,-50%); }
+.heat-pulse::before, .heat-pulse::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.heat-pulse::before { animation: tactical-pulse 2.2s ease-out infinite; }
+.heat-pulse::after { inset: 8px; }
+.heat-pulse.kill { background: radial-gradient(circle, rgba(57,230,193,.62), rgba(57,230,193,.14) 48%, transparent 72%); }
+.heat-pulse.kill::before { border: 1px solid rgba(57,230,193,.45); }
+.heat-pulse.kill::after { background: var(--teal); box-shadow: 0 0 9px rgba(57,230,193,.85); }
+.heat-pulse.death { background: radial-gradient(circle, rgba(238,92,120,.62), rgba(238,92,120,.14) 48%, transparent 72%); }
+.heat-pulse.death::before { border: 1px solid rgba(238,92,120,.45); }
+.heat-pulse.death::after { background: var(--red); box-shadow: 0 0 9px rgba(238,92,120,.85); }
+@keyframes tactical-pulse { 0% { transform: scale(.35); opacity: .9; } 75%,100% { transform: scale(1.35); opacity: 0; } }
+.event-vector { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.event-vector line { vector-effect: non-scaling-stroke; stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .82; }
+.event-vector.kill line { stroke: var(--teal); }
+.event-vector.death line { stroke: var(--red); }
+.event-vector .player-point { vector-effect: non-scaling-stroke; stroke-width: 1.1; fill: #080b15; }
+.event-vector.kill .player-point { stroke: var(--teal); }
+.event-vector.death .player-point { stroke: var(--red); }
+.event-vector .opponent-point { vector-effect: non-scaling-stroke; stroke: #d6c9ff; stroke-width: 1; fill: var(--violet); }
+.event-marker { position: absolute; z-index: 3; width: 24px; height: 24px; display: grid; place-items: center; transform: translate(-50%,-50%); border: 2px solid #080b15; border-radius: 50%; color: #080b15; font-size: 8px; font-weight: 950; box-shadow: 0 0 15px currentColor; }
+.event-marker.kill { background: var(--teal); }
+.event-marker.death { background: var(--red); color: #fff; }
+.tactical-event-list { max-height: 580px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding: 10px; border: 1px solid var(--border); border-radius: 16px; background: rgba(7,9,17,.45); }
+.tactical-event-row { display: grid; grid-template-columns: 28px 1fr; gap: 9px; align-items: center; padding: 9px; border: 1px solid rgba(255,255,255,.055); border-radius: 10px; background: rgba(255,255,255,.018); }
+.tactical-event-row > span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; font-size: 8px; font-weight: 950; }
+.tactical-event-row.kill > span { background: rgba(57,230,193,.15); color: var(--teal); }
+.tactical-event-row.death > span { background: rgba(238,92,120,.15); color: var(--red); }
+.tactical-event-row strong, .tactical-event-row small { display: block; line-height: 1.45; }
+.tactical-event-row strong { font-size: 8px; }
+.tactical-event-row small { margin-top: 3px; color: var(--muted); font-size: 7px; }
+.tactical-note, .igl-disclaimer { margin: 10px 0 0; color: var(--muted); font-size: 7px; line-height: 1.55; }
+.tactical-empty { min-height: 180px; display: grid; place-content: center; gap: 7px; padding: 30px; border: 1px dashed var(--border); border-radius: 14px; text-align: center; }
+.tactical-empty strong { font-size: 12px; }
+.tactical-empty span { max-width: 520px; color: var(--muted); font-size: 8px; line-height: 1.55; }
+.igl-review { position: relative; }
+.igl-review::before { content: ""; position: absolute; top: 24px; right: 0; width: 180px; height: 90px; background: radial-gradient(circle, rgba(139,108,255,.12), transparent 68%); pointer-events: none; }
+.igl-summary { max-width: 760px; margin: 5px 0 14px; color: #c1c5d4; font-size: 9px; line-height: 1.65; }
+.igl-signal-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.igl-signal { min-height: 112px; padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: rgba(255,255,255,.018); }
+.igl-signal.positive { border-left: 3px solid var(--teal); }
+.igl-signal.priority { border-left: 3px solid var(--red); }
+.igl-signal small { color: var(--teal); font-size: 6px; font-weight: 900; letter-spacing: .12em; }
+.igl-signal.priority small { color: var(--red); }
+.igl-signal h3 { margin: 7px 0 5px; font-size: 11px; }
+.igl-signal p { margin: 0; color: var(--muted); font-size: 8px; line-height: 1.55; }
+.igl-round-focus { display: grid; grid-template-columns: 72px 1fr; gap: 13px; align-items: center; margin-bottom: 13px; padding: 14px; border: 1px solid rgba(139,108,255,.25); border-radius: 13px; background: rgba(139,108,255,.065); }
+.igl-round-focus > span { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .1em; }
+.igl-round-focus h3 { margin: 0 0 5px; font-size: 11px; }
+.igl-round-focus p { margin: 0; color: var(--muted); font-size: 8px; line-height: 1.55; }
+.igl-round-focus.risk { border-left: 3px solid var(--red); }
+.igl-round-focus.positive { border-left: 3px solid var(--teal); }
+.igl-round-focus.warning { border-left: 3px solid #f1b85b; }
 
 @media (max-width: 1320px) {
   .overview-intel-grid { grid-template-columns: 1.4fr 1fr; }
@@ -766,4 +833,8 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
   .round-timeline { grid-template-columns: repeat(6,1fr); }
   .autopsy-metrics { grid-template-columns: repeat(3,1fr); }
   .postmatch-roster { grid-template-columns: 1fr; }
+  .tactical-layout { grid-template-columns: 1fr; }
+  .tactical-map { width: min(100%,580px); justify-self: center; }
+  .tactical-event-list { max-height: 260px; }
+  .igl-signal-grid { grid-template-columns: 1fr; }
 }

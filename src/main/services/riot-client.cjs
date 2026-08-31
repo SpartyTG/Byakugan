@@ -241,8 +241,160 @@ function findPlayer(detail, puuid) {
   );
 }
 
-function analyzeRounds(detail, puuid, ownTeam) {
+function readLocation(value) {
+  const x = Number(value?.X ?? value?.x);
+  const y = Number(value?.Y ?? value?.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+function normalizeMapPoint(location, map) {
+  const point = readLocation(location);
+  const coordinates = map?.coordinates || {};
+  const xMultiplier = Number(coordinates.xMultiplier);
+  const yMultiplier = Number(coordinates.yMultiplier);
+  const xScalarToAdd = Number(coordinates.xScalarToAdd);
+  const yScalarToAdd = Number(coordinates.yScalarToAdd);
+  if (!point || ![xMultiplier, yMultiplier, xScalarToAdd, yScalarToAdd].every(Number.isFinite)) return null;
+  // Riot world coordinates use X/Y in the opposite order from the overhead
+  // map axes. The metadata multipliers convert the snapshot to 0..1 space.
+  const x = point.y * xMultiplier + xScalarToAdd;
+  const y = point.x * yMultiplier + yScalarToAdd;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return {
+    x: Math.round(Math.max(0, Math.min(100, x * 100)) * 10) / 10,
+    y: Math.round(Math.max(0, Math.min(100, y * 100)) * 10) / 10
+  };
+}
+
+function nearestMapCallout(location, map) {
+  const point = readLocation(location);
+  if (!point || !Array.isArray(map?.callouts) || !map.callouts.length) return '';
+  let nearest = null;
+  for (const callout of map.callouts) {
+    const target = readLocation(callout.location);
+    if (!target) continue;
+    const distance = (point.x - target.x) ** 2 + (point.y - target.y) ** 2;
+    if (!nearest || distance < nearest.distance) nearest = { callout, distance };
+  }
+  if (!nearest) return '';
+  const name = nearest.callout.name || '';
+  const region = nearest.callout.region || '';
+  return name && region && name !== region ? `${region} • ${name}` : name || region;
+}
+
+function eventTimeLabel(milliseconds) {
+  const seconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function roundReview(round) {
+  const death = (round.events || []).find((event) => event.type === 'DEATH');
+  const kill = (round.events || []).find((event) => event.type === 'KILL');
+  const location = death?.callout || kill?.callout || '';
+  const place = location ? ` near ${location}` : '';
+  if (round.opening === 'DEATH') return {
+    tone: 'risk', title: 'Opening disadvantage',
+    body: `You were the first death${place}. Look for a more recoverable first angle or a teammate close enough to trade the contact.`
+  };
+  if (round.opening === 'KILL') return {
+    tone: round.result === 'WIN' ? 'positive' : 'warning', title: 'Opening created',
+    body: round.result === 'WIN'
+      ? `You secured the first elimination${place} and your team converted the round.`
+      : `You secured the first elimination${place}, but the advantage was not converted. Review the decisions immediately after first contact.`
+  };
+  if (round.kills >= 2) return {
+    tone: round.result === 'WIN' ? 'positive' : 'warning', title: `${round.kills}-kill impact`,
+    body: round.result === 'WIN'
+      ? 'Your multikill helped close the round. Preserve the spacing and timing that created these chained fights.'
+      : 'You created multiple eliminations, but the round still slipped away. Check the remaining player advantage and objective timing.'
+  };
+  if (round.deaths && !round.kills) return {
+    tone: 'risk', title: 'Low-output death',
+    body: `You were eliminated without a kill${place}. Review whether the fight had trade support, useful cover, or a clear objective.`
+  };
+  if (round.result === 'WIN' && !round.deaths) return {
+    tone: 'positive', title: 'Survived the conversion',
+    body: 'Your team won while you stayed alive. Retaining weapons, utility, and positioning can compound value into the next round.'
+  };
+  return {
+    tone: round.result === 'WIN' ? 'positive' : 'neutral', title: round.result === 'WIN' ? 'Team conversion' : 'Limited personal contact',
+    body: round.result === 'WIN'
+      ? 'The round was won without a recorded personal elimination. Compare your positioning and utility timing with the team’s successful entry.'
+      : 'The event feed contains limited personal contact for this round, so BYAKUGAN is avoiding a stronger tactical conclusion.'
+  };
+}
+
+function buildIglReview(timeline) {
+  const rounds = timeline || [];
+  const openingKills = rounds.filter((round) => round.opening === 'KILL').length;
+  const openingDeaths = rounds.filter((round) => round.opening === 'DEATH').length;
+  const totalKills = rounds.reduce((total, round) => total + round.kills, 0);
+  const totalDeaths = rounds.reduce((total, round) => total + round.deaths, 0);
+  const multikillWins = rounds.filter((round) => round.kills >= 2 && round.result === 'WIN').length;
+  const multikillLosses = rounds.filter((round) => round.kills >= 2 && round.result === 'LOSS').length;
+  const deathAreas = new Map();
+  const killAreas = new Map();
+  for (const round of rounds) {
+    for (const event of round.events || []) {
+      if (!event.callout) continue;
+      const target = event.type === 'DEATH' ? deathAreas : killAreas;
+      target.set(event.callout, (target.get(event.callout) || 0) + 1);
+    }
+  }
+  const topArea = (areas) => [...areas.entries()].sort((a, b) => b[1] - a[1])[0] || null;
+  const topDeathArea = topArea(deathAreas);
+  const topKillArea = topArea(killAreas);
+  const strengths = [];
+  const priorities = [];
+  if (openingKills > openingDeaths) strengths.push({
+    title: 'First-contact edge', body: `${openingKills} opening kills against ${openingDeaths} opening deaths created more early advantages than disadvantages.`
+  });
+  else if (openingDeaths > openingKills) priorities.push({
+    title: 'Protect the first life', body: `${openingDeaths} opening deaths against ${openingKills} opening kills repeatedly put the team into an early deficit.`
+  });
+  if (multikillWins) strengths.push({
+    title: 'Multikill conversion', body: `${multikillWins} multikill ${multikillWins === 1 ? 'round was' : 'rounds were'} converted into wins.`
+  });
+  if (multikillLosses) priorities.push({
+    title: 'Close player advantages', body: `${multikillLosses} ${multikillLosses === 1 ? 'round was' : 'rounds were'} lost despite multiple personal eliminations.`
+  });
+  if (topKillArea && topKillArea[1] >= 2) strengths.push({
+    title: `Impact around ${topKillArea[0]}`, body: `${topKillArea[1]} kills were recorded from this area, making it your clearest location-based success signal.`
+  });
+  if (topDeathArea && topDeathArea[1] >= 2) priorities.push({
+    title: `Repeated deaths around ${topDeathArea[0]}`, body: `${topDeathArea[1]} deaths clustered here. Review the angle, support distance, and timing before taking the same space again.`
+  });
+  if (!strengths.length) strengths.push({
+    title: 'Review the stable rounds', body: 'No single positive pattern crossed the evidence threshold. Use the round map to compare the rounds you survived with the rounds you lost early.'
+  });
+  if (!priorities.length) priorities.push({
+    title: 'Build repeatable conversions', body: 'No major recurring risk crossed the evidence threshold. Focus on repeating the spacing and timing from your successful rounds.'
+  });
+  const kd = totalDeaths ? totalKills / totalDeaths : totalKills;
+  const title = openingDeaths > openingKills
+    ? 'Stabilize the opening phase'
+    : multikillLosses
+      ? 'Convert the advantages you create'
+      : kd >= 1
+        ? 'Positive personal impact'
+        : 'Prioritize survival and trade access';
+  return {
+    title,
+    summary: `${totalKills} kills, ${totalDeaths} deaths, and a ${openingKills}–${openingDeaths} opening-duel record across ${rounds.length} rounds. Conclusions use completed-match events only.`,
+    strengths: strengths.slice(0, 3),
+    priorities: priorities.slice(0, 3),
+    rounds: rounds.map((round) => ({ round: round.round, ...roundReview(round) }))
+  };
+}
+
+function analyzeRounds(detail, puuid, ownTeam, metadata, map) {
   const rounds = detail?.RoundResults || detail?.roundResults || [];
+  const agentsBySubject = new Map((detail?.Players || detail?.players || []).map((player) => {
+    const subject = player.Subject || player.subject || player.puuid;
+    const characterId = player.CharacterID || player.characterId;
+    const agent = resolveById(metadata?.agents || new Map(), characterId, { name: 'Unknown agent' });
+    return [subject, agent.name];
+  }));
   let openingKills = 0;
   let openingDeaths = 0;
   const timeline = rounds.map((round, index) => {
@@ -253,7 +405,8 @@ function analyzeRounds(detail, puuid, ownTeam) {
     const allKills = playerRows.flatMap((entry) => (entry.Kills || entry.kills || []).map((kill) => ({
       killer: entry.Subject || entry.subject,
       victim: kill.Victim || kill.victim,
-      time: Number(kill.TimeSinceRoundStartMillis ?? kill.timeSinceRoundStartMillis ?? Number.MAX_SAFE_INTEGER)
+      time: Number(kill.TimeSinceRoundStartMillis ?? kill.timeSinceRoundStartMillis ?? Number.MAX_SAFE_INTEGER),
+      raw: kill
     }))).sort((a, b) => a.time - b.time);
     const first = allKills[0];
     const opening = first?.killer === puuid ? 'KILL' : first?.victim === puuid ? 'DEATH' : '';
@@ -261,13 +414,38 @@ function analyzeRounds(detail, puuid, ownTeam) {
     if (opening === 'DEATH') openingDeaths += 1;
     const died = allKills.some((kill) => kill.victim === puuid);
     const winningTeam = round.WinningTeam || round.winningTeam || '';
+    const events = allKills.filter((kill) => kill.killer === puuid || kill.victim === puuid).map((kill, eventIndex) => {
+      const type = kill.killer === puuid ? 'KILL' : 'DEATH';
+      const opponentId = type === 'KILL' ? kill.victim : kill.killer;
+      const locations = kill.raw.PlayerLocations || kill.raw.playerLocations || [];
+      const locationFor = (subject) => {
+        const row = locations.find((entry) => (entry.Subject || entry.subject) === subject);
+        return row?.Location || row?.location || null;
+      };
+      const victimLocation = kill.raw.VictimLocation || kill.raw.victimLocation || null;
+      const playerLocation = type === 'KILL' ? locationFor(puuid) : victimLocation;
+      const opponentLocation = type === 'KILL' ? victimLocation : locationFor(opponentId);
+      const timeMs = kill.time === Number.MAX_SAFE_INTEGER ? 0 : kill.time;
+      return {
+        id: `${index + 1}-${eventIndex + 1}-${type.toLowerCase()}`,
+        type,
+        opening: kill === first,
+        timeMs: Number.isFinite(timeMs) ? timeMs : 0,
+        time: eventTimeLabel(timeMs),
+        opponentAgent: agentsBySubject.get(opponentId) || 'Unknown agent',
+        callout: nearestMapCallout(playerLocation, map),
+        playerPoint: normalizeMapPoint(playerLocation, map),
+        opponentPoint: normalizeMapPoint(opponentLocation, map)
+      };
+    });
     return {
       round: Number(round.RoundNum ?? round.roundNum ?? index) + 1,
       result: winningTeam ? (winningTeam === ownTeam ? 'WIN' : 'LOSS') : '—',
       kills: kills.length,
       deaths: died ? 1 : 0,
       damage,
-      opening
+      opening,
+      events
     };
   });
   const bestRound = timeline.reduce((best, round) => !best || round.kills * 1000 + round.damage > best.kills * 1000 + best.damage ? round : best, null);
@@ -278,7 +456,9 @@ function analyzeRounds(detail, puuid, ownTeam) {
     openingDeaths,
     multikillRounds: timeline.filter((round) => round.kills >= 2).length,
     bestRound,
-    worstRound
+    worstRound,
+    eventsAvailable: timeline.some((round) => round.events.some((event) => event.playerPoint)),
+    iglReview: buildIglReview(timeline)
   };
 }
 
@@ -333,7 +513,7 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
       && !isPlayerNameHidden(entry, puuid))
     .map((entry) => entry.Subject || entry.subject || entry.puuid)
     .filter(Boolean);
-  const report = analyzeRounds(detail, puuid, teamId);
+  const report = analyzeRounds(detail, puuid, teamId, metadata, map);
 
   return {
     id: info.MatchID || info.matchId || historyRow.MatchID || historyRow.matchId,
@@ -344,6 +524,7 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
     hasRating,
     map: map.name,
     mapImage: map.image,
+    mapTacticalImage: map.tacticalImage || '',
     server: server.name,
     serverId: server.id,
     serverRegion: server.region,

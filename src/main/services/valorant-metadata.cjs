@@ -31,7 +31,25 @@ async function fetchMetadata(force = false) {
     };
 
     for (const map of mapsResponse.data?.data || []) {
-      const item = { name: map.displayName, image: map.splash || map.listViewIcon || '' };
+      const item = {
+        name: map.displayName,
+        image: map.splash || map.listViewIcon || '',
+        tacticalImage: map.displayIcon || map.listViewIconTall || map.listViewIcon || '',
+        coordinates: {
+          xMultiplier: Number(map.xMultiplier),
+          yMultiplier: Number(map.yMultiplier),
+          xScalarToAdd: Number(map.xScalarToAdd),
+          yScalarToAdd: Number(map.yScalarToAdd)
+        },
+        callouts: (map.callouts || []).map((callout) => ({
+          name: callout.regionName || callout.superRegionName || '',
+          region: callout.superRegionName || '',
+          location: {
+            x: Number(callout.location?.x),
+            y: Number(callout.location?.y)
+          }
+        })).filter((callout) => callout.name && Number.isFinite(callout.location.x) && Number.isFinite(callout.location.y))
+      };
       put(metadata.maps, map.uuid, item);
       put(metadata.maps, map.mapUrl, item);
       put(metadata.maps, String(map.mapUrl || '').split('/').at(-1), item);

@@ -9,6 +9,7 @@ const state = {
   refreshTimer: null,
   busy: false,
   openMatchId: '',
+  autopsyRound: 'ALL',
   openPlayerId: '',
   selectedSynergyFriendId: '',
   overlayStatus: null,
@@ -308,9 +309,54 @@ function historicalPlayerRow(player) {
   </div>`;
 }
 
+function matchEvents(match) {
+  return (match.report?.rounds || []).flatMap((round) => (round.events || []).map((event) => ({ ...event, round: round.round })));
+}
+
+function eventLabel(event) {
+  const action = event.type === 'KILL' ? 'Eliminated' : 'Killed by';
+  const place = event.callout ? ` • ${event.callout}` : '';
+  return `${action} ${event.opponentAgent || 'Unknown agent'} • ${event.time || '0:00'}${place}`;
+}
+
+function tacticalMapMarkup(match, selectedRound) {
+  const rounds = match.report?.rounds || [];
+  const allEvents = matchEvents(match);
+  const selected = String(selectedRound || 'ALL');
+  const visibleEvents = selected === 'ALL' ? allEvents : allEvents.filter((event) => String(event.round) === selected);
+  const positioned = visibleEvents.filter((event) => event.playerPoint);
+  const mapImage = safeImage(match.mapTacticalImage);
+  const controls = `<div class="tactical-round-picker"><button type="button" data-tactical-round="ALL" class="${selected === 'ALL' ? 'active' : ''}">ALL</button>${rounds.map((round) => `<button type="button" data-tactical-round="${escapeHtml(round.round)}" class="${selected === String(round.round) ? 'active' : ''}">R${escapeHtml(round.round)}</button>`).join('')}</div>`;
+  if (!mapImage || !positioned.length) {
+    return `<section class="tactical-section"><div class="panel-heading"><div><p class="eyebrow">TACTICAL REPLAY</p><h2>Round event map</h2></div><span class="muted">Completed-match data only</span></div>${controls}<div class="tactical-empty"><strong>Position data unavailable</strong><span>Riot returned the round results, but this match did not include enough calibrated location snapshots to draw the event map.</span></div></section>`;
+  }
+  const heat = selected === 'ALL'
+    ? positioned.map((event) => `<span class="heat-pulse ${event.type.toLowerCase()}" style="left:${Number(event.playerPoint.x)}%;top:${Number(event.playerPoint.y)}%" title="${escapeHtml(`Round ${event.round} • ${eventLabel(event)}`)}"></span>`).join('')
+    : positioned.map((event) => {
+      const opponent = event.opponentPoint;
+      const line = opponent ? `<line x1="${Number(event.playerPoint.x)}" y1="${Number(event.playerPoint.y)}" x2="${Number(opponent.x)}" y2="${Number(opponent.y)}"></line>` : '';
+      const opponentMarker = opponent ? `<circle class="opponent-point" cx="${Number(opponent.x)}" cy="${Number(opponent.y)}" r="1.7"></circle>` : '';
+      return `<svg class="event-vector ${event.type.toLowerCase()}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${line}${opponentMarker}<circle class="player-point" cx="${Number(event.playerPoint.x)}" cy="${Number(event.playerPoint.y)}" r="2.1"></circle></svg><span class="event-marker ${event.type.toLowerCase()}" style="left:${Number(event.playerPoint.x)}%;top:${Number(event.playerPoint.y)}%" title="${escapeHtml(eventLabel(event))}">${event.type === 'KILL' ? 'K' : 'D'}</span>`;
+    }).join('');
+  const eventRows = visibleEvents.map((event) => `<div class="tactical-event-row ${event.type.toLowerCase()}"><span>${event.type === 'KILL' ? 'K' : 'D'}</span><div><strong>R${escapeHtml(event.round)} • ${escapeHtml(event.time || '0:00')} • ${escapeHtml(event.type === 'KILL' ? 'Eliminated' : 'Killed by')} ${escapeHtml(event.opponentAgent || 'Unknown agent')}</strong><small>${escapeHtml(event.callout || 'Location label unavailable')}${event.opening ? ' • OPENING DUEL' : ''}</small></div></div>`).join('');
+  return `<section class="tactical-section"><div class="panel-heading"><div><p class="eyebrow">TACTICAL REPLAY</p><h2>${selected === 'ALL' ? 'Match heat map' : `Round ${escapeHtml(selected)} event map`}</h2></div><span class="muted">Select a round to inspect each duel</span></div>${controls}<div class="tactical-layout"><div class="tactical-map"><img src="${mapImage}" alt="${escapeHtml(match.map)} overhead map"><div class="tactical-map-layer">${heat}</div><div class="tactical-legend"><span><i class="kill"></i>KILL</span><span><i class="death"></i>DEATH</span></div></div><div class="tactical-event-list">${eventRows || '<div class="empty-state">No personal kill or death event was recorded for this round.</div>'}</div></div><p class="tactical-note">The all-round view shows your engagement locations. A selected round adds the opponent position and duel line when Riot returned both snapshots. Hidden identities remain anonymous.</p></section>`;
+}
+
+function iglReviewMarkup(match, selectedRound) {
+  const review = match.report?.iglReview;
+  if (!review) return '<section class="igl-review"><div class="panel-heading"><div><p class="eyebrow">IGL REVIEW</p><h2>Post-match coaching</h2></div></div><div class="empty-state">Not enough completed-match evidence was returned for a coaching review.</div></section>';
+  const selected = String(selectedRound || 'ALL');
+  const roundReview = selected === 'ALL' ? null : (review.rounds || []).find((round) => String(round.round) === selected);
+  const strengths = (review.strengths || []).map((item) => `<article class="igl-signal positive"><small>KEEP</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></article>`).join('');
+  const priorities = (review.priorities || []).map((item) => `<article class="igl-signal priority"><small>ADJUST</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></article>`).join('');
+  const focus = roundReview ? `<article class="igl-round-focus ${escapeHtml(roundReview.tone || 'neutral')}"><span>ROUND ${escapeHtml(roundReview.round)}</span><div><h3>${escapeHtml(roundReview.title)}</h3><p>${escapeHtml(roundReview.body)}</p></div></article>` : '';
+  return `<section class="igl-review"><div class="panel-heading"><div><p class="eyebrow">IGL REVIEW</p><h2>${escapeHtml(review.title)}</h2></div><span class="feature-chip">POST-MATCH ONLY</span></div><p class="igl-summary">${escapeHtml(review.summary)}</p>${focus}<div class="igl-signal-grid">${strengths}${priorities}</div><p class="igl-disclaimer">IGL Review explains patterns supported by completed-match events. It does not read communications, intent, utility placement, or live opponent strategy.</p></section>`;
+}
+
 function openMatchAutopsy(matchId) {
   const match = findMatchById(matchId);
   if (!match) return;
+  if (state.openMatchId !== matchId) state.autopsyRound = 'ALL';
   state.openMatchId = matchId;
   const [verdictTitle, verdictBody] = matchVerdict(match);
   const report = match.report || {};
@@ -324,13 +370,16 @@ function openMatchAutopsy(matchId) {
   const allies = roster.filter((player) => player.side === 'ally');
   const enemies = roster.filter((player) => player.side === 'enemy');
   const rosterMarkup = roster.length ? `<div class="postmatch-roster"><section><div class="postmatch-team-title"><span>YOUR TEAM</span><small>${escapeHtml(allies.length)} PLAYERS</small></div>${allies.map(historicalPlayerRow).join('')}</section><section><div class="postmatch-team-title enemy"><span>OPPONENTS</span><small>${escapeHtml(enemies.length)} PLAYERS</small></div>${enemies.map(historicalPlayerRow).join('')}</section></div>` : '<div class="empty-state">Riot did not return the roster for this match.</div>';
-  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">K/D per round</span></div><div class="round-timeline">${rounds.map((round) => `<div class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></div>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div><div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
+  const tacticalMarkup = tacticalMapMarkup(match, state.autopsyRound);
+  const coachingMarkup = iglReviewMarkup(match, state.autopsyRound);
+  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">Select a round to focus the review</span></div><div class="round-timeline">${rounds.map((round) => `<button type="button" data-tactical-round="${escapeHtml(round.round)}" class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''} ${state.autopsyRound === String(round.round) ? 'active' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></button>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div>${tacticalMarkup}${coachingMarkup}<div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
   $('#matchModal').hidden = false;
 }
 
 function closeMatchAutopsy() {
   $('#matchModal').hidden = true;
   state.openMatchId = '';
+  state.autopsyRound = 'ALL';
 }
 
 function exportMatchRecap() {
@@ -801,6 +850,12 @@ function bindEvents() {
   $('#shareMatch').addEventListener('click', exportMatchRecap);
   $('#matchModal').addEventListener('click', (event) => { if (event.target === $('#matchModal')) closeMatchAutopsy(); });
   $('#matchAutopsyContent').addEventListener('click', (event) => {
+    const round = event.target.closest('[data-tactical-round]');
+    if (round) {
+      state.autopsyRound = String(round.dataset.tacticalRound || 'ALL');
+      openMatchAutopsy(state.openMatchId);
+      return;
+    }
     const row = event.target.closest('[data-player-id]');
     if (row) openPlayerProfile(row.dataset.playerId);
   });

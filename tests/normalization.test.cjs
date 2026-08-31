@@ -15,8 +15,15 @@ const {
 
 function metadata() {
   return {
-    maps: new Map([['/game/maps/ascent/ascent', { name: 'Ascent', image: 'map.png' }]]),
-    agents: new Map([['agent-jett', { name: 'Jett', role: 'Duelist', image: 'jett.png', color: '#abc123' }]]),
+    maps: new Map([['/game/maps/ascent/ascent', {
+      name: 'Ascent', image: 'map.png', tacticalImage: 'map-overhead.png',
+      coordinates: { xMultiplier: .01, yMultiplier: -.01, xScalarToAdd: .5, yScalarToAdd: .5 },
+      callouts: [{ name: 'A Main', region: 'A', location: { x: 0, y: 0 } }]
+    }]]),
+    agents: new Map([
+      ['agent-jett', { name: 'Jett', role: 'Duelist', image: 'jett.png', color: '#abc123' }],
+      ['agent-sova', { name: 'Sova', role: 'Initiator', image: 'sova.png', color: '#63a8e8' }]
+    ]),
     weapons: new Map([['gun-vandal', { name: 'Vandal', image: 'vandal.png' }]]),
     skins: new Map([['skin-prime', { name: 'Prime Vandal', weapon: 'Vandal', image: 'prime.png' }]]),
     tiers: new Map([[21, { name: 'Ascendant 1', image: 'https://media.valorant-api.com/tiers/21.png' }]])
@@ -59,6 +66,45 @@ test('normalizes a Riot match-detail response for the current player', () => {
   assert.equal(result.shots.headshots, 3);
   assert.equal(result.rankName, 'Ascendant 1');
   assert.equal(result.rankImage, 'https://media.valorant-api.com/tiers/21.png');
+});
+
+test('builds a privacy-safe tactical replay and post-match IGL review from round locations', () => {
+  const kill = {
+    Victim: 'enemy', TimeSinceRoundStartMillis: 42_000,
+    VictimLocation: { X: 10, Y: 20 },
+    PlayerLocations: [
+      { Subject: 'self', Location: { X: 0, Y: 0 } },
+      { Subject: 'enemy', Location: { X: 10, Y: 20 } }
+    ]
+  };
+  const detail = {
+    MatchInfo: { MatchID: 'tactical-match', QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [
+      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 1, Deaths: 0, Assists: 0 } },
+      { Subject: 'enemy', TeamID: 'Red', CharacterID: 'agent-sova', PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 0, Deaths: 1, Assists: 0 } }
+    ],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 1 }, { TeamID: 'Red', Won: false, RoundsWon: 0 }],
+    RoundResults: [{
+      RoundNum: 0, WinningTeam: 'Blue',
+      PlayerStats: [
+        { Subject: 'self', Kills: [kill], Damage: [] },
+        { Subject: 'enemy', Kills: [], Damage: [] }
+      ]
+    }]
+  };
+  const result = normalizeMatchDetail(detail, 'self', metadata(), {}, { RankedRatingEarned: 18 });
+  const [event] = result.report.rounds[0].events;
+  assert.equal(result.mapTacticalImage, 'map-overhead.png');
+  assert.equal(result.report.eventsAvailable, true);
+  assert.equal(event.type, 'KILL');
+  assert.equal(event.opponentAgent, 'Sova');
+  assert.equal(event.time, '0:42');
+  assert.equal(event.callout, 'A • A Main');
+  assert.deepEqual(event.playerPoint, { x: 50, y: 50 });
+  assert.deepEqual(event.opponentPoint, { x: 70, y: 40 });
+  assert.equal(result.report.iglReview.rounds[0].title, 'Opening created');
+  assert.match(result.report.iglReview.summary, /completed-match events only/i);
+  assert.equal(JSON.stringify(result).includes('enemy'), false);
 });
 
 test('shared-match teammate IDs include visible friends but exclude incognito teammates', () => {
