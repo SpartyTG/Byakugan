@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { UI_SCALE_OPTIONS, normalizeUiScale } = require('./ui-scale.cjs');
 
 const DEFAULTS = Object.freeze({
   launchAtStartup: false,
@@ -10,6 +11,7 @@ const DEFAULTS = Object.freeze({
   refreshSeconds: 30,
   compactMatches: false,
   privacyMode: false,
+  uiScale: 100,
   pcRole: 'gaming',
   remoteViewerEnabled: false,
   remoteViewerToken: '',
@@ -46,6 +48,7 @@ class SettingsStore {
       }
       delete parsed.streamOverlayShowAgentMap;
       delete parsed.dataMode;
+      parsed.uiScale = normalizeUiScale(parsed.uiScale);
       this.data = { ...DEFAULTS, ...parsed };
     } catch {}
   }
@@ -59,7 +62,9 @@ class SettingsStore {
       if (typeof DEFAULTS[key] === 'boolean' && typeof value !== 'boolean') continue;
       if (typeof DEFAULTS[key] === 'number') {
         if (!Number.isFinite(value)) continue;
-        if (key === 'streamOverlayBackgroundOpacity') {
+        if (key === 'uiScale') {
+          if (!UI_SCALE_OPTIONS.includes(value)) continue;
+        } else if (key === 'streamOverlayBackgroundOpacity') {
           if (value < 0 || value > 100) continue;
         } else if (value < 1) continue;
       }

@@ -287,6 +287,47 @@ function eventTimeLabel(milliseconds) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+function normalizeEventMilliseconds(value, unitHint = '') {
+  let amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  if (unitHint === 'seconds') return amount * 1000;
+  if (unitHint === 'milliseconds') return amount;
+  // Riot's private match payload has used RoundTime/GameTime in more than one
+  // unit. A round cannot realistically last ten minutes, so reduce sub-ms
+  // clock units until the value reaches a plausible millisecond range.
+  while (amount > 600_000) amount /= 1000;
+  // Small generic clock values are seconds; explicit *Millis fields never use
+  // this branch. A kill cannot occur within the first 300 ms of a round.
+  if (amount > 0 && amount < 300) amount *= 1000;
+  return amount;
+}
+
+function extractEventTime(kill) {
+  const roundMillis = kill?.TimeSinceRoundStartMillis ?? kill?.timeSinceRoundStartMillis
+    ?? kill?.RoundTimeMillis ?? kill?.roundTimeMillis;
+  if (roundMillis !== undefined && roundMillis !== null) {
+    const milliseconds = normalizeEventMilliseconds(roundMillis, 'milliseconds');
+    if (milliseconds !== null) return { milliseconds, scope: 'ROUND' };
+  }
+  const roundTime = kill?.RoundTime ?? kill?.roundTime ?? kill?.TimeSinceRoundStart ?? kill?.timeSinceRoundStart;
+  if (roundTime !== undefined && roundTime !== null) {
+    const milliseconds = normalizeEventMilliseconds(roundTime);
+    if (milliseconds !== null) return { milliseconds, scope: 'ROUND' };
+  }
+  const gameMillis = kill?.TimeSinceGameStartMillis ?? kill?.timeSinceGameStartMillis
+    ?? kill?.GameTimeMillis ?? kill?.gameTimeMillis;
+  if (gameMillis !== undefined && gameMillis !== null) {
+    const milliseconds = normalizeEventMilliseconds(gameMillis, 'milliseconds');
+    if (milliseconds !== null) return { milliseconds, scope: 'MATCH' };
+  }
+  const gameTime = kill?.GameTime ?? kill?.gameTime ?? kill?.TimeSinceGameStart ?? kill?.timeSinceGameStart;
+  if (gameTime !== undefined && gameTime !== null) {
+    const milliseconds = normalizeEventMilliseconds(gameTime);
+    if (milliseconds !== null) return { milliseconds, scope: 'MATCH' };
+  }
+  return { milliseconds: null, scope: 'UNKNOWN' };
+}
+
 function roundReview(round) {
   const death = (round.events || []).find((event) => event.type === 'DEATH');
   const kill = (round.events || []).find((event) => event.type === 'KILL');
@@ -402,12 +443,21 @@ function analyzeRounds(detail, puuid, ownTeam, metadata, map) {
     const mine = playerRows.find((entry) => (entry.Subject || entry.subject) === puuid) || {};
     const kills = mine.Kills || mine.kills || [];
     const damage = (mine.Damage || mine.damage || []).reduce((total, entry) => total + Number(entry.Damage ?? entry.damage ?? 0), 0);
-    const allKills = playerRows.flatMap((entry) => (entry.Kills || entry.kills || []).map((kill) => ({
-      killer: entry.Subject || entry.subject,
-      victim: kill.Victim || kill.victim,
-      time: Number(kill.TimeSinceRoundStartMillis ?? kill.timeSinceRoundStartMillis ?? Number.MAX_SAFE_INTEGER),
-      raw: kill
-    }))).sort((a, b) => a.time - b.time);
+    const allKills = playerRows.flatMap((entry) => (entry.Kills || entry.kills || []).map((kill, sourceIndex) => {
+      const clock = extractEventTime(kill);
+      return {
+        killer: entry.Subject || entry.subject,
+        victim: kill.Victim || kill.victim,
+        time: clock.milliseconds,
+        timeScope: clock.scope,
+        sourceIndex,
+        raw: kill
+      };
+    })).sort((a, b) => {
+      const aTime = a.time === null ? Number.MAX_SAFE_INTEGER : a.time;
+      const bTime = b.time === null ? Number.MAX_SAFE_INTEGER : b.time;
+      return aTime - bTime || a.sourceIndex - b.sourceIndex;
+    });
     const first = allKills[0];
     const opening = first?.killer === puuid ? 'KILL' : first?.victim === puuid ? 'DEATH' : '';
     if (opening === 'KILL') openingKills += 1;
@@ -425,13 +475,15 @@ function analyzeRounds(detail, puuid, ownTeam, metadata, map) {
       const victimLocation = kill.raw.VictimLocation || kill.raw.victimLocation || null;
       const playerLocation = type === 'KILL' ? locationFor(puuid) : victimLocation;
       const opponentLocation = type === 'KILL' ? victimLocation : locationFor(opponentId);
-      const timeMs = kill.time === Number.MAX_SAFE_INTEGER ? 0 : kill.time;
       return {
         id: `${index + 1}-${eventIndex + 1}-${type.toLowerCase()}`,
         type,
         opening: kill === first,
-        timeMs: Number.isFinite(timeMs) ? timeMs : 0,
-        time: eventTimeLabel(timeMs),
+        sequence: eventIndex + 1,
+        roundSequence: allKills.indexOf(kill) + 1,
+        timeMs: Number.isFinite(kill.time) ? kill.time : null,
+        time: Number.isFinite(kill.time) ? eventTimeLabel(kill.time) : '',
+        timeScope: kill.timeScope,
         opponentAgent: agentsBySubject.get(opponentId) || 'Unknown agent',
         callout: nearestMapCallout(playerLocation, map),
         playerPoint: normalizeMapPoint(playerLocation, map),

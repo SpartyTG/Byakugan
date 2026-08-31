@@ -70,35 +70,49 @@ test('normalizes a Riot match-detail response for the current player', () => {
 
 test('builds a privacy-safe tactical replay and post-match IGL review from round locations', () => {
   const kill = {
-    Victim: 'enemy', TimeSinceRoundStartMillis: 42_000,
+    Victim: 'enemy', RoundTime: 42_000,
     VictimLocation: { X: 10, Y: 20 },
     PlayerLocations: [
       { Subject: 'self', Location: { X: 0, Y: 0 } },
       { Subject: 'enemy', Location: { X: 10, Y: 20 } }
     ]
   };
+  const laterKill = {
+    Victim: 'enemy-two', RoundTime: 57_000,
+    VictimLocation: { X: 5, Y: 15 },
+    PlayerLocations: [
+      { Subject: 'self', Location: { X: 2, Y: 3 } },
+      { Subject: 'enemy-two', Location: { X: 5, Y: 15 } }
+    ]
+  };
   const detail = {
     MatchInfo: { MatchID: 'tactical-match', QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
     Players: [
-      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 1, Deaths: 0, Assists: 0 } },
-      { Subject: 'enemy', TeamID: 'Red', CharacterID: 'agent-sova', PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 0, Deaths: 1, Assists: 0 } }
+      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 2, Deaths: 0, Assists: 0 } },
+      { Subject: 'enemy', TeamID: 'Red', CharacterID: 'agent-sova', PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 0, Deaths: 1, Assists: 0 } },
+      { Subject: 'enemy-two', TeamID: 'Red', CharacterID: 'agent-sova', PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 0, Deaths: 1, Assists: 0 } }
     ],
     Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 1 }, { TeamID: 'Red', Won: false, RoundsWon: 0 }],
     RoundResults: [{
       RoundNum: 0, WinningTeam: 'Blue',
       PlayerStats: [
-        { Subject: 'self', Kills: [kill], Damage: [] },
-        { Subject: 'enemy', Kills: [], Damage: [] }
+        { Subject: 'self', Kills: [laterKill, kill], Damage: [] },
+        { Subject: 'enemy', Kills: [], Damage: [] },
+        { Subject: 'enemy-two', Kills: [], Damage: [] }
       ]
     }]
   };
   const result = normalizeMatchDetail(detail, 'self', metadata(), {}, { RankedRatingEarned: 18 });
-  const [event] = result.report.rounds[0].events;
+  const [event, secondEvent] = result.report.rounds[0].events;
   assert.equal(result.mapTacticalImage, 'map-overhead.png');
   assert.equal(result.report.eventsAvailable, true);
   assert.equal(event.type, 'KILL');
   assert.equal(event.opponentAgent, 'Sova');
   assert.equal(event.time, '0:42');
+  assert.equal(event.timeScope, 'ROUND');
+  assert.equal(event.sequence, 1);
+  assert.equal(secondEvent.time, '0:57');
+  assert.equal(secondEvent.sequence, 2);
   assert.equal(event.callout, 'A • A Main');
   assert.deepEqual(event.playerPoint, { x: 50, y: 50 });
   assert.deepEqual(event.opponentPoint, { x: 70, y: 40 });

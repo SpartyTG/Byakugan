@@ -334,6 +334,11 @@ button { color: inherit; }
 .toggle-row input:checked ~ i::after { left: 18px; background: white; }
 .range-row { color: var(--muted); font-size: 10px; }
 .range-row select { background: #181b29; border: 1px solid var(--border); border-radius: 9px; color: white; padding: 8px 10px; font-size: 9px; }
+.scale-row { gap: 18px; }
+.scale-row > span strong, .scale-row > span small { display: block; }
+.scale-row > span strong { color: #fff; font-size: 10px; }
+.scale-row > span small { max-width: 310px; margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.scale-row select { flex: 0 0 auto; min-width: 126px; }
 .app-update-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 72px; padding-top: 8px; border-top: 1px solid var(--border); }
 .app-update-row strong, .app-update-row small { display: block; }
 .app-update-row strong { font-size: 10px; }
@@ -765,28 +770,28 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .tactical-legend i { width: 7px; height: 7px; border-radius: 50%; }
 .tactical-legend i.kill { background: var(--teal); box-shadow: 0 0 8px rgba(57,230,193,.8); }
 .tactical-legend i.death { background: var(--red); box-shadow: 0 0 8px rgba(238,92,120,.8); }
-.heat-pulse { position: absolute; z-index: 2; width: 26px; height: 26px; border-radius: 50%; transform: translate(-50%,-50%); }
-.heat-pulse::before, .heat-pulse::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-.heat-pulse::before { animation: tactical-pulse 2.2s ease-out infinite; }
-.heat-pulse::after { inset: 8px; }
-.heat-pulse.kill { background: radial-gradient(circle, rgba(57,230,193,.62), rgba(57,230,193,.14) 48%, transparent 72%); }
-.heat-pulse.kill::before { border: 1px solid rgba(57,230,193,.45); }
-.heat-pulse.kill::after { background: var(--teal); box-shadow: 0 0 9px rgba(57,230,193,.85); }
-.heat-pulse.death { background: radial-gradient(circle, rgba(238,92,120,.62), rgba(238,92,120,.14) 48%, transparent 72%); }
-.heat-pulse.death::before { border: 1px solid rgba(238,92,120,.45); }
-.heat-pulse.death::after { background: var(--red); box-shadow: 0 0 9px rgba(238,92,120,.85); }
-@keyframes tactical-pulse { 0% { transform: scale(.35); opacity: .9; } 75%,100% { transform: scale(1.35); opacity: 0; } }
-.event-vector { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.event-vector line { vector-effect: non-scaling-stroke; stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .82; }
-.event-vector.kill line { stroke: var(--teal); }
-.event-vector.death line { stroke: var(--red); }
-.event-vector .player-point { vector-effect: non-scaling-stroke; stroke-width: 1.1; fill: #080b15; }
-.event-vector.kill .player-point { stroke: var(--teal); }
-.event-vector.death .player-point { stroke: var(--red); }
-.event-vector .opponent-point { vector-effect: non-scaling-stroke; stroke: #d6c9ff; stroke-width: 1; fill: var(--violet); }
-.event-marker { position: absolute; z-index: 3; width: 24px; height: 24px; display: grid; place-items: center; transform: translate(-50%,-50%); border: 2px solid #080b15; border-radius: 50%; color: #080b15; font-size: 8px; font-weight: 950; box-shadow: 0 0 15px currentColor; }
-.event-marker.kill { background: var(--teal); }
-.event-marker.death { background: var(--red); color: #fff; }
+.tactical-event-surface { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.map-event-node { cursor: help; outline: 0; }
+.map-event-node line { vector-effect: non-scaling-stroke; stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .86; }
+.map-event-node.kill line { stroke: var(--teal); }
+.map-event-node.death line { stroke: var(--red); }
+.map-event-node .opponent-point { vector-effect: non-scaling-stroke; stroke: #ede8ff; stroke-width: 1; fill: var(--violet); }
+.map-event-node .event-hit-area { fill: transparent; pointer-events: all; }
+.map-event-node .heat-ring { vector-effect: non-scaling-stroke; stroke-width: 1.1; opacity: .48; }
+.map-event-node.kill .heat-ring { fill: rgba(57,230,193,.22); stroke: rgba(57,230,193,.7); }
+.map-event-node.death .heat-ring { fill: rgba(238,92,120,.22); stroke: rgba(238,92,120,.7); }
+.map-event-node.kill .heat-core { fill: var(--teal); }
+.map-event-node.death .heat-core { fill: var(--red); }
+.map-event-node .heat-core { vector-effect: non-scaling-stroke; stroke: #070914; stroke-width: 1.3; filter: drop-shadow(0 0 3px currentColor); }
+.map-event-node .event-badge { vector-effect: non-scaling-stroke; stroke: #070914; stroke-width: 1.6; }
+.map-event-node.kill .event-badge { fill: var(--teal); }
+.map-event-node.death .event-badge { fill: var(--red); }
+.map-event-node .event-order { fill: #070914; font-size: 2.5px; font-weight: 950; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.map-event-node.death .event-order { fill: #fff; }
+.map-event-node:hover .heat-ring, .map-event-node:focus .heat-ring { opacity: .9; stroke-width: 2; }
+.map-event-node:hover .event-badge, .map-event-node:focus .event-badge { stroke: #fff; stroke-width: 2.2; }
+.tactical-hover-card { position: absolute; z-index: 8; top: 12px; right: 12px; max-width: 250px; padding: 9px 11px; border: 1px solid rgba(139,108,255,.45); border-radius: 9px; background: rgba(5,7,14,.94); color: #fff; font-size: 8px; font-weight: 750; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.45); pointer-events: none; }
+.tactical-hover-card[hidden] { display: none; }
 .tactical-event-list { max-height: 580px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding: 10px; border: 1px solid var(--border); border-radius: 16px; background: rgba(7,9,17,.45); }
 .tactical-event-row { display: grid; grid-template-columns: 28px 1fr; gap: 9px; align-items: center; padding: 9px; border: 1px solid rgba(255,255,255,.055); border-radius: 10px; background: rgba(255,255,255,.018); }
 .tactical-event-row > span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; font-size: 8px; font-weight: 950; }

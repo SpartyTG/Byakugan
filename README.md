@@ -4,9 +4,10 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.39
+## Included in version 0.8.0-beta.41
 
 - Original desktop dashboard and navigation
+- App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
 - Riot Client lockfile discovery and validation
 - Local Riot authentication and entitlement-token retrieval
@@ -42,6 +43,9 @@ source, brand, or proprietary assets.
 - Friend-aware identity handling: Riot friends remain named, ranked, and inspectable regardless of incognito setting or team assignment
 - Match Autopsy with personal round-by-round impact timelines and PNG recap export
 - Match Autopsy Tactical Replay with a completed-match engagement heat map, selectable round maps, kill/death markers, duel lines, timestamps, agent labels, and calibrated map callouts when Riot returns positional snapshots
+- CSP-safe SVG tactical markers so every heat-map location renders at its calibrated position instead of collapsing into the map corner
+- Ordered per-round engagement badges, event-list sequence numbers, and hover/focus details showing round, order, clock, opponent agent, result, and callout
+- Private Riot match-clock compatibility across round-time, game-time, millisecond, and alternate-casing payload variants; match-relative fallback clocks are labeled rather than presented as round time
 - Privacy-safe tactical events that identify hidden opponents only by agent and never retain or expose their Riot identity
 - Post-match-only **IGL Review** with evidence-linked strengths, adjustment priorities, location clusters, opening-duel analysis, multikill conversion analysis, and round-specific coaching
 - Match Autopsy post-game rosters with agents, match ranks, K/D/A, ACS, privacy-preserved names, and visible-player profile links
@@ -116,7 +120,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.39-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.41-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -145,10 +149,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.39`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.41`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.39`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.41`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -156,8 +160,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.39
-git push origin v0.8.0-beta.39
+git tag v0.8.0-beta.41
+git push origin v0.8.0-beta.41
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

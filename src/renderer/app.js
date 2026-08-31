@@ -313,10 +313,31 @@ function matchEvents(match) {
   return (match.report?.rounds || []).flatMap((round) => (round.events || []).map((event) => ({ ...event, round: round.round })));
 }
 
+function eventTimestamp(event) {
+  if (!event.time) return 'TIME N/A';
+  return event.timeScope === 'MATCH' ? `${event.time} MATCH` : event.time;
+}
+
 function eventLabel(event) {
   const action = event.type === 'KILL' ? 'Eliminated' : 'Killed by';
   const place = event.callout ? ` • ${event.callout}` : '';
-  return `${action} ${event.opponentAgent || 'Unknown agent'} • ${event.time || '0:00'}${place}`;
+  return `Round ${event.round} • Event #${event.sequence || 1} • ${eventTimestamp(event)} • ${action} ${event.opponentAgent || 'Unknown agent'}${place}`;
+}
+
+function showTacticalTooltip(target) {
+  const node = target?.closest?.('[data-tactical-tooltip]');
+  const map = node?.closest?.('.tactical-map');
+  const tooltip = map?.querySelector('.tactical-hover-card');
+  if (!node || !tooltip) return;
+  tooltip.textContent = node.dataset.tacticalTooltip || '';
+  tooltip.hidden = false;
+}
+
+function hideTacticalTooltip(target, relatedTarget) {
+  const node = target?.closest?.('[data-tactical-tooltip]');
+  if (!node || (relatedTarget && node.contains(relatedTarget))) return;
+  const tooltip = node.closest('.tactical-map')?.querySelector('.tactical-hover-card');
+  if (tooltip) tooltip.hidden = true;
 }
 
 function tacticalMapMarkup(match, selectedRound) {
@@ -330,16 +351,18 @@ function tacticalMapMarkup(match, selectedRound) {
   if (!mapImage || !positioned.length) {
     return `<section class="tactical-section"><div class="panel-heading"><div><p class="eyebrow">TACTICAL REPLAY</p><h2>Round event map</h2></div><span class="muted">Completed-match data only</span></div>${controls}<div class="tactical-empty"><strong>Position data unavailable</strong><span>Riot returned the round results, but this match did not include enough calibrated location snapshots to draw the event map.</span></div></section>`;
   }
-  const heat = selected === 'ALL'
-    ? positioned.map((event) => `<span class="heat-pulse ${event.type.toLowerCase()}" style="left:${Number(event.playerPoint.x)}%;top:${Number(event.playerPoint.y)}%" title="${escapeHtml(`Round ${event.round} • ${eventLabel(event)}`)}"></span>`).join('')
-    : positioned.map((event) => {
-      const opponent = event.opponentPoint;
-      const line = opponent ? `<line x1="${Number(event.playerPoint.x)}" y1="${Number(event.playerPoint.y)}" x2="${Number(opponent.x)}" y2="${Number(opponent.y)}"></line>` : '';
-      const opponentMarker = opponent ? `<circle class="opponent-point" cx="${Number(opponent.x)}" cy="${Number(opponent.y)}" r="1.7"></circle>` : '';
-      return `<svg class="event-vector ${event.type.toLowerCase()}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${line}${opponentMarker}<circle class="player-point" cx="${Number(event.playerPoint.x)}" cy="${Number(event.playerPoint.y)}" r="2.1"></circle></svg><span class="event-marker ${event.type.toLowerCase()}" style="left:${Number(event.playerPoint.x)}%;top:${Number(event.playerPoint.y)}%" title="${escapeHtml(eventLabel(event))}">${event.type === 'KILL' ? 'K' : 'D'}</span>`;
-    }).join('');
-  const eventRows = visibleEvents.map((event) => `<div class="tactical-event-row ${event.type.toLowerCase()}"><span>${event.type === 'KILL' ? 'K' : 'D'}</span><div><strong>R${escapeHtml(event.round)} • ${escapeHtml(event.time || '0:00')} • ${escapeHtml(event.type === 'KILL' ? 'Eliminated' : 'Killed by')} ${escapeHtml(event.opponentAgent || 'Unknown agent')}</strong><small>${escapeHtml(event.callout || 'Location label unavailable')}${event.opening ? ' • OPENING DUEL' : ''}</small></div></div>`).join('');
-  return `<section class="tactical-section"><div class="panel-heading"><div><p class="eyebrow">TACTICAL REPLAY</p><h2>${selected === 'ALL' ? 'Match heat map' : `Round ${escapeHtml(selected)} event map`}</h2></div><span class="muted">Select a round to inspect each duel</span></div>${controls}<div class="tactical-layout"><div class="tactical-map"><img src="${mapImage}" alt="${escapeHtml(match.map)} overhead map"><div class="tactical-map-layer">${heat}</div><div class="tactical-legend"><span><i class="kill"></i>KILL</span><span><i class="death"></i>DEATH</span></div></div><div class="tactical-event-list">${eventRows || '<div class="empty-state">No personal kill or death event was recorded for this round.</div>'}</div></div><p class="tactical-note">The all-round view shows your engagement locations. A selected round adds the opponent position and duel line when Riot returned both snapshots. Hidden identities remain anonymous.</p></section>`;
+  const mapNodes = positioned.map((event) => {
+    const type = event.type.toLowerCase();
+    const player = event.playerPoint;
+    const opponent = event.opponentPoint;
+    const tooltip = escapeHtml(eventLabel(event));
+    if (selected === 'ALL') return `<g class="map-event-node heat ${type}" data-tactical-tooltip="${tooltip}" tabindex="0"><title>${tooltip}</title><circle class="heat-ring" cx="${Number(player.x)}" cy="${Number(player.y)}" r="4.6"></circle><circle class="heat-core" cx="${Number(player.x)}" cy="${Number(player.y)}" r="1.55"></circle><circle class="event-hit-area" cx="${Number(player.x)}" cy="${Number(player.y)}" r="5.5"></circle></g>`;
+    const vector = opponent ? `<line x1="${Number(player.x)}" y1="${Number(player.y)}" x2="${Number(opponent.x)}" y2="${Number(opponent.y)}"></line><circle class="opponent-point" cx="${Number(opponent.x)}" cy="${Number(opponent.y)}" r="1.7"></circle>` : '';
+    return `<g class="map-event-node ordered ${type}" data-tactical-tooltip="${tooltip}" tabindex="0"><title>${tooltip}</title>${vector}<circle class="event-badge" cx="${Number(player.x)}" cy="${Number(player.y)}" r="2.65"></circle><text class="event-order" x="${Number(player.x)}" y="${Number(player.y)}">${escapeHtml(event.sequence || 1)}</text><circle class="event-hit-area" cx="${Number(player.x)}" cy="${Number(player.y)}" r="5.5"></circle></g>`;
+  }).join('');
+  const heat = `<svg class="tactical-event-surface" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="${escapeHtml(selected === 'ALL' ? 'Match engagement heat map' : `Round ${selected} ordered duel map`)}">${mapNodes}</svg>`;
+  const eventRows = visibleEvents.map((event) => `<div class="tactical-event-row ${event.type.toLowerCase()}"><span>${event.type === 'KILL' ? 'K' : 'D'}${escapeHtml(event.sequence || 1)}</span><div><strong>R${escapeHtml(event.round)} • #${escapeHtml(event.sequence || 1)} • ${escapeHtml(eventTimestamp(event))} • ${escapeHtml(event.type === 'KILL' ? 'Eliminated' : 'Killed by')} ${escapeHtml(event.opponentAgent || 'Unknown agent')}</strong><small>${escapeHtml(event.callout || 'Location label unavailable')}${event.opening ? ' • OPENING DUEL' : ''}</small></div></div>`).join('');
+  return `<section class="tactical-section"><div class="panel-heading"><div><p class="eyebrow">TACTICAL REPLAY</p><h2>${selected === 'ALL' ? 'Match heat map' : `Round ${escapeHtml(selected)} event map`}</h2></div><span class="muted">Select a round to inspect each duel</span></div>${controls}<div class="tactical-layout"><div class="tactical-map"><img src="${mapImage}" alt="${escapeHtml(match.map)} overhead map"><div class="tactical-map-layer">${heat}</div><div class="tactical-hover-card" role="tooltip" hidden></div><div class="tactical-legend"><span><i class="kill"></i>KILL</span><span><i class="death"></i>DEATH</span></div></div><div class="tactical-event-list">${eventRows || '<div class="empty-state">No personal kill or death event was recorded for this round.</div>'}</div></div><p class="tactical-note">The all-round view shows your engagement locations. Select a round to see numbered personal events in order, then hover or focus an indicator for the timestamp, opponent agent, and map area. Hidden identities remain anonymous.</p></section>`;
 }
 
 function iglReviewMarkup(match, selectedRound) {
@@ -617,6 +640,7 @@ function syncSettingsForm() {
   $('#launchAtStartup').checked = Boolean(settings.launchAtStartup);
   $('#privacyMode').checked = Boolean(settings.privacyMode);
   $('#compactMatches').checked = Boolean(settings.compactMatches);
+  $('#uiScale').value = String(settings.uiScale || 100);
   $('#refreshSeconds').value = String(settings.refreshSeconds || 30);
   $('#pcRole').value = settings.pcRole || 'gaming';
   $('#remoteViewerEnabled').checked = Boolean(settings.remoteViewerEnabled);
@@ -864,6 +888,10 @@ function bindEvents() {
     const row = event.target.closest('[data-player-id]');
     if (row) { event.preventDefault(); openPlayerProfile(row.dataset.playerId); }
   });
+  $('#matchAutopsyContent').addEventListener('mouseover', (event) => showTacticalTooltip(event.target));
+  $('#matchAutopsyContent').addEventListener('mouseout', (event) => hideTacticalTooltip(event.target, event.relatedTarget));
+  $('#matchAutopsyContent').addEventListener('focusin', (event) => showTacticalTooltip(event.target));
+  $('#matchAutopsyContent').addEventListener('focusout', (event) => hideTacticalTooltip(event.target, event.relatedTarget));
   $('#allyRoster').addEventListener('click', (event) => {
     const row = event.target.closest('[data-player-id]');
     if (row) openPlayerProfile(row.dataset.playerId);
@@ -896,6 +924,11 @@ function bindEvents() {
   $('#launchAtStartup').addEventListener('change', (event) => saveSettingsPatch({ launchAtStartup: event.target.checked }, false));
   $('#privacyMode').addEventListener('change', (event) => saveSettingsPatch({ privacyMode: event.target.checked }, false));
   $('#compactMatches').addEventListener('change', (event) => saveSettingsPatch({ compactMatches: event.target.checked }, false));
+  $('#uiScale').addEventListener('change', async (event) => {
+    const uiScale = Number(event.target.value);
+    await saveSettingsPatch({ uiScale }, false);
+    toast('Interface scale updated', `BYAKUGAN is now displayed at ${uiScale}%.`);
+  });
   $('#refreshSeconds').addEventListener('change', (event) => saveSettingsPatch({ refreshSeconds: Number(event.target.value) }, false));
   $('#pcRole').addEventListener('change', async (event) => {
     const role = event.target.value;
@@ -1047,7 +1080,7 @@ async function initialize() {
   } catch (error) {
     state.settings = await window.companion.getSettings().catch(() => ({
       autoRefresh: false, refreshSeconds: 30,
-      launchAtStartup: false, privacyMode: false, compactMatches: false,
+      launchAtStartup: false, privacyMode: false, compactMatches: false, uiScale: 100,
       pcRole: 'gaming', remoteViewerEnabled: false, remoteSourceUrl: '',
       streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
       streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,

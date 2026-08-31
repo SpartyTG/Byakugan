@@ -8,6 +8,7 @@ const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = requir
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
+const { uiScaleFactor } = require('./ui-scale.cjs');
 
 let mainWindow = null;
 let settings = null;
@@ -17,6 +18,13 @@ let overlayServer = null;
 let updateService = null;
 let overlayPreviewWindow = null;
 let postMatchRefreshTimer = null;
+
+function applyUiScale(value) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const factor = uiScaleFactor(value);
+  mainWindow.webContents.setZoomFactor(factor);
+  mainWindow.setTitleBarOverlay({ color: '#090b12', symbolColor: '#9ca1b7', height: Math.round(42 * factor) });
+}
 
 function clearPostMatchRefresh() {
   if (postMatchRefreshTimer) clearTimeout(postMatchRefreshTimer);
@@ -195,6 +203,7 @@ function registerIpc() {
     if (process.platform === 'win32' && before.launchAtStartup !== after.launchAtStartup) {
       app.setLoginItemSettings({ openAtLogin: Boolean(after.launchAtStartup), args: ['--hidden'] });
     }
+    if (before.uiScale !== after.uiScale) applyUiScale(after.uiScale);
     const overlay = await syncOverlay();
     if (before.streamOverlayLanEnabled !== after.streamOverlayLanEnabled
       && overlayPreviewWindow && !overlayPreviewWindow.isDestroyed() && overlay.url) {
@@ -289,6 +298,7 @@ function createWindow() {
     }
   });
 
+  applyUiScale(settings.get().uiScale);
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => {
     if (process.argv.includes('--hidden')) return;
