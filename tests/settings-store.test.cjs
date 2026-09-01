@@ -67,6 +67,26 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
 
     const reactive = store.update({ streamOverlayLayout: 'reactive' });
     assert.equal(reactive.streamOverlayLayout, 'reactive');
+
+    const custom = store.update({
+      streamOverlayLayout: 'custom',
+      streamOverlayCustom: {
+        width: 5000, height: 20, backgroundColor: 'red',
+        elements: [{ id: 'playerName', visible: true, x: -50, y: 200, width: 200, height: 1, fontSize: 500, opacity: 0, align: 'sideways', color: 'javascript:red' }]
+      }
+    });
+    assert.equal(custom.streamOverlayLayout, 'custom');
+    assert.equal(custom.streamOverlayCustom.width, 1920);
+    assert.equal(custom.streamOverlayCustom.height, 120);
+    assert.equal(custom.streamOverlayCustom.backgroundColor, '#0b0d1d');
+    assert.equal(custom.streamOverlayCustom.elements.length, 12);
+    const customName = custom.streamOverlayCustom.elements.find((element) => element.id === 'playerName');
+    assert.equal(customName.visible, true);
+    assert.equal(customName.x, 0);
+    assert.equal(customName.fontSize, 96);
+    assert.equal(customName.opacity, 10);
+    assert.equal(customName.align, 'left');
+    assert.equal(customName.color, '#c9bcff');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

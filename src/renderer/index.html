@@ -310,9 +310,38 @@
             </div>
             <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs the live overlay server while BYAKUGAN is open.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
             <label class="toggle-row"><span><strong>Allow streaming PC</strong><small>Creates a private-network URL for OBS on another PC connected to the same router.</small></span><input type="checkbox" id="streamOverlayLanEnabled"><i></i></label>
-            <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="rank">Awakened rank card</option><option value="reactive">Reactive Vision Dock</option><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
+            <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="rank">Awakened rank card</option><option value="reactive">Reactive Vision Dock</option><option value="custom">Custom Overlay Builder</option><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
             <label class="overlay-opacity-control"><span><strong>Background opacity</strong><small>Transparent at 0%; completely solid at 100%.</small></span><input type="range" id="streamOverlayBackgroundOpacity" min="0" max="100" step="5"><output id="streamOverlayBackgroundOpacityValue">70%</output></label>
             <div class="overlay-dimensions"><span><small>OBS BROWSER SOURCE SIZE</small><strong id="overlayDimensions">1600 × 180</strong></span><em id="overlayDimensionsHelp">Set Width to 1600 and Height to 180 in OBS.</em></div>
+            <section class="custom-overlay-builder" id="customOverlayBuilder" hidden>
+              <div class="custom-builder-heading">
+                <div><small>FREEFORM CANVAS</small><strong>Custom Overlay Builder</strong><p>Turn fields on, drag and resize them, then fine-tune every selected element.</p></div>
+                <button class="ghost-button" id="resetCustomOverlay">Reset layout</button>
+              </div>
+              <div class="custom-canvas-controls">
+                <label><span>Canvas width</span><input type="number" id="customOverlayWidth" min="320" max="1920" step="10"></label>
+                <label><span>Canvas height</span><input type="number" id="customOverlayHeight" min="120" max="1080" step="10"></label>
+                <label><span>Canvas color</span><input type="color" id="customOverlayBackgroundColor" value="#0b0d1d"></label>
+                <label><span>Animate beam</span><input type="checkbox" id="customOverlayAnimatedRrBeam"></label>
+              </div>
+              <div class="custom-builder-workspace">
+                <aside class="custom-element-palette"><small>ELEMENTS</small><div id="customElementPalette"></div></aside>
+                <div class="custom-stage-shell"><div class="custom-editor-canvas" id="customEditorCanvas"></div><small>Drag an element to move it. Drag its lower-right handle to resize.</small></div>
+                <aside class="custom-element-inspector" id="customElementInspector">
+                  <small>SELECTED ELEMENT</small>
+                  <strong id="customSelectedElement">Choose an element</strong>
+                  <label><span>X position</span><input type="number" id="customElementX" min="0" max="100" step="0.5"></label>
+                  <label><span>Y position</span><input type="number" id="customElementY" min="0" max="100" step="0.5"></label>
+                  <label><span>Width</span><input type="number" id="customElementWidth" min="4" max="100" step="0.5"></label>
+                  <label><span>Height</span><input type="number" id="customElementHeight" min="4" max="100" step="0.5"></label>
+                  <label><span>Text size</span><input type="number" id="customElementFontSize" min="8" max="96" step="1"></label>
+                  <label><span>Opacity</span><input type="range" id="customElementOpacity" min="10" max="100" step="5"><output id="customElementOpacityValue">100%</output></label>
+                  <label><span>Alignment</span><select id="customElementAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+                  <label><span>Text color</span><input type="color" id="customElementColor" value="#ffffff"></label>
+                </aside>
+              </div>
+              <p class="custom-builder-note">Changes save automatically. The canvas dimensions shown above are the exact Width and Height to enter in OBS.</p>
+            </section>
             <div class="overlay-options-heading"><div><small>VISIBLE FIELDS</small><strong>Build your overlay</strong></div><span>Every field updates live</span></div>
             <div class="overlay-field-grid">
               <label class="toggle-row"><span><strong>Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>

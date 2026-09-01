@@ -93,6 +93,93 @@ function signed(value, suffix = '') {
   return `${number > 0 ? '+' : number < 0 ? '−' : '±'}${Math.abs(number)}${suffix}`;
 }
 
+function customNode(tag, className, value) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (value !== undefined) node.textContent = String(value);
+  return node;
+}
+
+function customCopy(label, value, detail = '') {
+  const copy = customNode('span', 'custom-copy');
+  copy.append(customNode('small', 'custom-label', label), customNode('strong', 'custom-value', value));
+  if (detail) copy.append(customNode('em', 'custom-detail', detail));
+  return copy;
+}
+
+function customImage(url, fallback, className = 'custom-icon') {
+  if (url) {
+    const image = customNode('img', className);
+    image.src = url;
+    image.alt = '';
+    return image;
+  }
+  return customNode('span', 'custom-icon-fallback', fallback);
+}
+
+function rgbaFromHex(value, opacity) {
+  const match = /^#([a-f0-9]{6})$/i.exec(String(value || ''));
+  if (!match) return 'transparent';
+  const number = Number.parseInt(match[1], 16);
+  return `rgba(${number >> 16},${(number >> 8) & 255},${number & 255},${Math.max(0, Math.min(1, opacity))})`;
+}
+
+function renderCustomOverlay(data, player, session, live, appearance) {
+  const canvas = document.querySelector('#customOverlayCanvas');
+  if (!canvas) return;
+  canvas.replaceChildren();
+  if (data.layout !== 'custom') return;
+  const config = data.customOverlay || { elements: [] };
+  canvas.style.setProperty('--custom-canvas-background', rgbaFromHex(config.backgroundColor, appearance.backgroundOpacity / 100));
+
+  for (const element of config.elements || []) {
+    if (!element.visible) continue;
+    const item = customNode('div', `custom-overlay-item custom-${element.id} align-${element.align}`);
+    item.style.left = `${element.x}%`;
+    item.style.top = `${element.y}%`;
+    item.style.width = `${element.width}%`;
+    item.style.height = `${element.height}%`;
+    item.style.setProperty('--custom-font-size', `${element.fontSize}px`);
+    item.style.setProperty('--custom-opacity', String(element.opacity / 100));
+    item.style.setProperty('--custom-align', element.align);
+    item.style.setProperty('--custom-color', element.color);
+
+    if (element.id === 'branding') {
+      item.append(customNode('span', 'custom-eye'), customCopy('BYAKUGAN', 'SESSION VISION'));
+    } else if (element.id === 'playerName') {
+      item.append(customCopy('RIOT ID', player.name || 'PLAYER'));
+    } else if (element.id === 'currentRank') {
+      item.append(customImage(player.rankImage, initials(player.rank)), customCopy('CURRENT RANK', player.rank || 'UNRATED'));
+    } else if (element.id === 'currentRR') {
+      item.append(customCopy('CURRENT RR', `${Number(player.rr) || 0} RR`));
+    } else if (element.id === 'peakRank') {
+      const season = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
+      item.append(customImage(player.peakRankImage, initials(player.peakRank)), customCopy('ALL-TIME PEAK', player.peakRank || 'UNRATED', season));
+    } else if (element.id === 'sessionWL') {
+      item.append(customCopy('SESSION W / L', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`));
+    } else if (element.id === 'sessionKD') {
+      item.append(customCopy('SESSION K/D', Number(session.kd || 0).toFixed(2)));
+    } else if (element.id === 'rrChange') {
+      item.append(customCopy('SESSION RR', signed(session.rrChange, ' RR')));
+    } else if (element.id === 'lastMatch') {
+      item.append(customCopy('LAST MATCH', session.lastMatchResult || 'NO MATCH', signed(session.lastMatchRR, ' RR')));
+    } else if (element.id === 'agent') {
+      item.append(customImage(live.agentImage, initials(live.agent), 'custom-agent-image'), customCopy(live.agentLabel || 'AGENT', live.agent || 'WAITING…'));
+    } else if (element.id === 'map') {
+      item.append(customCopy('CURRENT MAP', live.map || '—', live.label || 'IN MENUS'));
+    } else if (element.id === 'rrBeam') {
+      const fill = customNode('span', 'custom-beam-fill');
+      const beam = customNode('img');
+      beam.src = '/rr-energy-beam.gif';
+      beam.alt = '';
+      fill.append(beam);
+      item.style.setProperty('--custom-beam-progress', `${Math.max(0, Math.min(100, Number(session.beamProgress) || 0))}%`);
+      item.append(fill, customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
+    }
+    canvas.append(item);
+  }
+}
+
 function render(data) {
   const player = data.player || {};
   const session = data.session || {};
@@ -102,6 +189,7 @@ function render(data) {
 
   const layout = data.layout || 'horizontal';
   overlay.className = `overlay layout-${layout}`;
+  document.body.classList.toggle('custom-layout', layout === 'custom');
   overlay.classList.toggle('hide-identity', !preferences.showIdentity);
   overlay.classList.toggle('hide-wl', preferences.showWl === false);
   overlay.classList.toggle('hide-kd', preferences.showKd === false);
@@ -127,16 +215,23 @@ function render(data) {
   text('#playerName', player.name || 'PLAYER');
   text('#playerRank', player.rank || 'Unrated');
   text('#playerRR', `${Number(player.rr) || 0} RR`);
+  text('#reactivePlayerRank', player.rank || 'Unrated');
+  text('#reactivePlayerRR', `${Number(player.rr) || 0} RR`);
   text('#beamCurrentRR', `${Number(player.rr) || 0} RR`);
   const peakSeason = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
   text('#playerPeakRank', [player.peakRank || 'Unrated', peakSeason].filter(Boolean).join(' • '));
+  text('#reactivePlayerPeakRank', [player.peakRank || 'Unrated', peakSeason].filter(Boolean).join(' • '));
   setImage('#rankImage', '#rankFallback', player.rankImage, initials(player.rank));
   setImage('#peakRankImage', '#peakRankFallback', player.peakRankImage, initials(player.peakRank));
+  setImage('#reactiveRankImage', '#reactiveRankFallback', player.rankImage, initials(player.rank));
+  setImage('#reactivePeakRankImage', '#reactivePeakRankFallback', player.peakRankImage, initials(player.peakRank));
 
   text('#sessionRecord', `${Number(session.wins) || 0}–${Number(session.losses) || 0}`);
   text('#rankSessionLabel', preferences.showWl === false ? 'SESSION K/D' : 'SESSION RECORD');
   text('#rankSessionRecord', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`);
   text('#rankSessionKd', `${Number(session.kd || 0).toFixed(2)} K/D`);
+  text('#reactiveSessionRecord', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`);
+  text('#reactiveSessionKd', Number(session.kd || 0).toFixed(2));
   text('#sessionGames', `${Number(session.games) || 0} ${(Number(session.games) || 0) === 1 ? 'GAME' : 'GAMES'}`);
   text('#sessionKd', Number(session.kd || 0).toFixed(2));
   text('#sessionRR', signed(session.rrChange));
@@ -155,6 +250,7 @@ function render(data) {
   text('#liveMap', live.map || '—');
   text('#liveAgent', live.agent || live.queue || '—');
   setImage('#agentImage', '#agentFallback', live.agentImage, initials(live.agent));
+  renderCustomOverlay(data, player, session, live, appearance);
 
   markAlive();
 }

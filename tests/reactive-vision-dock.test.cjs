@@ -12,8 +12,15 @@ const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.cj
 test('Reactive Vision Dock compacts for agent select and live games', () => {
   assert.match(script, /\['PREGAME', 'INGAME', 'CORE_GAME'\]/);
   assert.match(script, /reactive-compact/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*88px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*112px/);
   assert.match(styles, /\.layout-reactive\s*\{[\s\S]*height:\s*170px/);
+});
+
+test('compact Reactive Vision Dock remains legible at webcam width', () => {
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*23px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record strong[^}]*font-size:\s*14px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record em[^}]*font-size:\s*10px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.current-rr-marker strong[^}]*font-size:\s*10px/);
 });
 
 test('Reactive Vision Dock expands, waits for post-match data, then awakens', () => {
@@ -36,4 +43,18 @@ test('Awakened Rank remains a separate untouched layout selector', () => {
   assert.match(styles, /\.layout-rank\s*\{/);
   assert.match(styles, /\/\* Reactive Vision Dock/);
   assert.doesNotMatch(styles, /\.layout-rank\.reactive-compact/);
+});
+
+test('expanded Reactive Vision Dock uses separate session and stacked rank regions', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
+  assert.match(html, /class="reactive-menu-left"/);
+  assert.match(html, /id="reactiveSessionRecord"/);
+  assert.match(html, /id="reactiveSessionKd"/);
+  assert.match(html, /class="reactive-current-rank"/);
+  assert.match(html, /class="reactive-peak-rank"/);
+  assert.match(styles, /grid-template-columns:\s*43% 57%/);
+  assert.match(styles, /\.layout-reactive:not\(\.reactive-compact\) \.player-block > \.rank-emblem/);
+  assert.match(styles, /\.layout-reactive \.rank-emblem \[hidden\][\s\S]*display:\s*none !important/);
+  assert.match(script, /#reactiveSessionRecord/);
+  assert.match(script, /#reactivePlayerPeakRank/);
 });

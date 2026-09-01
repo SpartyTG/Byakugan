@@ -32,3 +32,17 @@ test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', 
   assert.match(app, /reactive:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
   assert.match(app, /The dock animates inside this fixed canvas/);
 });
+
+test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
+  assert.match(html, /<option value="custom">Custom Overlay Builder<\/option>/);
+  assert.match(html, /id="customOverlayWidth"/);
+  assert.match(html, /id="customOverlayHeight"/);
+  assert.match(html, /id="customEditorCanvas"/);
+  assert.match(html, /id="customElementPalette"/);
+  assert.match(html, /id="customElementX"/);
+  assert.match(html, /id="customElementFontSize"/);
+  assert.match(html, /id="customElementColor"/);
+  assert.match(html, /id="customOverlayAnimatedRrBeam"/);
+  assert.match(app, /beginCustomElementDrag/);
+  assert.match(app, /persistCustomOverlay/);
+});

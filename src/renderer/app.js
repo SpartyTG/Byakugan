@@ -12,6 +12,7 @@ const state = {
   autopsyRound: 'ALL',
   openPlayerId: '',
   selectedSynergyFriendId: '',
+  customOverlaySelectedId: 'branding',
   overlayStatus: null,
   remoteStatus: null,
   updateStatus: null
@@ -23,9 +24,31 @@ const text = (selector, value) => { const element = $(selector); if (element) el
 const OVERLAY_DIMENSIONS = Object.freeze({
   rank: { width: 480, height: 190 },
   reactive: { width: 480, height: 190 },
+  custom: { width: 960, height: 360 },
   horizontal: { width: 1600, height: 180 },
   compact: { width: 560, height: 240 },
   vertical: { width: 380, height: 660 }
+});
+const CUSTOM_OVERLAY_LABELS = Object.freeze({
+  branding: 'BYAKUGAN branding', playerName: 'Riot name', currentRank: 'Current rank', currentRR: 'Current RR',
+  peakRank: 'Peak rank', sessionWL: 'Session W/L', sessionKD: 'Session K/D', rrChange: 'Session RR change',
+  lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam'
+});
+const CUSTOM_OVERLAY_SAMPLES = Object.freeze({
+  branding: 'BYAKUGAN', playerName: 'PLAYER', currentRank: 'ASCENDANT 1', currentRR: '42 RR', peakRank: 'IMMORTAL 2',
+  sessionWL: '2 W / 1 L', sessionKD: '1.24 K/D', rrChange: '+38 RR', lastMatch: 'VICTORY +18 RR',
+  agent: 'OMEN', map: 'ABYSS', rrBeam: 'RR ENERGY BEAM'
+});
+const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
+  width: 960, height: 360, backgroundColor: '#0b0d1d',
+  elements: [
+    ['branding',true,3,5,27,18,28,100,'left','#ffffff'], ['playerName',false,3,27,25,12,24,100,'left','#c9bcff'],
+    ['currentRank',true,58,5,39,25,34,100,'left','#ffffff'], ['currentRR',true,78,31,18,11,22,100,'right','#c9bcff'],
+    ['peakRank',true,58,44,39,17,20,100,'left','#eeeaff'], ['sessionWL',true,3,48,22,14,25,100,'left','#ffffff'],
+    ['sessionKD',true,27,48,18,14,25,100,'left','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
+    ['lastMatch',true,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
+    ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff']
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color }))
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const safeImage = (value) => {
@@ -707,6 +730,7 @@ function navigate(view) {
   text('#pageEyebrow', viewMeta[view][0]);
   text('#pageTitle', viewMeta[view][1]);
   $('.main').scrollTo({ top: 0, behavior: 'smooth' });
+  if (view === 'stream' && state.settings?.streamOverlayLayout === 'custom') requestAnimationFrame(renderCustomOverlayBuilder);
 }
 
 function syncSettingsForm() {
@@ -728,6 +752,10 @@ function syncSettingsForm() {
   $('#streamOverlayLanEnabled').checked = Boolean(settings.streamOverlayLanEnabled);
   $('#streamOverlayLayout').value = settings.streamOverlayLayout || 'horizontal';
   renderOverlayDimensions(settings.streamOverlayLayout);
+  const customLayout = settings.streamOverlayLayout === 'custom';
+  $('#customOverlayBuilder').hidden = !customLayout;
+  $('.overlay-options-heading').hidden = customLayout;
+  $('.overlay-field-grid').hidden = customLayout;
   $('#streamOverlayShowIdentity').checked = Boolean(settings.streamOverlayShowIdentity);
   $('#streamOverlayShowWl').checked = settings.streamOverlayShowWl !== false;
   $('#streamOverlayShowKd').checked = settings.streamOverlayShowKd !== false;
@@ -737,17 +765,138 @@ function syncSettingsForm() {
   $('#streamOverlayShowPeakRank').checked = settings.streamOverlayShowPeakRank !== false;
   $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
   $('#streamOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
+  $('#customOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
   const backgroundOpacity = Number.isFinite(Number(settings.streamOverlayBackgroundOpacity)) ? Number(settings.streamOverlayBackgroundOpacity) : 70;
   $('#streamOverlayBackgroundOpacity').value = String(backgroundOpacity);
   text('#streamOverlayBackgroundOpacityValue', `${backgroundOpacity}%`);
+  if (customLayout) requestAnimationFrame(renderCustomOverlayBuilder);
 }
 
 function renderOverlayDimensions(layout) {
-  const selected = OVERLAY_DIMENSIONS[layout] || OVERLAY_DIMENSIONS.horizontal;
+  const custom = state.settings?.streamOverlayCustom || DEFAULT_CUSTOM_OVERLAY;
+  const selected = layout === 'custom'
+    ? { width: Number(custom.width) || 960, height: Number(custom.height) || 360 }
+    : OVERLAY_DIMENSIONS[layout] || OVERLAY_DIMENSIONS.horizontal;
   text('#overlayDimensions', `${selected.width} × ${selected.height}`);
-  text('#overlayDimensionsHelp', layout === 'reactive'
+  text('#overlayDimensionsHelp', layout === 'custom'
+    ? `Use these exact custom canvas dimensions in OBS. You can still resize the finished source on your scene.`
+    : layout === 'reactive'
     ? `Set Width to ${selected.width} and Height to ${selected.height} in OBS. The dock animates inside this fixed canvas.`
     : `Set Width to ${selected.width} and Height to ${selected.height} in OBS.`);
+}
+
+function cloneCustomOverlay(value = state.settings?.streamOverlayCustom || DEFAULT_CUSTOM_OVERLAY) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function customCanvasColor(hex, opacity) {
+  const match = /^#([a-f0-9]{6})$/i.exec(String(hex || ''));
+  if (!match) return 'transparent';
+  const value = Number.parseInt(match[1], 16);
+  return `rgba(${value >> 16},${(value >> 8) & 255},${value & 255},${Math.max(0,Math.min(1,opacity))})`;
+}
+
+function selectedCustomElement(config = state.settings?.streamOverlayCustom) {
+  return config?.elements?.find((element) => element.id === state.customOverlaySelectedId) || null;
+}
+
+function renderCustomInspector(config) {
+  const element = selectedCustomElement(config);
+  $('#customElementInspector').classList.toggle('disabled', !element);
+  text('#customSelectedElement', element ? CUSTOM_OVERLAY_LABELS[element.id] : 'Choose an element');
+  if (!element) return;
+  $('#customElementX').value = String(element.x);
+  $('#customElementY').value = String(element.y);
+  $('#customElementWidth').value = String(element.width);
+  $('#customElementHeight').value = String(element.height);
+  $('#customElementFontSize').value = String(element.fontSize);
+  $('#customElementOpacity').value = String(element.opacity);
+  text('#customElementOpacityValue', `${element.opacity}%`);
+  $('#customElementAlign').value = element.align;
+  $('#customElementColor').value = element.color;
+}
+
+function renderCustomOverlayBuilder() {
+  if (!state.settings || state.settings.streamOverlayLayout !== 'custom') return;
+  const config = state.settings.streamOverlayCustom || cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY);
+  $('#customOverlayWidth').value = String(config.width);
+  $('#customOverlayHeight').value = String(config.height);
+  $('#customOverlayBackgroundColor').value = config.backgroundColor;
+
+  $('#customElementPalette').innerHTML = config.elements.map((element) => `<label class="custom-palette-item ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-select="${element.id}"><input type="checkbox" data-custom-visible="${element.id}" ${element.visible ? 'checked' : ''}><span>${escapeHtml(CUSTOM_OVERLAY_LABELS[element.id])}</span></label>`).join('');
+
+  const stage = $('.custom-stage-shell');
+  const canvas = $('#customEditorCanvas');
+  const availableWidth = Math.max(300, stage.clientWidth - 26);
+  const availableHeight = Math.max(210, stage.clientHeight - 48);
+  const scale = Math.min(1, availableWidth / config.width, availableHeight / config.height);
+  canvas.style.width = `${Math.round(config.width * scale)}px`;
+  canvas.style.height = `${Math.round(config.height * scale)}px`;
+  canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
+  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;font-size:${Math.max(6,Math.min(18,element.fontSize * scale))}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align}"><span>${escapeHtml(CUSTOM_OVERLAY_SAMPLES[element.id])}</span><i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
+  renderCustomInspector(config);
+  renderOverlayDimensions('custom');
+}
+
+async function persistCustomOverlay(config, feedback = false) {
+  state.settings = await window.companion.updateSettings({ streamOverlayCustom: config });
+  renderCustomOverlayBuilder();
+  await refreshOverlayStatus();
+  if (feedback) toast('Custom overlay saved', 'Your canvas and element layout were updated.');
+}
+
+function updateSelectedCustomElement(property, rawValue) {
+  const config = cloneCustomOverlay();
+  const element = selectedCustomElement(config);
+  if (!element) return null;
+  if (['x','y','width','height','fontSize','opacity'].includes(property)) element[property] = Number(rawValue);
+  else element[property] = rawValue;
+  state.settings.streamOverlayCustom = config;
+  renderCustomOverlayBuilder();
+  return config;
+}
+
+function beginCustomElementDrag(event) {
+  const item = event.target.closest('[data-custom-element]');
+  if (!item) return;
+  const id = item.dataset.customElement;
+  state.customOverlaySelectedId = id;
+  const config = cloneCustomOverlay();
+  const element = config.elements.find((entry) => entry.id === id);
+  if (!element) return;
+  const canvasRect = $('#customEditorCanvas').getBoundingClientRect();
+  const start = { x: event.clientX, y: event.clientY, element: { ...element } };
+  const resizing = Boolean(event.target.closest('[data-custom-resize]'));
+  event.preventDefault();
+
+  const move = (moveEvent) => {
+    const dx = ((moveEvent.clientX - start.x) / canvasRect.width) * 100;
+    const dy = ((moveEvent.clientY - start.y) / canvasRect.height) * 100;
+    if (resizing) {
+      element.width = Math.max(4, Math.min(100 - element.x, Math.round((start.element.width + dx) * 10) / 10));
+      element.height = Math.max(4, Math.min(100 - element.y, Math.round((start.element.height + dy) * 10) / 10));
+    } else {
+      element.x = Math.max(0, Math.min(100 - element.width, Math.round((start.element.x + dx) * 10) / 10));
+      element.y = Math.max(0, Math.min(100 - element.height, Math.round((start.element.y + dy) * 10) / 10));
+    }
+    state.settings.streamOverlayCustom = config;
+    const liveItem = $(`[data-custom-element="${id}"]`, $('#customEditorCanvas'));
+    if (liveItem) {
+      liveItem.style.left = `${element.x}%`;
+      liveItem.style.top = `${element.y}%`;
+      liveItem.style.width = `${element.width}%`;
+      liveItem.style.height = `${element.height}%`;
+    }
+    renderCustomInspector(config);
+  };
+  const end = async () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    await persistCustomOverlay(config);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end, { once: true });
+  renderCustomOverlayBuilder();
 }
 
 function renderRemoteStatus(status = {}) {
@@ -1087,6 +1236,63 @@ function bindEvents() {
     renderOverlayDimensions(event.target.value);
     saveSettingsPatch({ streamOverlayLayout: event.target.value }, false);
   });
+  $('#customElementPalette').addEventListener('click', async (event) => {
+    const option = event.target.closest('[data-custom-select]');
+    if (!option) return;
+    state.customOverlaySelectedId = option.dataset.customSelect;
+    if (event.target.matches('[data-custom-visible]')) {
+      const config = cloneCustomOverlay();
+      const element = config.elements.find((entry) => entry.id === event.target.dataset.customVisible);
+      if (element) element.visible = event.target.checked;
+      state.settings.streamOverlayCustom = config;
+      await persistCustomOverlay(config);
+    } else {
+      renderCustomOverlayBuilder();
+    }
+  });
+  $('#customEditorCanvas').addEventListener('pointerdown', beginCustomElementDrag);
+  $('#customOverlayWidth').addEventListener('change', async (event) => {
+    const config = cloneCustomOverlay();
+    config.width = Number(event.target.value);
+    state.settings.streamOverlayCustom = config;
+    await persistCustomOverlay(config);
+  });
+  $('#customOverlayHeight').addEventListener('change', async (event) => {
+    const config = cloneCustomOverlay();
+    config.height = Number(event.target.value);
+    state.settings.streamOverlayCustom = config;
+    await persistCustomOverlay(config);
+  });
+  $('#customOverlayBackgroundColor').addEventListener('change', async (event) => {
+    const config = cloneCustomOverlay();
+    config.backgroundColor = event.target.value;
+    state.settings.streamOverlayCustom = config;
+    await persistCustomOverlay(config);
+  });
+  $('#customOverlayAnimatedRrBeam').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayAnimatedRrBeam: event.target.checked }, false));
+  const customInspectorFields = {
+    customElementX: 'x', customElementY: 'y', customElementWidth: 'width', customElementHeight: 'height',
+    customElementFontSize: 'fontSize', customElementOpacity: 'opacity', customElementAlign: 'align', customElementColor: 'color'
+  };
+  for (const [id, property] of Object.entries(customInspectorFields)) {
+    $(`#${id}`).addEventListener('change', async (event) => {
+      const config = updateSelectedCustomElement(property, event.target.value);
+      if (config) await persistCustomOverlay(config);
+    });
+  }
+  $('#customElementOpacity').addEventListener('input', (event) => {
+    text('#customElementOpacityValue', `${event.target.value}%`);
+    updateSelectedCustomElement('opacity', event.target.value);
+  });
+  $('#resetCustomOverlay').addEventListener('click', async () => {
+    state.customOverlaySelectedId = 'branding';
+    const config = cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY);
+    state.settings.streamOverlayCustom = config;
+    await persistCustomOverlay(config, true);
+  });
+  window.addEventListener('resize', () => {
+    if (state.settings?.streamOverlayLayout === 'custom' && state.currentView === 'stream') renderCustomOverlayBuilder();
+  });
   $('#streamOverlayBackgroundOpacity').addEventListener('input', (event) => text('#streamOverlayBackgroundOpacityValue', `${event.target.value}%`));
   $('#streamOverlayBackgroundOpacity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayBackgroundOpacity: Number(event.target.value) }, false));
   $('#streamOverlayShowIdentity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowIdentity: event.target.checked }, false));
@@ -1203,7 +1409,8 @@ async function initialize() {
       streamOverlayShowWl: true, streamOverlayShowKd: true,
       streamOverlayShowAgent: true, streamOverlayShowMap: true,
       streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true,
-      streamOverlayAnimatedRrBeam: true, streamOverlayBackgroundOpacity: 70
+      streamOverlayAnimatedRrBeam: true, streamOverlayBackgroundOpacity: 70,
+      streamOverlayCustom: cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY)
     }));
     syncSettingsForm();
     applyPrivacy();

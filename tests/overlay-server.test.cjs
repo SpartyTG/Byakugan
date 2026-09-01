@@ -101,6 +101,36 @@ test('Reactive Vision Dock is a separate accepted OBS layout', () => {
   assert.equal(payload.session.lastMatchId, snapshot.matches[0].id);
 });
 
+test('custom overlay derives privacy fields from its own element visibility', () => {
+  const payload = buildOverlayPayload(snapshot, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayShowIdentity: false,
+    streamOverlayShowAgent: false,
+    streamOverlayCustom: {
+      width: 1280,
+      height: 420,
+      backgroundColor: '#123456',
+      elements: [
+        { id: 'playerName', visible: true },
+        { id: 'agent', visible: true },
+        { id: 'map', visible: false },
+        { id: 'sessionWL', visible: false },
+        { id: 'sessionKD', visible: true },
+        { id: 'rrBeam', visible: true }
+      ]
+    }
+  }));
+  assert.equal(payload.layout, 'custom');
+  assert.equal(payload.customOverlay.width, 1280);
+  assert.equal(payload.customOverlay.height, 420);
+  assert.equal(payload.player.name, 'Nova');
+  assert.equal(payload.live.agent, 'Omen');
+  assert.equal(payload.live.map, '—');
+  assert.equal(payload.session.games, 0);
+  assert.equal(payload.session.kd, 1.4);
+  assert.equal(payload.preferences.showIdentity, true);
+});
+
 test('RR energy beam follows current rank rating from empty to full', () => {
   assert.equal(rrBeamProgress(0), 0);
   assert.equal(rrBeamProgress(42), 42);

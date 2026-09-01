@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { UI_SCALE_OPTIONS, normalizeUiScale } = require('./ui-scale.cjs');
+const { DEFAULT_CUSTOM_OVERLAY, normalizeCustomOverlay } = require('./custom-overlay.cjs');
 
 const DEFAULTS = Object.freeze({
   launchAtStartup: false,
@@ -30,6 +31,7 @@ const DEFAULTS = Object.freeze({
   streamOverlayShowRrChange: true,
   streamOverlayAnimatedRrBeam: true,
   streamOverlayBackgroundOpacity: 70,
+  streamOverlayCustom: DEFAULT_CUSTOM_OVERLAY,
   streamOverlayToken: ''
 });
 
@@ -50,16 +52,21 @@ class SettingsStore {
       delete parsed.streamOverlayShowAgentMap;
       delete parsed.dataMode;
       parsed.uiScale = normalizeUiScale(parsed.uiScale);
+      parsed.streamOverlayCustom = normalizeCustomOverlay(parsed.streamOverlayCustom);
       this.data = { ...DEFAULTS, ...parsed };
     } catch {}
   }
 
-  get() { return { ...this.data }; }
+  get() { return JSON.parse(JSON.stringify(this.data)); }
 
   update(patch) {
     const allowed = Object.keys(DEFAULTS);
     for (const [key, value] of Object.entries(patch || {})) {
       if (!allowed.includes(key)) continue;
+      if (key === 'streamOverlayCustom') {
+        this.data[key] = normalizeCustomOverlay(value);
+        continue;
+      }
       if (typeof DEFAULTS[key] === 'boolean' && typeof value !== 'boolean') continue;
       if (typeof DEFAULTS[key] === 'number') {
         if (!Number.isFinite(value)) continue;
@@ -69,7 +76,7 @@ class SettingsStore {
           if (value < 0 || value > 100) continue;
         } else if (value < 1) continue;
       }
-      if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
+      if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
       if (key === 'pcRole' && !['gaming', 'viewer'].includes(value)) continue;
       if (['streamOverlayToken', 'remoteViewerToken'].includes(key) && !/^[a-f0-9]{48}$/.test(value)) continue;
       if (key === 'remoteSourceUrl') {

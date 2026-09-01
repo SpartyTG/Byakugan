@@ -4,7 +4,7 @@ BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
 designed as an editable foundation rather than a copy of another application's
 source, brand, or proprietary assets.
 
-## Included in version 0.8.0-beta.44
+## Included in version 0.8.0-beta.47
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -28,6 +28,11 @@ source, brand, or proprietary assets.
 - Fast full-act discovery with older RR enrichment removed from the critical stats-loading path
 - Distinct Refresh Data and Reconnect Riot actions: soft snapshot refresh versus full lockfile, authentication, and connection reset
 - Dedicated **Live Stream Vision** workspace for OBS and dual-PC production controls
+- Revised **Reactive Vision Dock** expanded state with BYAKUGAN branding and session W/L plus K/D on the left, current and all-time peak ranks stacked on the right, and duplicate fallback-rank artwork suppressed
+- Larger **Reactive Vision Dock** in-match bar with a taller frame, enlarged current rank and emblem, clearer RR marker, and stream-legible session W/L plus K/D at webcam width
+- Separate **Custom Overlay Builder** with a freeform high-resolution canvas, exact OBS Width and Height controls, drag placement, corner resizing, field visibility, text sizing, element opacity, alignment, text colors, canvas color, automatic saving, live preview, and one-click layout reset
+- Twelve custom live elements: BYAKUGAN branding, Riot name, current rank, current RR, all-time peak, session W/L, session K/D, session RR movement, last-match result, agent, map, and animated RR beam
+- Strict custom-layout validation clamps canvas and element geometry, rejects unknown fields and unsafe colors, and derives private data access only from the fields explicitly enabled in the custom design
 - **Dual PC Streaming Mode** with separate **Gaming PC — Host** and **Streaming PC — Viewer** roles
 - Toggleable **Gaming PC Relay Mode** that restarts into a tray-only, low-resource host without loading the dashboard renderer
 - Full-speed Relay Mode collection with the same 5-second live polling, configured snapshot refresh, 40-match/20-concurrent act hydration, five-concurrent live-rank lookups, and post-match retry cadence as the full dashboard
@@ -131,7 +136,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.44-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.47-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -160,10 +165,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.44`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.47`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.44`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.47`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -171,8 +176,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.44
-git push origin v0.8.0-beta.44
+git tag v0.8.0-beta.47
+git push origin v0.8.0-beta.47
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

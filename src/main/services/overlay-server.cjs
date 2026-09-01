@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+const { normalizeCustomOverlay, customElementVisible } = require('../custom-overlay.cjs');
 
 const LOOPBACK_HOST = '127.0.0.1';
 const DEFAULT_PORT = 43871;
@@ -89,14 +90,23 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const live = snapshot.live || {};
   const self = (live.players || []).find((player) => player?.isSelf)
     || (live.players || []).find((player) => player?.name === 'You') || {};
-  const showIdentity = Boolean(settings.streamOverlayShowIdentity);
-  const showWl = settings.streamOverlayShowWl !== false;
-  const showKd = settings.streamOverlayShowKd !== false;
-  const showAgent = settings.streamOverlayShowAgent !== false;
-  const showMap = settings.streamOverlayShowMap !== false;
-  const showRR = settings.streamOverlayShowRR !== false;
-  const showPeakRank = settings.streamOverlayShowPeakRank !== false;
-  const showRrChange = settings.streamOverlayShowRrChange !== false;
+  const layout = ['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
+    ? settings.streamOverlayLayout
+    : 'horizontal';
+  const customOverlay = normalizeCustomOverlay(settings.streamOverlayCustom);
+  const custom = layout === 'custom';
+  const showIdentity = custom ? customElementVisible(customOverlay, 'playerName') : Boolean(settings.streamOverlayShowIdentity);
+  const showWl = custom ? customElementVisible(customOverlay, 'sessionWL') : settings.streamOverlayShowWl !== false;
+  const showKd = custom ? customElementVisible(customOverlay, 'sessionKD') : settings.streamOverlayShowKd !== false;
+  const showAgent = custom ? customElementVisible(customOverlay, 'agent') : settings.streamOverlayShowAgent !== false;
+  const showMap = custom ? customElementVisible(customOverlay, 'map') : settings.streamOverlayShowMap !== false;
+  const showRR = custom
+    ? customElementVisible(customOverlay, 'currentRR') || customElementVisible(customOverlay, 'rrBeam')
+    : settings.streamOverlayShowRR !== false;
+  const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank') : settings.streamOverlayShowPeakRank !== false;
+  const showRrChange = custom
+    ? customElementVisible(customOverlay, 'rrChange') || customElementVisible(customOverlay, 'lastMatch')
+    : settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const recentMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const sessionMatchIds = new Set((session.matchIds || []).map(String));
@@ -106,14 +116,11 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const fallbackAgentAvailable = recentMatch.agent && recentMatch.agent !== '—';
   const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? recentMatch : {};
   const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
-  const layout = ['rank', 'reactive', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
-    ? settings.streamOverlayLayout
-    : 'horizontal';
-
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
     layout,
+    customOverlay,
     preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange, animatedRrBeam },
     appearance: { backgroundOpacity: overlayBackgroundOpacity(settings.streamOverlayBackgroundOpacity) },
     player: {

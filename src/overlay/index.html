@@ -14,6 +14,33 @@
       <i class="connection-dot" id="connectionDot"></i>
     </section>
 
+    <section class="reactive-menu-panel" aria-label="Reactive Vision summary">
+      <div class="reactive-menu-left">
+        <div class="reactive-menu-brand">
+          <div class="eye-mark" aria-hidden="true"><span></span></div>
+          <div class="brand-copy"><strong>BYAKUGAN</strong><small>SESSION VISION</small></div>
+          <i class="reactive-status-dot" aria-hidden="true"></i>
+        </div>
+        <div class="reactive-menu-session">
+          <small>SESSION PERFORMANCE</small>
+          <span class="reactive-session-wl"><b>W / L</b><strong id="reactiveSessionRecord">0 W / 0 L</strong></span>
+          <span class="reactive-session-kd"><b>K/D</b><strong id="reactiveSessionKd">0.00</strong></span>
+        </div>
+      </div>
+      <div class="reactive-menu-ranks">
+        <div class="reactive-current-rank">
+          <span class="reactive-rank-emblem"><img id="reactiveRankImage" alt="" hidden><i id="reactiveRankFallback">—</i></span>
+          <span class="reactive-rank-copy"><b>CURRENT RANK</b><strong id="reactivePlayerRank">UNRATED</strong><em id="reactivePlayerRR">0 RR</em></span>
+        </div>
+        <div class="reactive-peak-rank">
+          <span class="reactive-peak-emblem"><img id="reactivePeakRankImage" alt="" hidden><i id="reactivePeakRankFallback">—</i></span>
+          <span class="reactive-peak-copy"><b>ALL-TIME PEAK</b><strong id="reactivePlayerPeakRank">UNRATED</strong></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="custom-overlay-canvas" id="customOverlayCanvas" aria-label="Custom stream overlay"></section>
+
     <section class="player-block">
       <div class="rank-emblem"><img id="rankImage" alt="" hidden><span id="rankFallback"></span></div>
       <div class="player-copy">
