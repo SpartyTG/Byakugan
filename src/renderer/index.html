@@ -325,7 +325,7 @@
                 <label id="customInGameHeightControl" hidden><span>In-game height</span><input type="number" id="customOverlayInGameHeight" min="120" max="1080" step="10"></label>
                 <label><span>Canvas color</span><input type="color" id="customOverlayBackgroundColor" value="#0b0d1d"></label>
                 <label><span>Animate beam</span><input type="checkbox" id="customOverlayAnimatedRrBeam"></label>
-                <label><span id="customOverlayShowBeamRRLabel">Show beam RR</span><input type="checkbox" id="customOverlayShowBeamRR"></label>
+                <label><span id="customOverlayShowBeamRRLabel">Show last-match RR</span><input type="checkbox" id="customOverlayShowBeamRR"></label>
               </div>
               <div class="custom-builder-workspace">
                 <aside class="custom-element-palette"><small>ELEMENTS</small><div id="customElementPalette"></div></aside>
@@ -337,7 +337,9 @@
                   <label><span>Y position</span><input type="number" id="customElementY" min="0" max="100" step="0.5"></label>
                   <label><span>Width</span><input type="number" id="customElementWidth" min="4" max="100" step="0.5"></label>
                   <label><span>Height</span><input type="number" id="customElementHeight" min="4" max="100" step="0.5"></label>
-                  <label><span>Text size</span><input type="number" id="customElementFontSize" min="8" max="96" step="1"></label>
+                  <label><span>Main text size</span><input type="number" id="customElementFontSize" min="8" max="96" step="1"></label>
+                  <label id="customElementLabelFontSizeControl"><span>Label text size</span><input type="number" id="customElementLabelFontSize" min="6" max="72" step="1"></label>
+                  <label id="customElementDetailFontSizeControl"><span>Detail text size</span><input type="number" id="customElementDetailFontSize" min="6" max="72" step="1"></label>
                   <label><span>Opacity</span><input type="range" id="customElementOpacity" min="10" max="100" step="5"><output id="customElementOpacityValue">100%</output></label>
                   <label><span>Alignment</span><select id="customElementAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
                   <label><span>Text color</span><input type="color" id="customElementColor" value="#ffffff"></label>

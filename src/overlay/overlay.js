@@ -183,6 +183,8 @@ function renderCustomOverlay(data, player, session, live, appearance) {
     item.style.width = `${element.width}%`;
     item.style.height = `${element.height}%`;
     item.style.setProperty('--custom-font-size', `${element.fontSize}px`);
+    item.style.setProperty('--custom-label-size', `${element.labelFontSize || Math.max(6, Math.round(element.fontSize * 0.38))}px`);
+    item.style.setProperty('--custom-detail-size', `${element.detailFontSize || Math.max(6, Math.round(element.fontSize * 0.42))}px`);
     item.style.setProperty('--custom-opacity', String(element.opacity / 100));
     item.style.setProperty('--custom-align', element.align);
     item.style.setProperty('--custom-color', element.color);
@@ -218,7 +220,11 @@ function renderCustomOverlay(data, player, session, live, appearance) {
       fill.append(beam);
       item.style.setProperty('--custom-beam-progress', `${Math.max(0, Math.min(100, Number(session.beamProgress) || 0))}%`);
       item.append(fill);
-      if (element.showMarker !== false) item.append(customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
+      if (element.showMarker !== false) {
+        const lastRr = Number(session.lastMatchRR) || 0;
+        const tone = lastRr > 0 ? 'positive' : lastRr < 0 ? 'negative' : 'neutral';
+        item.append(customNode('strong', `custom-beam-marker ${tone}`, signed(lastRr, ' RR')));
+      }
     }
     canvas.append(item);
   }

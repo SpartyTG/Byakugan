@@ -44,7 +44,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['sessionKD',true,27,48,18,14,25,100,'left','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
     ['lastMatch',true,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
     ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff',true]
-  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) })),
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) })),
   reactive: false,
   inGameElements: [
     ['branding',false,3,5,24,18,24,100,'left','#ffffff'], ['playerName',false,3,27,25,12,22,100,'left','#c9bcff'],
@@ -53,7 +53,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['sessionKD',true,81,8,16,22,24,100,'center','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
     ['lastMatch',false,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
     ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,58,94,28,20,100,'left','#70dfff',true]
-  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) }))
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) }))
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const safeImage = (value) => {
@@ -821,7 +821,9 @@ function customEditorIcon(url, fallback, extraClass = '') {
 }
 
 function customEditorBeam(preview, showMarker) {
-  return `<span class="custom-editor-beam-fill"><img src="../overlay/rr-energy-beam.gif" alt=""></span>${showMarker ? `<strong class="custom-editor-beam-marker">${escapeHtml(preview.rr)} RR</strong>` : ''}`;
+  const rr = Number(preview.lastRR) || 0;
+  const tone = rr > 0 ? 'positive' : rr < 0 ? 'negative' : 'neutral';
+  return `<span class="custom-editor-beam-fill"><img src="../overlay/rr-energy-beam.gif" alt=""></span>${showMarker ? `<strong class="custom-editor-beam-marker ${tone}">${escapeHtml(customEditorSigned(rr, ' RR'))}</strong>` : ''}`;
 }
 
 function customOverlayEditorPreview() {
@@ -899,6 +901,10 @@ function renderCustomInspector(config) {
   $('#customElementWidth').value = String(element.width);
   $('#customElementHeight').value = String(element.height);
   $('#customElementFontSize').value = String(element.fontSize);
+  $('#customElementLabelFontSize').value = String(element.labelFontSize || Math.max(6, Math.round(element.fontSize * 0.38)));
+  $('#customElementDetailFontSize').value = String(element.detailFontSize || Math.max(6, Math.round(element.fontSize * 0.42)));
+  $('#customElementLabelFontSizeControl').hidden = element.id === 'rrBeam';
+  $('#customElementDetailFontSizeControl').hidden = !['peakRank', 'lastMatch', 'map'].includes(element.id);
   $('#customElementOpacity').value = String(element.opacity);
   text('#customElementOpacityValue', `${element.opacity}%`);
   $('#customElementAlign').value = element.align;
@@ -919,7 +925,7 @@ function renderCustomEditorCanvas(canvas, elements, canvasState, config, scale, 
   canvas.style.height = `${Math.round(dimensions.height * scale)}px`;
   canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
   canvas.setAttribute('aria-label', `${canvasState === 'ingame' ? 'In-game' : config.reactive ? 'Between-games' : 'Base'} custom overlay canvas ${dimensions.width} by ${dimensions.height}`);
-  canvas.innerHTML = elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${element.id === 'rrBeam' && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${canvasState === state.customOverlayCanvasState && element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview, element)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
+  canvas.innerHTML = elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${element.id === 'rrBeam' && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${canvasState === state.customOverlayCanvasState && element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;--custom-label-size:${Math.max(3,(element.labelFontSize || Math.max(6,Math.round(element.fontSize*.38))) * scale)}px;--custom-detail-size:${Math.max(3,(element.detailFontSize || Math.max(6,Math.round(element.fontSize*.42))) * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview, element)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
 }
 
 function renderCustomOverlayBuilder() {
@@ -936,8 +942,8 @@ function renderCustomOverlayBuilder() {
   const activeBeam = activeElements.find((element) => element.id === 'rrBeam');
   $('#customOverlayShowBeamRR').checked = activeBeam?.showMarker !== false;
   text('#customOverlayShowBeamRRLabel', config.reactive
-    ? `Show beam RR (${state.customOverlayCanvasState === 'ingame' ? 'In game' : 'Between'})`
-    : 'Show beam RR');
+    ? `Show last-match RR (${state.customOverlayCanvasState === 'ingame' ? 'In game' : 'Between'})`
+    : 'Show last-match RR');
   text('#customOverlayWidthLabel', config.reactive ? 'Between width' : 'Canvas width');
   text('#customOverlayHeightLabel', config.reactive ? 'Between height' : 'Canvas height');
   $('#customInGameWidthControl').hidden = !config.reactive;
@@ -974,7 +980,7 @@ function updateSelectedCustomElement(property, rawValue) {
   const config = cloneCustomOverlay();
   const element = selectedCustomElement(config);
   if (!element) return null;
-  if (['x','y','width','height','fontSize','opacity'].includes(property)) element[property] = Number(rawValue);
+  if (['x','y','width','height','fontSize','labelFontSize','detailFontSize','opacity'].includes(property)) element[property] = Number(rawValue);
   else element[property] = rawValue;
   state.settings.streamOverlayCustom = config;
   renderCustomOverlayBuilder();
@@ -1468,10 +1474,11 @@ function bindEvents() {
   });
   const customInspectorFields = {
     customElementX: 'x', customElementY: 'y', customElementWidth: 'width', customElementHeight: 'height',
-    customElementFontSize: 'fontSize', customElementOpacity: 'opacity', customElementAlign: 'align', customElementColor: 'color'
+    customElementFontSize: 'fontSize', customElementLabelFontSize: 'labelFontSize', customElementDetailFontSize: 'detailFontSize',
+    customElementOpacity: 'opacity', customElementAlign: 'align', customElementColor: 'color'
   };
   for (const [id, property] of Object.entries(customInspectorFields)) {
-    if (['x', 'y', 'width', 'height', 'fontSize'].includes(property)) {
+    if (['x', 'y', 'width', 'height', 'fontSize', 'labelFontSize', 'detailFontSize'].includes(property)) {
       $(`#${id}`).addEventListener('input', (event) => updateSelectedCustomElement(property, event.target.value));
     }
     $(`#${id}`).addEventListener('change', async (event) => {

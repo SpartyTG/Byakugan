@@ -52,7 +52,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.64
+## Included in version 0.8.0-beta.65
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -86,11 +86,13 @@ registered trademarks of Riot Games, Inc.
 - Independent custom-canvas width and height scaling with an exact-dimension preview readout
 - Repeatable drag and resize interactions without rebuilding the selected element mid-pointer gesture
 - Live text-size editing without the former preview-size cap
+- Independent main, label, and detail text-size controls for custom components, including session headings, branding labels, peak-rank season text, and last-match details
 - Rank-emblem layers that retain a visible fallback while loading the current and peak rank artwork
 - Per-element reset controls that preserve every other custom placement and the selected element's visibility
 - Optional two-state custom Reactive Vision mode: the original canvas becomes the independently editable **Between Games** overlay, a second independently editable **In Game** canvas appears beneath it, and the editor grows vertically with both canvas heights while OBS automatically renders only the active state
 - Independent Between Games and In Game canvas dimensions so either Reactive Vision state can be made smaller without changing the other; OBS uses the larger dimensions as a safe transparent envelope
 - State-specific beam RR marker toggles, with the enabled RR label positioned immediately beyond the animated beam tip instead of covering its edge
+- Beam-end markers now show signed last-match RR instead of duplicating current RR, using green for gains and red for losses
 - Strict custom-layout validation clamps canvas and element geometry, rejects unknown fields and unsafe colors, and derives private data access only from the fields explicitly enabled in the custom design
 - Reactive Vision preview comparison that simultaneously renders the live-data **Between Games** and **In Game** docks in one taller preview window
 - Rebalanced Reactive Vision in-game dock with a larger RR beam and marker, larger session W/L and K/D, and slightly reduced rank-name text for clearer visual hierarchy at webcam width
@@ -199,7 +201,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.64-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.65-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -228,10 +230,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.64`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.65`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.64`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.65`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -239,8 +241,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.64
-git push origin v0.8.0-beta.64
+git tag v0.8.0-beta.65
+git push origin v0.8.0-beta.65
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

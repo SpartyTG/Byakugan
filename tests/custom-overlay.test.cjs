@@ -130,3 +130,22 @@ test('Reactive Vision canvas dimensions and beam RR markers are independent by s
   assert.match(overlayScript, /if \(element\.showMarker !== false\)/);
   assert.match(overlayStyles, /calc\(var\(--custom-beam-progress,0%\) \+ \.25em\)/);
 });
+
+test('custom copy layers have independent sizing and the beam marker shows last-match RR', () => {
+  const normalized = normalizeCustomOverlay({
+    elements: [{ id: 'peakRank', fontSize: 30, labelFontSize: 15, detailFontSize: 18 }]
+  });
+  const peak = normalized.elements.find((element) => element.id === 'peakRank');
+  assert.equal(peak.fontSize, 30);
+  assert.equal(peak.labelFontSize, 15);
+  assert.equal(peak.detailFontSize, 18);
+  assert.match(rendererHtml, /id="customElementLabelFontSize"/);
+  assert.match(rendererHtml, /id="customElementDetailFontSize"/);
+  assert.match(rendererScript, /--custom-label-size:/);
+  assert.match(rendererScript, /--custom-detail-size:/);
+  assert.match(overlayScript, /Number\(session\.lastMatchRR\)/);
+  assert.match(overlayScript, /signed\(lastRr, ' RR'\)/);
+  assert.match(overlayStyles, /custom-beam-marker\.positive[^}]*var\(--teal\)/);
+  assert.match(overlayStyles, /custom-beam-marker\.negative[^}]*var\(--red\)/);
+  assert.doesNotMatch(overlayScript, /custom-beam-marker', `\$\{Number\(player\.rr\)/);
+});

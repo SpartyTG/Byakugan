@@ -55,6 +55,8 @@ function normalizeElement(candidate, fallback) {
   const source = candidate && typeof candidate === 'object' ? candidate : {};
   const width = numberWithin(source.width, fallback.width, 4, 100);
   const height = numberWithin(source.height, fallback.height, 4, 100);
+  const defaultLabelFontSize = fallback.labelFontSize || Math.max(6, Math.round(fallback.fontSize * 0.38));
+  const defaultDetailFontSize = fallback.detailFontSize || Math.max(6, Math.round(fallback.fontSize * 0.42));
   const normalized = {
     id: fallback.id,
     visible: typeof source.visible === 'boolean' ? source.visible : fallback.visible,
@@ -63,6 +65,8 @@ function normalizeElement(candidate, fallback) {
     width,
     height,
     fontSize: numberWithin(source.fontSize, fallback.fontSize, 8, 96),
+    labelFontSize: numberWithin(source.labelFontSize, defaultLabelFontSize, 6, 72),
+    detailFontSize: numberWithin(source.detailFontSize, defaultDetailFontSize, 6, 72),
     opacity: numberWithin(source.opacity, fallback.opacity, 10, 100),
     align: ['left', 'center', 'right'].includes(source.align) ? source.align : fallback.align,
     color: safeColor(source.color, fallback.color)
