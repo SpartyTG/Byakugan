@@ -1028,7 +1028,7 @@ function beginCustomElementDrag(event) {
       element.y = Math.max(0, Math.min(100 - element.height, Math.round((start.element.y + dy) * 10) / 10));
     }
     state.settings.streamOverlayCustom = config;
-    const liveItem = $(`[data-custom-element="${id}"]`, event.currentTarget);
+    const liveItem = $(`[data-custom-element="${id}"]`, pointerTarget);
     if (liveItem) {
       liveItem.style.left = `${element.x}%`;
       liveItem.style.top = `${element.y}%`;

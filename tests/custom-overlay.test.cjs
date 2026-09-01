@@ -36,6 +36,8 @@ test('custom editor permits validated geometry and supports captured pointer dra
   assert.match(rendererScript, /style="left:\$\{element\.x\}%/);
   assert.match(rendererScript, /setPointerCapture/);
   assert.match(rendererScript, /pointercancel/);
+  assert.match(rendererScript, /const liveItem = \$\(`\[data-custom-element="\$\{id\}"\]`, pointerTarget\)/);
+  assert.doesNotMatch(rendererScript, /const liveItem = \$\([^\n]+event\.currentTarget/);
   assert.match(rendererScript, /element\.x = Math\.max\(0, Math\.min\(100 - element\.width/);
   assert.match(rendererScript, /element\.y = Math\.max\(0, Math\.min\(100 - element\.height/);
 });
