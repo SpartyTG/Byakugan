@@ -429,7 +429,7 @@ function registerIpc() {
     overlayServer.publish();
     const layout = settings.get().streamOverlayLayout || 'horizontal';
     const sizes = {
-      rank: [590, 270], horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
+      rank: [590, 270], reactive: [590, 270], horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
     };
     const [width, height] = sizes[layout] || sizes.horizontal;
     overlayPreviewWindow = new BrowserWindow({

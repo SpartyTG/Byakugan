@@ -64,6 +64,9 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(rejected.streamOverlayBackgroundOpacity, 0);
     assert.equal(rejected.uiScale, 175);
     assert.match(rejected.remoteSourceUrl, /^http:\/\/192\.168\.50\.99/);
+
+    const reactive = store.update({ streamOverlayLayout: 'reactive' });
+    assert.equal(reactive.streamOverlayLayout, 'reactive');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

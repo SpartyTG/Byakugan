@@ -22,6 +22,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const text = (selector, value) => { const element = $(selector); if (element) element.textContent = String(value ?? '—'); };
 const OVERLAY_DIMENSIONS = Object.freeze({
   rank: { width: 480, height: 190 },
+  reactive: { width: 480, height: 190 },
   horizontal: { width: 1600, height: 180 },
   compact: { width: 560, height: 240 },
   vertical: { width: 380, height: 660 }
@@ -744,7 +745,9 @@ function syncSettingsForm() {
 function renderOverlayDimensions(layout) {
   const selected = OVERLAY_DIMENSIONS[layout] || OVERLAY_DIMENSIONS.horizontal;
   text('#overlayDimensions', `${selected.width} × ${selected.height}`);
-  text('#overlayDimensionsHelp', `Set Width to ${selected.width} and Height to ${selected.height} in OBS.`);
+  text('#overlayDimensionsHelp', layout === 'reactive'
+    ? `Set Width to ${selected.width} and Height to ${selected.height} in OBS. The dock animates inside this fixed canvas.`
+    : `Set Width to ${selected.width} and Height to ${selected.height} in OBS.`);
 }
 
 function renderRemoteStatus(status = {}) {

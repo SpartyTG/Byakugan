@@ -106,7 +106,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const fallbackAgentAvailable = recentMatch.agent && recentMatch.agent !== '—';
   const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? recentMatch : {};
   const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
-  const layout = ['rank', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
+  const layout = ['rank', 'reactive', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
     ? settings.streamOverlayLayout
     : 'horizontal';
 
@@ -133,6 +133,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       kd: showKd && Number.isFinite(Number(session.kd)) ? Number(session.kd) : 0,
       rrChange: showRrChange ? Number(session.rrChange) || 0 : 0,
       beamProgress: showRR ? rrBeamProgress(profile.rr) : 0,
+      lastMatchId: cleanText(lastMatch.id, '', 100),
       lastMatchRR: showRrChange ? Number(lastMatch.rr) || 0 : 0,
       lastMatchResult: showRrChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
       startingRank: showRrChange ? cleanText(session.startingRank, 'Unrated', 40) : 'Unrated',

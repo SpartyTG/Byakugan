@@ -95,6 +95,12 @@ test('awakened rank layout is accepted for OBS', () => {
   assert.equal(payload.layout, 'rank');
 });
 
+test('Reactive Vision Dock is a separate accepted OBS layout', () => {
+  const payload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'reactive' }));
+  assert.equal(payload.layout, 'reactive');
+  assert.equal(payload.session.lastMatchId, snapshot.matches[0].id);
+});
+
 test('RR energy beam follows current rank rating from empty to full', () => {
   assert.equal(rrBeamProgress(0), 0);
   assert.equal(rrBeamProgress(42), 42);

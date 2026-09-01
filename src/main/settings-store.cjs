@@ -69,7 +69,7 @@ class SettingsStore {
           if (value < 0 || value > 100) continue;
         } else if (value < 1) continue;
       }
-      if (key === 'streamOverlayLayout' && !['rank', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
+      if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
       if (key === 'pcRole' && !['gaming', 'viewer'].includes(value)) continue;
       if (['streamOverlayToken', 'remoteViewerToken'].includes(key) && !/^[a-f0-9]{48}$/.test(value)) continue;
       if (key === 'remoteSourceUrl') {

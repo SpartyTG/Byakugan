@@ -5,6 +5,57 @@ const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at
 document.body.classList.toggle('preview-mode', new URLSearchParams(location.search).get('preview') === '1');
 let staleTimer = null;
 let currentBeamProgress = 0;
+let previousLiveState = '';
+let lastMatchKey = '';
+let reactivePostMatchPending = false;
+let reactivePendingTimer = null;
+let reactiveAwakenTimer = null;
+
+function isReactiveCompactState(value) {
+  return ['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(value || '').toUpperCase());
+}
+
+function isCompletedMatchState(value) {
+  return ['INGAME', 'CORE_GAME'].includes(String(value || '').toUpperCase());
+}
+
+function updateReactiveState(layout, liveState, session) {
+  const reactive = layout === 'reactive';
+  const compact = isReactiveCompactState(liveState);
+  const matchJustEnded = isCompletedMatchState(previousLiveState) && !isCompletedMatchState(liveState);
+  const matchKey = [session.lastMatchId || '', session.lastMatchResult || '', Number(session.lastMatchRR) || 0].join(':');
+
+  if (!reactive) {
+    reactivePostMatchPending = false;
+    clearTimeout(reactivePendingTimer);
+  } else if (compact) {
+    reactivePostMatchPending = false;
+    clearTimeout(reactivePendingTimer);
+  } else {
+    if (matchJustEnded) {
+      reactivePostMatchPending = true;
+      clearTimeout(reactivePendingTimer);
+      reactivePendingTimer = setTimeout(() => {
+        reactivePostMatchPending = false;
+        overlay.classList.remove('reactive-postmatch-pending');
+      }, 45_000);
+    }
+    if (reactivePostMatchPending && matchKey && lastMatchKey && matchKey !== lastMatchKey) {
+      reactivePostMatchPending = false;
+      clearTimeout(reactivePendingTimer);
+      overlay.classList.add('reactive-awakening');
+      clearTimeout(reactiveAwakenTimer);
+      reactiveAwakenTimer = setTimeout(() => overlay.classList.remove('reactive-awakening'), 4_500);
+    }
+  }
+
+  overlay.classList.toggle('reactive-compact', reactive && compact);
+  overlay.classList.toggle('reactive-expanded', reactive && !compact);
+  overlay.classList.toggle('reactive-postmatch-pending', reactive && reactivePostMatchPending);
+  if (!reactive) overlay.classList.remove('reactive-awakening');
+  if (!compact && matchKey) lastMatchKey = matchKey;
+  previousLiveState = liveState;
+}
 
 function markAlive() {
   overlay.classList.remove('is-loading', 'is-offline');
@@ -49,7 +100,8 @@ function render(data) {
   const preferences = data.preferences || {};
   const appearance = data.appearance || {};
 
-  overlay.className = `overlay layout-${data.layout || 'horizontal'}`;
+  const layout = data.layout || 'horizontal';
+  overlay.className = `overlay layout-${layout}`;
   overlay.classList.toggle('hide-identity', !preferences.showIdentity);
   overlay.classList.toggle('hide-wl', preferences.showWl === false);
   overlay.classList.toggle('hide-kd', preferences.showKd === false);
@@ -70,6 +122,7 @@ function render(data) {
   overlay.classList.toggle('last-negative', Number(session.lastMatchRR) < 0);
   const backgroundOpacity = Math.max(0, Math.min(100, Number(appearance.backgroundOpacity) || 0));
   overlay.style.setProperty('--overlay-bg-opacity', String(backgroundOpacity / 100));
+  updateReactiveState(layout, live.state, session);
 
   text('#playerName', player.name || 'PLAYER');
   text('#playerRank', player.rank || 'Unrated');

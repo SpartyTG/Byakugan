@@ -26,3 +26,9 @@ test('Live Stream Vision owns the overlay and dual-PC controls', () => {
 test('Awakened Rank recommends the reduced-width OBS canvas', () => {
   assert.match(app, /rank:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
 });
+
+test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', () => {
+  assert.match(html, /<option value="rank">Awakened rank card<\/option><option value="reactive">Reactive Vision Dock<\/option>/);
+  assert.match(app, /reactive:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
+  assert.match(app, /The dock animates inside this fixed canvas/);
+});
