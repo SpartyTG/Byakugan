@@ -30,6 +30,7 @@ test('compact Reactive Vision Dock remains legible at webcam width', () => {
   assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.layout-reactive\.reactive-compact \.reactive-menu-panel[^}]*right:\s*8px[^}]*width:\s*176px/);
   assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.layout-reactive\.reactive-compact \.player-block[^}]*padding-right:\s*184px/);
   assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*18px/);
+  assert.match(styles, /@media \(max-width:\s*900px\)[\s\S]*\.layout-horizontal\.layout-reactive[^}]*grid-template-columns:\s*minmax\(0,1fr\) 112px/);
 });
 
 test('Reactive Vision preview simultaneously shows between-games and in-game docks', () => {

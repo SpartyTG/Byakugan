@@ -480,6 +480,7 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
 
 @media (max-width: 900px) {
   .layout-horizontal { grid-template-columns: 190px 215px 1fr; }
+  .layout-horizontal.layout-reactive { grid-template-columns: minmax(0,1fr) 112px; }
   .layout-horizontal .live-block { display: none; }
   .brand-block, .player-block { padding: 15px; }
   .metric { padding-inline: 13px; }
