@@ -153,7 +153,8 @@ test('custom Reactive Vision exposes fields from the canvas matching live state'
   assert.equal(payload.preferences.showKd, true);
   assert.equal(payload.preferences.showRR, true);
   assert.equal(payload.preferences.showPeakRank, false);
-  assert.equal(payload.preferences.showRrChange, false);
+  assert.equal(payload.preferences.showRrChange, true);
+  assert.equal(payload.session.lastMatchRR, snapshot.matches[0].rr);
   assert.equal(payload.session.games, 3);
 
   const menuPayload = buildOverlayPayload({ ...snapshot, live: { ...snapshot.live, state: 'MENUS' } }, settings({
@@ -164,6 +165,32 @@ test('custom Reactive Vision exposes fields from the canvas matching live state'
   assert.equal(menuPayload.preferences.showKd, false);
   assert.equal(menuPayload.preferences.showRR, false);
   assert.equal(menuPayload.preferences.showPeakRank, true);
+});
+
+test('custom beam marker alone receives last-match RR while a hidden marker does not', () => {
+  const visible = buildOverlayPayload(snapshot, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayCustom: {
+      elements: [
+        { id: 'rrChange', visible: false }, { id: 'lastMatch', visible: false },
+        { id: 'rrBeam', visible: true, showMarker: true }
+      ]
+    }
+  }));
+  assert.equal(visible.preferences.showRrChange, true);
+  assert.equal(visible.session.lastMatchRR, snapshot.matches[0].rr);
+
+  const hidden = buildOverlayPayload(snapshot, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayCustom: {
+      elements: [
+        { id: 'rrChange', visible: false }, { id: 'lastMatch', visible: false },
+        { id: 'rrBeam', visible: true, showMarker: false }
+      ]
+    }
+  }));
+  assert.equal(hidden.preferences.showRrChange, false);
+  assert.equal(hidden.session.lastMatchRR, 0);
 });
 
 test('RR energy beam follows current rank rating from empty to full', () => {

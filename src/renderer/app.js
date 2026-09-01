@@ -832,7 +832,9 @@ function customOverlayEditorPreview() {
   const session = snapshot.analytics?.session || {};
   const live = snapshot.live || {};
   const matches = Array.isArray(snapshot.matches) ? snapshot.matches : [];
-  const recentMatch = matches.find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
+  const sessionMatchIds = new Set((session.matchIds || []).map(String));
+  const recentMatch = matches.find((match) => sessionMatchIds.has(String(match?.id || ''))
+    && ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const self = (live.players || []).find((player) => player?.isSelf) || {};
   const hasProfile = Boolean(profile.gameName || profile.rank);
   const rr = Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 42;
