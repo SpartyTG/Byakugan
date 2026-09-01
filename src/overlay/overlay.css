@@ -430,6 +430,15 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
 .layout-reactive.hide-rank-footer .last-match-strip { display: none; }
 .layout-reactive.hide-identity .player-copy small { display: block; }
 
+@media (max-width: 420px) {
+  .layout-reactive.reactive-compact .reactive-menu-panel { right: 8px; width: 176px; }
+  .layout-reactive.reactive-compact .reactive-menu-session { grid-template-columns: 1.25fr .75fr; }
+  .layout-reactive.reactive-compact .player-block { padding-right: 184px; }
+  .layout-reactive.reactive-compact .rank-emblem { width: 52px; height: 52px; }
+  .layout-reactive.reactive-compact .rank-emblem span { width: 44px; height: 44px; }
+  .layout-reactive.reactive-compact .player-copy strong { font-size: 18px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .layout-rank .last-match-strip::before, .layout-reactive .last-match-strip::before, .layout-reactive.reactive-awakening, .layout-reactive .eye-mark { animation: none; }
   .layout-reactive, .layout-reactive *, .layout-reactive *::before, .layout-reactive *::after { transition-duration: .01ms !important; }
