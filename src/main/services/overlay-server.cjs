@@ -95,17 +95,21 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     : 'horizontal';
   const customOverlay = normalizeCustomOverlay(settings.streamOverlayCustom);
   const custom = layout === 'custom';
+  const customReactiveDock = custom && (
+    customElementVisible(customOverlay, 'reactiveBetween')
+    || customElementVisible(customOverlay, 'reactiveInGame')
+  );
   const showIdentity = custom ? customElementVisible(customOverlay, 'playerName') : Boolean(settings.streamOverlayShowIdentity);
-  const showWl = custom ? customElementVisible(customOverlay, 'sessionWL') : settings.streamOverlayShowWl !== false;
-  const showKd = custom ? customElementVisible(customOverlay, 'sessionKD') : settings.streamOverlayShowKd !== false;
+  const showWl = custom ? customElementVisible(customOverlay, 'sessionWL') || customReactiveDock : settings.streamOverlayShowWl !== false;
+  const showKd = custom ? customElementVisible(customOverlay, 'sessionKD') || customReactiveDock : settings.streamOverlayShowKd !== false;
   const showAgent = custom ? customElementVisible(customOverlay, 'agent') : settings.streamOverlayShowAgent !== false;
   const showMap = custom ? customElementVisible(customOverlay, 'map') : settings.streamOverlayShowMap !== false;
   const showRR = custom
-    ? customElementVisible(customOverlay, 'currentRR') || customElementVisible(customOverlay, 'rrBeam')
+    ? customElementVisible(customOverlay, 'currentRR') || customElementVisible(customOverlay, 'rrBeam') || customReactiveDock
     : settings.streamOverlayShowRR !== false;
-  const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank') : settings.streamOverlayShowPeakRank !== false;
+  const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank') || customReactiveDock : settings.streamOverlayShowPeakRank !== false;
   const showRrChange = custom
-    ? customElementVisible(customOverlay, 'rrChange') || customElementVisible(customOverlay, 'lastMatch')
+    ? customElementVisible(customOverlay, 'rrChange') || customElementVisible(customOverlay, 'lastMatch') || customReactiveDock
     : settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const recentMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};

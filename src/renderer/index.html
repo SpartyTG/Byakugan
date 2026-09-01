@@ -326,7 +326,7 @@
               </div>
               <div class="custom-builder-workspace">
                 <aside class="custom-element-palette"><small>ELEMENTS</small><div id="customElementPalette"></div></aside>
-                <div class="custom-stage-shell"><div class="custom-editor-canvas" id="customEditorCanvas"></div><small>Drag an element to move it. Drag its lower-right handle to resize.</small></div>
+                <div class="custom-stage-shell"><div class="custom-editor-canvas" id="customEditorCanvas"></div><small><b id="customCanvasPreviewSize">960 × 360 canvas</b><span>Drag an element to move it. Drag its lower-right handle to resize.</span></small></div>
                 <aside class="custom-element-inspector" id="customElementInspector">
                   <small>SELECTED ELEMENT</small>
                   <strong id="customSelectedElement">Choose an element</strong>
@@ -338,6 +338,7 @@
                   <label><span>Opacity</span><input type="range" id="customElementOpacity" min="10" max="100" step="5"><output id="customElementOpacityValue">100%</output></label>
                   <label><span>Alignment</span><select id="customElementAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
                   <label><span>Text color</span><input type="color" id="customElementColor" value="#ffffff"></label>
+                  <button type="button" class="ghost-button custom-reset-selected" id="resetSelectedCustomElement">Reset selected element</button>
                 </aside>
               </div>
               <p class="custom-builder-note">Changes save automatically. The canvas dimensions shown above are the exact Width and Height to enter in OBS.</p>

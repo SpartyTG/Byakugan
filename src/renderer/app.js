@@ -32,7 +32,8 @@ const OVERLAY_DIMENSIONS = Object.freeze({
 const CUSTOM_OVERLAY_LABELS = Object.freeze({
   branding: 'BYAKUGAN branding', playerName: 'Riot name', currentRank: 'Current rank', currentRR: 'Current RR',
   peakRank: 'Peak rank', sessionWL: 'Session W/L', sessionKD: 'Session K/D', rrChange: 'Session RR change',
-  lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam'
+  lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam',
+  reactiveBetween: 'Reactive Dock — Between games', reactiveInGame: 'Reactive Dock — In game'
 });
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
   width: 960, height: 360, backgroundColor: '#0b0d1d',
@@ -42,7 +43,8 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['peakRank',true,58,44,39,17,20,100,'left','#eeeaff'], ['sessionWL',true,3,48,22,14,25,100,'left','#ffffff'],
     ['sessionKD',true,27,48,18,14,25,100,'left','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
     ['lastMatch',true,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
-    ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff']
+    ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff'],
+    ['reactiveBetween',false,3,3,94,42,18,100,'left','#ffffff'], ['reactiveInGame',false,3,55,94,36,18,100,'left','#ffffff']
   ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color }))
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -802,9 +804,19 @@ function customEditorCopy(label, value, detail = '') {
 
 function customEditorIcon(url, fallback, extraClass = '') {
   const image = safeImage(url);
-  return image
-    ? `<img class="custom-editor-icon ${extraClass}" src="${image}" alt="">`
-    : `<span class="custom-editor-icon-fallback ${extraClass}">${escapeHtml(fallback)}</span>`;
+  return `<span class="custom-editor-icon-shell ${extraClass}"><span class="custom-editor-icon-fallback">${escapeHtml(fallback)}</span>${image ? `<img class="custom-editor-icon" src="${image}" alt="">` : ''}</span>`;
+}
+
+function customEditorBeam(preview) {
+  return `<span class="custom-editor-beam-fill"><img src="../overlay/rr-energy-beam.gif" alt=""></span><strong class="custom-editor-beam-marker">${escapeHtml(preview.rr)} RR</strong>`;
+}
+
+function customEditorReactiveBetween(preview) {
+  return `<span class="custom-editor-state-tag">BETWEEN GAMES</span><span class="custom-reactive-between-grid"><span class="custom-reactive-last">${customEditorCopy('LAST MATCH', customEditorSigned(preview.lastRR, ' RR'), preview.lastResult)}</span><span class="custom-reactive-session">${customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`)}${customEditorCopy('K/D', preview.kd)}</span><span class="custom-reactive-ranks"><span>${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank, `${preview.rr} RR`)}</span><span>${customEditorIcon(preview.peakRankImage, initials(preview.peakRank))}${customEditorCopy('ALL-TIME PEAK', preview.peakRank, preview.peakContext)}</span></span><span class="custom-reactive-beam">${customEditorBeam(preview)}</span></span>`;
+}
+
+function customEditorReactiveInGame(preview) {
+  return `<span class="custom-editor-state-tag">IN GAME</span><span class="custom-reactive-ingame-grid"><span class="custom-reactive-player">${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank)}</span><span class="custom-reactive-session">${customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`)}${customEditorCopy('K/D', preview.kd)}</span><span class="custom-reactive-beam">${customEditorBeam(preview)}</span></span>`;
 }
 
 function customOverlayEditorPreview() {
@@ -852,7 +864,9 @@ function customOverlayEditorMarkup(id, preview) {
   if (id === 'lastMatch') return customEditorCopy('LAST MATCH', preview.lastResult, customEditorSigned(preview.lastRR, ' RR'));
   if (id === 'agent') return `${customEditorIcon(preview.agentImage, initials(preview.agent), 'custom-editor-agent-icon')}${customEditorCopy('AGENT', preview.agent)}`;
   if (id === 'map') return customEditorCopy('CURRENT MAP', preview.map, preview.liveLabel);
-  if (id === 'rrBeam') return `<span class="custom-editor-beam-fill"><img src="../overlay/rr-energy-beam.gif" alt=""></span><strong class="custom-editor-beam-marker">${escapeHtml(preview.rr)} RR</strong>`;
+  if (id === 'rrBeam') return customEditorBeam(preview);
+  if (id === 'reactiveBetween') return customEditorReactiveBetween(preview);
+  if (id === 'reactiveInGame') return customEditorReactiveInGame(preview);
   return '';
 }
 
@@ -876,6 +890,17 @@ function renderCustomInspector(config) {
   $('#customElementColor').value = element.color;
 }
 
+function customPaletteRow(element) {
+  return `<div class="custom-palette-item ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-select="${element.id}"><input type="checkbox" data-custom-visible="${element.id}" ${element.visible ? 'checked' : ''} aria-label="Show ${escapeHtml(CUSTOM_OVERLAY_LABELS[element.id])}"><span>${escapeHtml(CUSTOM_OVERLAY_LABELS[element.id])}</span><button type="button" data-custom-reset="${element.id}" title="Reset only ${escapeHtml(CUSTOM_OVERLAY_LABELS[element.id])}">↺</button></div>`;
+}
+
+function customReactivePalette(config) {
+  const between = config.elements.find((element) => element.id === 'reactiveBetween');
+  const inGame = config.elements.find((element) => element.id === 'reactiveInGame');
+  const enabled = Boolean(between?.visible || inGame?.visible);
+  return `<div class="custom-palette-item custom-reactive-toggle ${enabled ? 'enabled' : ''}"><input type="checkbox" data-custom-reactive-visible ${enabled ? 'checked' : ''} aria-label="Show custom Reactive Vision Dock"><span>Reactive Vision Dock</span></div>${enabled ? `<div class="custom-reactive-palette-children"><div class="custom-palette-item ${state.customOverlaySelectedId === 'reactiveBetween' ? 'selected' : ''}" data-custom-select="reactiveBetween"><span>Between games</span><button type="button" data-custom-reset="reactiveBetween" title="Reset only the between-games dock">↺</button></div><div class="custom-palette-item ${state.customOverlaySelectedId === 'reactiveInGame' ? 'selected' : ''}" data-custom-select="reactiveInGame"><span>In game</span><button type="button" data-custom-reset="reactiveInGame" title="Reset only the in-game dock">↺</button></div></div>` : ''}`;
+}
+
 function renderCustomOverlayBuilder() {
   if (!state.settings || state.settings.streamOverlayLayout !== 'custom') return;
   const config = state.settings.streamOverlayCustom || cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY);
@@ -883,18 +908,21 @@ function renderCustomOverlayBuilder() {
   $('#customOverlayHeight').value = String(config.height);
   $('#customOverlayBackgroundColor').value = config.backgroundColor;
 
-  $('#customElementPalette').innerHTML = config.elements.map((element) => `<label class="custom-palette-item ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-select="${element.id}"><input type="checkbox" data-custom-visible="${element.id}" ${element.visible ? 'checked' : ''}><span>${escapeHtml(CUSTOM_OVERLAY_LABELS[element.id])}</span></label>`).join('');
+  const regularElements = config.elements.filter((element) => !['reactiveBetween', 'reactiveInGame'].includes(element.id));
+  $('#customElementPalette').innerHTML = `${regularElements.map(customPaletteRow).join('')}${customReactivePalette(config)}`;
 
   const stage = $('.custom-stage-shell');
   const canvas = $('#customEditorCanvas');
-  const availableWidth = Math.max(300, stage.clientWidth - 26);
-  const availableHeight = Math.max(210, stage.clientHeight - 48);
-  const scale = Math.min(1, availableWidth / config.width, availableHeight / config.height);
+  const availableWidth = Math.max(300, stage.getBoundingClientRect().width - 26);
+  const availableHeight = Math.max(260, Math.min(560, window.innerHeight * .55));
+  const scale = Math.min(availableWidth / config.width, availableHeight / config.height);
   const preview = customOverlayEditorPreview();
   canvas.style.width = `${Math.round(config.width * scale)}px`;
   canvas.style.height = `${Math.round(config.height * scale)}px`;
   canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
-  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${element.id === 'rrBeam' && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;font-size:${Math.max(6,Math.min(18,element.fontSize * scale))}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
+  canvas.setAttribute('aria-label', `Custom overlay canvas ${config.width} by ${config.height}`);
+  text('#customCanvasPreviewSize', `${config.width} × ${config.height} canvas • ${Math.round(scale * 100)}% preview`);
+  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${['rrBeam', 'reactiveBetween', 'reactiveInGame'].includes(element.id) && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
   renderCustomInspector(config);
   renderOverlayDimensions('custom');
 }
@@ -914,6 +942,18 @@ function updateSelectedCustomElement(property, rawValue) {
   else element[property] = rawValue;
   state.settings.streamOverlayCustom = config;
   renderCustomOverlayBuilder();
+  return config;
+}
+
+function resetCustomElement(id) {
+  const config = cloneCustomOverlay();
+  const element = config.elements.find((entry) => entry.id === id);
+  const fallback = DEFAULT_CUSTOM_OVERLAY.elements.find((entry) => entry.id === id);
+  if (!element || !fallback) return null;
+  const visible = element.visible;
+  Object.assign(element, JSON.parse(JSON.stringify(fallback)), { visible });
+  state.customOverlaySelectedId = id;
+  state.settings.streamOverlayCustom = config;
   return config;
 }
 
@@ -965,7 +1005,8 @@ function beginCustomElementDrag(event) {
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', end, { once: true });
   window.addEventListener('pointercancel', end, { once: true });
-  renderCustomOverlayBuilder();
+  $$('.custom-editor-item', $('#customEditorCanvas')).forEach((node) => node.classList.toggle('selected', node.dataset.customElement === id));
+  renderCustomInspector(config);
 }
 
 function renderRemoteStatus(status = {}) {
@@ -1306,6 +1347,26 @@ function bindEvents() {
     saveSettingsPatch({ streamOverlayLayout: event.target.value }, false);
   });
   $('#customElementPalette').addEventListener('click', async (event) => {
+    const reset = event.target.closest('[data-custom-reset]');
+    if (reset) {
+      event.preventDefault();
+      event.stopPropagation();
+      const config = resetCustomElement(reset.dataset.customReset);
+      if (config) await persistCustomOverlay(config, true);
+      return;
+    }
+    const reactiveToggle = event.target.closest('[data-custom-reactive-visible]');
+    if (reactiveToggle) {
+      const config = cloneCustomOverlay();
+      for (const id of ['reactiveBetween', 'reactiveInGame']) {
+        const element = config.elements.find((entry) => entry.id === id);
+        if (element) element.visible = reactiveToggle.checked;
+      }
+      if (reactiveToggle.checked) state.customOverlaySelectedId = 'reactiveBetween';
+      state.settings.streamOverlayCustom = config;
+      await persistCustomOverlay(config);
+      return;
+    }
     const option = event.target.closest('[data-custom-select]');
     if (!option) return;
     state.customOverlaySelectedId = option.dataset.customSelect;
@@ -1320,6 +1381,16 @@ function bindEvents() {
     }
   });
   $('#customEditorCanvas').addEventListener('pointerdown', beginCustomElementDrag);
+  for (const [id, property, minimum, maximum] of [['customOverlayWidth', 'width', 320, 1920], ['customOverlayHeight', 'height', 120, 1080]]) {
+    $(`#${id}`).addEventListener('input', (event) => {
+      const value = Number(event.target.value);
+      if (!Number.isFinite(value) || value < minimum || value > maximum) return;
+      const config = cloneCustomOverlay();
+      config[property] = value;
+      state.settings.streamOverlayCustom = config;
+      renderCustomOverlayBuilder();
+    });
+  }
   $('#customOverlayWidth').addEventListener('change', async (event) => {
     const config = cloneCustomOverlay();
     config.width = Number(event.target.value);
@@ -1344,6 +1415,9 @@ function bindEvents() {
     customElementFontSize: 'fontSize', customElementOpacity: 'opacity', customElementAlign: 'align', customElementColor: 'color'
   };
   for (const [id, property] of Object.entries(customInspectorFields)) {
+    if (['x', 'y', 'width', 'height', 'fontSize'].includes(property)) {
+      $(`#${id}`).addEventListener('input', (event) => updateSelectedCustomElement(property, event.target.value));
+    }
     $(`#${id}`).addEventListener('change', async (event) => {
       const config = updateSelectedCustomElement(property, event.target.value);
       if (config) await persistCustomOverlay(config);
@@ -1352,6 +1426,10 @@ function bindEvents() {
   $('#customElementOpacity').addEventListener('input', (event) => {
     text('#customElementOpacityValue', `${event.target.value}%`);
     updateSelectedCustomElement('opacity', event.target.value);
+  });
+  $('#resetSelectedCustomElement').addEventListener('click', async () => {
+    const config = resetCustomElement(state.customOverlaySelectedId);
+    if (config) await persistCustomOverlay(config, true);
   });
   $('#resetCustomOverlay').addEventListener('click', async () => {
     state.customOverlaySelectedId = 'branding';

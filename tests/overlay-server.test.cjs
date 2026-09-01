@@ -131,6 +131,32 @@ test('custom overlay derives privacy fields from its own element visibility', ()
   assert.equal(payload.preferences.showIdentity, true);
 });
 
+test('custom Reactive Vision receives the personal fields used by both state bars', () => {
+  const payload = buildOverlayPayload(snapshot, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayCustom: {
+      elements: [
+        { id: 'sessionWL', visible: false },
+        { id: 'sessionKD', visible: false },
+        { id: 'currentRR', visible: false },
+        { id: 'peakRank', visible: false },
+        { id: 'rrChange', visible: false },
+        { id: 'lastMatch', visible: false },
+        { id: 'rrBeam', visible: false },
+        { id: 'reactiveBetween', visible: true },
+        { id: 'reactiveInGame', visible: true }
+      ]
+    }
+  }));
+  assert.equal(payload.preferences.showWl, true);
+  assert.equal(payload.preferences.showKd, true);
+  assert.equal(payload.preferences.showRR, true);
+  assert.equal(payload.preferences.showPeakRank, true);
+  assert.equal(payload.preferences.showRrChange, true);
+  assert.equal(payload.session.games, 3);
+  assert.equal(payload.session.lastMatchResult, 'VICTORY');
+});
+
 test('RR energy beam follows current rank rating from empty to full', () => {
   assert.equal(rrBeamProgress(0), 0);
   assert.equal(rrBeamProgress(42), 42);

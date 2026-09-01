@@ -2,7 +2,8 @@
 
 const CUSTOM_ELEMENT_TYPES = Object.freeze([
   'branding', 'playerName', 'currentRank', 'currentRR', 'peakRank',
-  'sessionWL', 'sessionKD', 'rrChange', 'lastMatch', 'agent', 'map', 'rrBeam'
+  'sessionWL', 'sessionKD', 'rrChange', 'lastMatch', 'agent', 'map', 'rrBeam',
+  'reactiveBetween', 'reactiveInGame'
 ]);
 
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
@@ -21,7 +22,9 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     { id: 'lastMatch', visible: true, x: 58, y: 65, width: 38, height: 13, fontSize: 20, opacity: 100, align: 'right', color: '#ffffff' },
     { id: 'agent', visible: false, x: 3, y: 65, width: 20, height: 27, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
     { id: 'map', visible: false, x: 25, y: 69, width: 20, height: 16, fontSize: 22, opacity: 100, align: 'left', color: '#ffffff' },
-    { id: 'rrBeam', visible: true, x: 3, y: 82, width: 94, height: 13, fontSize: 16, opacity: 100, align: 'left', color: '#70dfff' }
+    { id: 'rrBeam', visible: true, x: 3, y: 82, width: 94, height: 13, fontSize: 16, opacity: 100, align: 'left', color: '#70dfff' },
+    { id: 'reactiveBetween', visible: false, x: 3, y: 3, width: 94, height: 42, fontSize: 18, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'reactiveInGame', visible: false, x: 3, y: 55, width: 94, height: 36, fontSize: 18, opacity: 100, align: 'left', color: '#ffffff' }
   ])
 });
 

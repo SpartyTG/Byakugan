@@ -109,13 +109,54 @@ function customCopy(label, value, detail = '') {
 }
 
 function customImage(url, fallback, className = 'custom-icon') {
+  const shell = customNode('span', `custom-icon-shell ${className === 'custom-agent-image' ? 'custom-agent-shell' : ''}`);
+  shell.append(customNode('span', 'custom-icon-fallback', fallback));
   if (url) {
-    const image = customNode('img', className);
+    const image = customNode('img', `custom-icon-image ${className}`);
     image.src = url;
     image.alt = '';
-    return image;
+    shell.append(image);
   }
-  return customNode('span', 'custom-icon-fallback', fallback);
+  return shell;
+}
+
+function customBeam(player, session) {
+  const track = customNode('span', 'custom-reactive-beam');
+  const fill = customNode('span', 'custom-beam-fill');
+  const beam = customNode('img');
+  beam.src = '/rr-energy-beam.gif';
+  beam.alt = '';
+  fill.append(beam);
+  track.style.setProperty('--custom-beam-progress', `${Math.max(0, Math.min(100, Number(session.beamProgress) || 0))}%`);
+  track.append(fill, customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
+  return track;
+}
+
+function customReactiveBetween(item, player, session) {
+  const grid = customNode('span', 'custom-reactive-between-grid');
+  const last = customNode('span', 'custom-reactive-last');
+  last.append(customCopy('LAST MATCH', signed(session.lastMatchRR, ' RR'), session.lastMatchResult || 'NO MATCH'));
+  const performance = customNode('span', 'custom-reactive-session');
+  performance.append(customCopy('SESSION W / L', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`), customCopy('K/D', Number(session.kd || 0).toFixed(2)));
+  const ranks = customNode('span', 'custom-reactive-ranks');
+  const current = customNode('span');
+  current.append(customImage(player.rankImage, initials(player.rank)), customCopy('CURRENT RANK', player.rank || 'UNRATED', `${Number(player.rr) || 0} RR`));
+  const peak = customNode('span');
+  const season = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
+  peak.append(customImage(player.peakRankImage, initials(player.peakRank)), customCopy('ALL-TIME PEAK', player.peakRank || 'UNRATED', season));
+  ranks.append(current, peak);
+  grid.append(last, performance, ranks, customBeam(player, session));
+  item.append(grid);
+}
+
+function customReactiveInGame(item, player, session) {
+  const grid = customNode('span', 'custom-reactive-ingame-grid');
+  const current = customNode('span', 'custom-reactive-player');
+  current.append(customImage(player.rankImage, initials(player.rank)), customCopy('CURRENT RANK', player.rank || 'UNRATED'));
+  const performance = customNode('span', 'custom-reactive-session');
+  performance.append(customCopy('SESSION W / L', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`), customCopy('K/D', Number(session.kd || 0).toFixed(2)));
+  grid.append(current, performance, customBeam(player, session));
+  item.append(grid);
 }
 
 function rgbaFromHex(value, opacity) {
@@ -169,6 +210,9 @@ function renderCustomOverlay(data, player, session, live, appearance) {
 
   for (const element of config.elements || []) {
     if (!element.visible) continue;
+    const compact = isReactiveCompactState(live.state);
+    if (!previewMode && element.id === 'reactiveBetween' && compact) continue;
+    if (!previewMode && element.id === 'reactiveInGame' && !compact) continue;
     const item = customNode('div', `custom-overlay-item custom-${element.id} align-${element.align}`);
     item.style.left = `${element.x}%`;
     item.style.top = `${element.y}%`;
@@ -210,6 +254,10 @@ function renderCustomOverlay(data, player, session, live, appearance) {
       fill.append(beam);
       item.style.setProperty('--custom-beam-progress', `${Math.max(0, Math.min(100, Number(session.beamProgress) || 0))}%`);
       item.append(fill, customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
+    } else if (element.id === 'reactiveBetween') {
+      customReactiveBetween(item, player, session);
+    } else if (element.id === 'reactiveInGame') {
+      customReactiveInGame(item, player, session);
     }
     canvas.append(item);
   }

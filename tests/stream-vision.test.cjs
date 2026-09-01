@@ -43,6 +43,8 @@ test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and
   assert.match(html, /id="customElementFontSize"/);
   assert.match(html, /id="customElementColor"/);
   assert.match(html, /id="customOverlayAnimatedRrBeam"/);
+  assert.match(html, /id="resetSelectedCustomElement"/);
   assert.match(app, /beginCustomElementDrag/);
   assert.match(app, /persistCustomOverlay/);
+  assert.match(app, /Reactive Vision Dock/);
 });
