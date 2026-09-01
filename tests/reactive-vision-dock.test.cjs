@@ -18,6 +18,7 @@ test('Reactive Vision Dock compacts for agent select and live games', () => {
 
 test('compact Reactive Vision Dock remains legible at webcam width', () => {
   assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*21px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*overflow:\s*visible[^}]*text-overflow:\s*clip/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy em[^}]*display:\s*none/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-panel[^}]*right:\s*26px[^}]*width:\s*190px/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-session > small[^}]*font-size:\s*9px/);

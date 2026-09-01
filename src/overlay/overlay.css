@@ -395,7 +395,7 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
 .layout-reactive.reactive-compact .rank-emblem { width: 58px; height: 58px; }
 .layout-reactive.reactive-compact .rank-emblem span { width: 48px; height: 48px; border-radius: 9px; }
 .layout-reactive.reactive-compact .player-copy small { font-size: 7px; }
-.layout-reactive.reactive-compact .player-copy strong { margin-top: 3px; font-size: 21px; }
+.layout-reactive.reactive-compact .player-copy strong { max-width: none; overflow: visible; margin-top: 3px; font-size: 21px; text-overflow: clip; }
 .layout-reactive.reactive-compact .player-copy em { display: none; }
 .layout-reactive.reactive-compact .peak-rank-line { max-height: 0; margin: 0; opacity: 0; transform: translateY(-4px); overflow: hidden; }
 .layout-reactive.reactive-compact .rank-last-match-record { max-width: 0; flex-basis: 0; margin: 0; padding: 0; border: 0; opacity: 0; transform: translateX(12px); }
