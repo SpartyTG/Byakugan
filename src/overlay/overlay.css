@@ -475,7 +475,7 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
 .layout-custom.beam-static .custom-beam-fill { border-radius: 999px; background: linear-gradient(90deg,#6954e2,#3ed4e1); }
 .layout-custom.beam-empty .custom-beam-fill { width: 0 !important; }
 .layout-custom.is-offline .custom-overlay-canvas { filter: saturate(.55); }
-.custom-overlay-item.custom-reactiveBetween, .custom-overlay-item.custom-reactiveInGame { padding: 0; border-color: rgba(56,230,193,.22); border-radius: .72em; background: linear-gradient(115deg,rgba(12,12,31,.96),rgba(5,17,25,.94)); }
+.custom-overlay-item.custom-reactiveDock { padding: 0; border-color: rgba(56,230,193,.22); border-radius: .72em; background: linear-gradient(115deg,rgba(12,12,31,.96),rgba(5,17,25,.94)); }
 .custom-reactive-between-grid, .custom-reactive-ingame-grid { position: absolute; inset: 0; display: grid; overflow: hidden; border-radius: inherit; }
 .custom-reactive-between-grid { grid-template-columns: 38% 62%; grid-template-rows: 66% 34%; }
 .custom-reactive-between-grid::after, .custom-reactive-ingame-grid::after { content: ""; position: absolute; inset: auto 0 0; height: .13em; background: linear-gradient(90deg,var(--violet-soft),var(--teal)); opacity: .7; }

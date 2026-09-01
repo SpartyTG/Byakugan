@@ -13,6 +13,7 @@ const state = {
   openPlayerId: '',
   selectedSynergyFriendId: '',
   customOverlaySelectedId: 'branding',
+  customReactivePreviewState: 'between',
   overlayStatus: null,
   remoteStatus: null,
   updateStatus: null
@@ -33,7 +34,7 @@ const CUSTOM_OVERLAY_LABELS = Object.freeze({
   branding: 'BYAKUGAN branding', playerName: 'Riot name', currentRank: 'Current rank', currentRR: 'Current RR',
   peakRank: 'Peak rank', sessionWL: 'Session W/L', sessionKD: 'Session K/D', rrChange: 'Session RR change',
   lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam',
-  reactiveBetween: 'Reactive Dock — Between games', reactiveInGame: 'Reactive Dock — In game'
+  reactiveDock: 'Reactive Vision Dock'
 });
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
   width: 960, height: 360, backgroundColor: '#0b0d1d',
@@ -44,7 +45,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['sessionKD',true,27,48,18,14,25,100,'left','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
     ['lastMatch',true,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
     ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff'],
-    ['reactiveBetween',false,3,3,94,42,18,100,'left','#ffffff'], ['reactiveInGame',false,3,55,94,36,18,100,'left','#ffffff']
+    ['reactiveDock',false,3,55,94,36,18,100,'left','#ffffff']
   ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color }))
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -865,8 +866,9 @@ function customOverlayEditorMarkup(id, preview) {
   if (id === 'agent') return `${customEditorIcon(preview.agentImage, initials(preview.agent), 'custom-editor-agent-icon')}${customEditorCopy('AGENT', preview.agent)}`;
   if (id === 'map') return customEditorCopy('CURRENT MAP', preview.map, preview.liveLabel);
   if (id === 'rrBeam') return customEditorBeam(preview);
-  if (id === 'reactiveBetween') return customEditorReactiveBetween(preview);
-  if (id === 'reactiveInGame') return customEditorReactiveInGame(preview);
+  if (id === 'reactiveDock') return state.customReactivePreviewState === 'ingame'
+    ? customEditorReactiveInGame(preview)
+    : customEditorReactiveBetween(preview);
   return '';
 }
 
@@ -895,10 +897,9 @@ function customPaletteRow(element) {
 }
 
 function customReactivePalette(config) {
-  const between = config.elements.find((element) => element.id === 'reactiveBetween');
-  const inGame = config.elements.find((element) => element.id === 'reactiveInGame');
-  const enabled = Boolean(between?.visible || inGame?.visible);
-  return `<div class="custom-palette-item custom-reactive-toggle ${enabled ? 'enabled' : ''}"><input type="checkbox" data-custom-reactive-visible ${enabled ? 'checked' : ''} aria-label="Show custom Reactive Vision Dock"><span>Reactive Vision Dock</span></div>${enabled ? `<div class="custom-reactive-palette-children"><div class="custom-palette-item ${state.customOverlaySelectedId === 'reactiveBetween' ? 'selected' : ''}" data-custom-select="reactiveBetween"><span>Between games</span><button type="button" data-custom-reset="reactiveBetween" title="Reset only the between-games dock">↺</button></div><div class="custom-palette-item ${state.customOverlaySelectedId === 'reactiveInGame' ? 'selected' : ''}" data-custom-select="reactiveInGame"><span>In game</span><button type="button" data-custom-reset="reactiveInGame" title="Reset only the in-game dock">↺</button></div></div>` : ''}`;
+  const element = config.elements.find((entry) => entry.id === 'reactiveDock');
+  const enabled = Boolean(element?.visible);
+  return `<div class="custom-palette-item custom-reactive-toggle ${enabled ? 'enabled' : ''} ${state.customOverlaySelectedId === 'reactiveDock' ? 'selected' : ''}" data-custom-select="reactiveDock"><input type="checkbox" data-custom-reactive-visible ${enabled ? 'checked' : ''} aria-label="Show custom Reactive Vision Dock"><span>Reactive Vision Dock</span><button type="button" data-custom-reset="reactiveDock" title="Reset only the Reactive Vision Dock">↺</button></div>${enabled ? `<div class="custom-reactive-preview-switch" aria-label="Reactive Vision preview state"><small>PREVIEW STATE</small><button type="button" data-custom-reactive-preview="between" class="${state.customReactivePreviewState === 'between' ? 'active' : ''}">Between games</button><button type="button" data-custom-reactive-preview="ingame" class="${state.customReactivePreviewState === 'ingame' ? 'active' : ''}">In game</button></div>` : ''}`;
 }
 
 function renderCustomOverlayBuilder() {
@@ -908,7 +909,7 @@ function renderCustomOverlayBuilder() {
   $('#customOverlayHeight').value = String(config.height);
   $('#customOverlayBackgroundColor').value = config.backgroundColor;
 
-  const regularElements = config.elements.filter((element) => !['reactiveBetween', 'reactiveInGame'].includes(element.id));
+  const regularElements = config.elements.filter((element) => element.id !== 'reactiveDock');
   $('#customElementPalette').innerHTML = `${regularElements.map(customPaletteRow).join('')}${customReactivePalette(config)}`;
 
   const stage = $('.custom-stage-shell');
@@ -922,7 +923,7 @@ function renderCustomOverlayBuilder() {
   canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
   canvas.setAttribute('aria-label', `Custom overlay canvas ${config.width} by ${config.height}`);
   text('#customCanvasPreviewSize', `${config.width} × ${config.height} canvas • ${Math.round(scale * 100)}% preview`);
-  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${['rrBeam', 'reactiveBetween', 'reactiveInGame'].includes(element.id) && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
+  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${['rrBeam', 'reactiveDock'].includes(element.id) && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
   renderCustomInspector(config);
   renderOverlayDimensions('custom');
 }
@@ -1355,14 +1356,19 @@ function bindEvents() {
       if (config) await persistCustomOverlay(config, true);
       return;
     }
+    const reactivePreview = event.target.closest('[data-custom-reactive-preview]');
+    if (reactivePreview) {
+      state.customReactivePreviewState = reactivePreview.dataset.customReactivePreview === 'ingame' ? 'ingame' : 'between';
+      state.customOverlaySelectedId = 'reactiveDock';
+      renderCustomOverlayBuilder();
+      return;
+    }
     const reactiveToggle = event.target.closest('[data-custom-reactive-visible]');
     if (reactiveToggle) {
       const config = cloneCustomOverlay();
-      for (const id of ['reactiveBetween', 'reactiveInGame']) {
-        const element = config.elements.find((entry) => entry.id === id);
-        if (element) element.visible = reactiveToggle.checked;
-      }
-      if (reactiveToggle.checked) state.customOverlaySelectedId = 'reactiveBetween';
+      const element = config.elements.find((entry) => entry.id === 'reactiveDock');
+      if (element) element.visible = reactiveToggle.checked;
+      if (reactiveToggle.checked) state.customOverlaySelectedId = 'reactiveDock';
       state.settings.streamOverlayCustom = config;
       await persistCustomOverlay(config);
       return;

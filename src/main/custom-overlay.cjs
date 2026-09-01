@@ -3,7 +3,7 @@
 const CUSTOM_ELEMENT_TYPES = Object.freeze([
   'branding', 'playerName', 'currentRank', 'currentRR', 'peakRank',
   'sessionWL', 'sessionKD', 'rrChange', 'lastMatch', 'agent', 'map', 'rrBeam',
-  'reactiveBetween', 'reactiveInGame'
+  'reactiveDock'
 ]);
 
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
@@ -23,8 +23,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     { id: 'agent', visible: false, x: 3, y: 65, width: 20, height: 27, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
     { id: 'map', visible: false, x: 25, y: 69, width: 20, height: 16, fontSize: 22, opacity: 100, align: 'left', color: '#ffffff' },
     { id: 'rrBeam', visible: true, x: 3, y: 82, width: 94, height: 13, fontSize: 16, opacity: 100, align: 'left', color: '#70dfff' },
-    { id: 'reactiveBetween', visible: false, x: 3, y: 3, width: 94, height: 42, fontSize: 18, opacity: 100, align: 'left', color: '#ffffff' },
-    { id: 'reactiveInGame', visible: false, x: 3, y: 55, width: 94, height: 36, fontSize: 18, opacity: 100, align: 'left', color: '#ffffff' }
+    { id: 'reactiveDock', visible: false, x: 3, y: 55, width: 94, height: 36, fontSize: 18, opacity: 100, align: 'left', color: '#ffffff' }
   ])
 });
 
@@ -62,9 +61,16 @@ function normalizeCustomOverlay(value) {
     width: numberWithin(source.width, DEFAULT_CUSTOM_OVERLAY.width, 320, 1920),
     height: numberWithin(source.height, DEFAULT_CUSTOM_OVERLAY.height, 120, 1080),
     backgroundColor: safeColor(source.backgroundColor, DEFAULT_CUSTOM_OVERLAY.backgroundColor),
-    elements: DEFAULT_CUSTOM_OVERLAY.elements.map((fallback) => normalizeElement(
-      supplied.find((element) => element?.id === fallback.id), fallback
-    ))
+    elements: DEFAULT_CUSTOM_OVERLAY.elements.map((fallback) => {
+      let candidate = supplied.find((element) => element?.id === fallback.id);
+      if (fallback.id === 'reactiveDock' && !candidate) {
+        const between = supplied.find((element) => element?.id === 'reactiveBetween');
+        const inGame = supplied.find((element) => element?.id === 'reactiveInGame');
+        candidate = between || inGame;
+        if (candidate) candidate = { ...candidate, visible: Boolean(between?.visible || inGame?.visible) };
+      }
+      return normalizeElement(candidate, fallback);
+    })
   };
 }
 

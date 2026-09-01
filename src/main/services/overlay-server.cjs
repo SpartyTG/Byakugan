@@ -95,10 +95,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     : 'horizontal';
   const customOverlay = normalizeCustomOverlay(settings.streamOverlayCustom);
   const custom = layout === 'custom';
-  const customReactiveDock = custom && (
-    customElementVisible(customOverlay, 'reactiveBetween')
-    || customElementVisible(customOverlay, 'reactiveInGame')
-  );
+  const customReactiveDock = custom && customElementVisible(customOverlay, 'reactiveDock');
   const showIdentity = custom ? customElementVisible(customOverlay, 'playerName') : Boolean(settings.streamOverlayShowIdentity);
   const showWl = custom ? customElementVisible(customOverlay, 'sessionWL') || customReactiveDock : settings.streamOverlayShowWl !== false;
   const showKd = custom ? customElementVisible(customOverlay, 'sessionKD') || customReactiveDock : settings.streamOverlayShowKd !== false;

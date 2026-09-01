@@ -211,8 +211,6 @@ function renderCustomOverlay(data, player, session, live, appearance) {
   for (const element of config.elements || []) {
     if (!element.visible) continue;
     const compact = isReactiveCompactState(live.state);
-    if (!previewMode && element.id === 'reactiveBetween' && compact) continue;
-    if (!previewMode && element.id === 'reactiveInGame' && !compact) continue;
     const item = customNode('div', `custom-overlay-item custom-${element.id} align-${element.align}`);
     item.style.left = `${element.x}%`;
     item.style.top = `${element.y}%`;
@@ -254,10 +252,9 @@ function renderCustomOverlay(data, player, session, live, appearance) {
       fill.append(beam);
       item.style.setProperty('--custom-beam-progress', `${Math.max(0, Math.min(100, Number(session.beamProgress) || 0))}%`);
       item.append(fill, customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
-    } else if (element.id === 'reactiveBetween') {
-      customReactiveBetween(item, player, session);
-    } else if (element.id === 'reactiveInGame') {
-      customReactiveInGame(item, player, session);
+    } else if (element.id === 'reactiveDock') {
+      if (compact) customReactiveInGame(item, player, session);
+      else customReactiveBetween(item, player, session);
     }
     canvas.append(item);
   }

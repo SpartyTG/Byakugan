@@ -143,8 +143,7 @@ test('custom Reactive Vision receives the personal fields used by both state bar
         { id: 'rrChange', visible: false },
         { id: 'lastMatch', visible: false },
         { id: 'rrBeam', visible: false },
-        { id: 'reactiveBetween', visible: true },
-        { id: 'reactiveInGame', visible: true }
+        { id: 'reactiveDock', visible: true }
       ]
     }
   }));

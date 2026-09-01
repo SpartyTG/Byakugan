@@ -52,7 +52,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.60
+## Included in version 0.8.0-beta.61
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -81,13 +81,13 @@ registered trademarks of Riot Games, Inc.
 - Separate **Custom Overlay Builder** with a freeform high-resolution canvas, exact OBS Width and Height controls, drag placement, corner resizing, field visibility, text sizing, element opacity, alignment, text colors, canvas color, automatic saving, live preview, and one-click layout reset
 - Repaired Custom Overlay Builder geometry with CSP-approved position and size styles, captured pointer dragging, out-of-canvas pointer recovery, and persistent drag/resize placement
 - True visual Custom Overlay Builder components using live player data, rank/agent artwork, styled stat cards, BYAKUGAN branding, and the actual animated RR beam instead of placeholder option names
-- Fourteen custom live elements: BYAKUGAN branding, Riot name, current rank, current RR, all-time peak, session W/L, session K/D, session RR movement, last-match result, agent, map, animated RR beam, and the two Reactive Vision states
+- Thirteen custom live elements: BYAKUGAN branding, Riot name, current rank, current RR, all-time peak, session W/L, session K/D, session RR movement, last-match result, agent, map, animated RR beam, and one state-aware Reactive Vision Dock
 - Independent custom-canvas width and height scaling with an exact-dimension preview readout
 - Repeatable drag and resize interactions without rebuilding the selected element mid-pointer gesture
 - Live text-size editing without the former preview-size cap
 - Rank-emblem layers that retain a visible fallback while loading the current and peak rank artwork
 - Per-element reset controls that preserve every other custom placement and the selected element's visibility
-- Optional custom Reactive Vision Dock with separately editable between-games and in-game bars; both appear in previews while OBS automatically switches them with live game state
+- Optional custom Reactive Vision Dock that adds one editable bar; an editor switch previews its between-games and in-game contents while OBS changes that same bar automatically with live game state
 - Strict custom-layout validation clamps canvas and element geometry, rejects unknown fields and unsafe colors, and derives private data access only from the fields explicitly enabled in the custom design
 - Reactive Vision preview comparison that simultaneously renders the live-data **Between Games** and **In Game** docks in one taller preview window
 - Rebalanced Reactive Vision in-game dock with a larger RR beam and marker, larger session W/L and K/D, and slightly reduced rank-name text for clearer visual hierarchy at webcam width
@@ -196,7 +196,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.60-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.61-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -225,10 +225,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.60`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.61`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.60`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.61`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -236,8 +236,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.60
-git push origin v0.8.0-beta.60
+git tag v0.8.0-beta.61
+git push origin v0.8.0-beta.61
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
