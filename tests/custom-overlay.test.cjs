@@ -74,30 +74,31 @@ test('rank components keep a visible emblem layer and load the actual rank image
   assert.match(overlayStyles, /\.custom-overlay-item \.custom-icon-image/);
 });
 
-test('custom Reactive Vision uses one editable bar and switches its contents by game state', () => {
-  assert.ok(CUSTOM_ELEMENT_TYPES.includes('reactiveDock'));
-  assert.equal(CUSTOM_ELEMENT_TYPES.includes('reactiveBetween'), false);
-  assert.equal(CUSTOM_ELEMENT_TYPES.includes('reactiveInGame'), false);
+test('custom Reactive Vision turns the base canvas into between-games and adds an in-game canvas below', () => {
+  assert.equal(CUSTOM_ELEMENT_TYPES.includes('reactiveDock'), false);
   assert.match(rendererScript, /data-custom-reactive-visible/);
-  assert.match(rendererScript, /data-custom-reactive-preview/);
-  assert.match(rendererScript, /customEditorReactiveBetween/);
-  assert.match(rendererScript, /customEditorReactiveInGame/);
-  assert.match(overlayScript, /element\.id === 'reactiveDock'/);
-  assert.match(overlayScript, /if \(compact\) customReactiveInGame/);
-  assert.match(overlayScript, /else customReactiveBetween/);
-  assert.match(overlayStyles, /\.custom-reactive-between-grid/);
-  assert.match(overlayStyles, /\.custom-reactive-ingame-grid/);
+  assert.match(rendererHtml, /id="customEditorCanvas"[^>]*data-custom-canvas-state="between"/);
+  assert.match(rendererHtml, /id="customEditorCanvasInGame"[^>]*data-custom-canvas-state="ingame"/);
+  assert.match(rendererScript, /function customElementsForState/);
+  assert.match(rendererScript, /renderCustomEditorCanvas\(betweenCanvas, config\.elements/);
+  assert.match(rendererScript, /renderCustomEditorCanvas\(inGameCanvas, config\.inGameElements/);
+  assert.match(rendererScript, /config\.height \* 2/);
+  assert.match(overlayScript, /const elements = compact \? config\.inGameElements : config\.elements/);
+  assert.doesNotMatch(overlayScript, /element\.id === 'reactiveDock'/);
 });
 
-test('beta.60 dual Reactive Vision settings migrate into the single dock', () => {
+test('beta.60 and beta.61 Reactive Vision settings migrate into two-canvas mode', () => {
   const migrated = normalizeCustomOverlay({ elements: [
     { id: 'reactiveBetween', visible: true, x: 24, y: 3.8, width: 94, height: 42 },
     { id: 'reactiveInGame', visible: true, x: 3, y: 55, width: 94, height: 36 }
   ] });
-  const dock = migrated.elements.find((element) => element.id === 'reactiveDock');
-  assert.equal(dock.visible, true);
-  assert.equal(dock.x, 6);
-  assert.equal(dock.y, 3.8);
+  assert.equal(migrated.reactive, true);
+  assert.equal(migrated.elements.length, CUSTOM_ELEMENT_TYPES.length);
+  assert.equal(migrated.inGameElements.length, CUSTOM_ELEMENT_TYPES.length);
   assert.equal(migrated.elements.some((element) => element.id === 'reactiveBetween'), false);
   assert.equal(migrated.elements.some((element) => element.id === 'reactiveInGame'), false);
+
+  const beta61 = normalizeCustomOverlay({ elements: [{ id: 'reactiveDock', visible: true }] });
+  assert.equal(beta61.reactive, true);
+  assert.equal(beta61.elements.some((element) => element.id === 'reactiveDock'), false);
 });

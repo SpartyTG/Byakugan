@@ -79,7 +79,9 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(custom.streamOverlayCustom.width, 1920);
     assert.equal(custom.streamOverlayCustom.height, 120);
     assert.equal(custom.streamOverlayCustom.backgroundColor, '#0b0d1d');
-    assert.equal(custom.streamOverlayCustom.elements.length, 13);
+    assert.equal(custom.streamOverlayCustom.elements.length, 12);
+    assert.equal(custom.streamOverlayCustom.inGameElements.length, 12);
+    assert.equal(custom.streamOverlayCustom.reactive, false);
     const customName = custom.streamOverlayCustom.elements.find((element) => element.id === 'playerName');
     assert.equal(customName.visible, true);
     assert.equal(customName.x, 0);
@@ -87,7 +89,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(customName.opacity, 10);
     assert.equal(customName.align, 'left');
     assert.equal(customName.color, '#c9bcff');
-    assert.equal(custom.streamOverlayCustom.elements.find((element) => element.id === 'reactiveDock').visible, false);
+    assert.equal(custom.streamOverlayCustom.elements.some((element) => element.id === 'reactiveDock'), false);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

@@ -1,6 +1,6 @@
 {
   "name": "byakugan",
-  "version": "0.8.0-beta.61",
+  "version": "0.8.0-beta.62",
   "description": "BYAKUGAN — a VALORANT performance, post-game analysis, and streaming companion.",
   "main": "src/main/index.cjs",
   "author": "Tyler Ganza (Spartan)",
@@ -51,7 +51,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

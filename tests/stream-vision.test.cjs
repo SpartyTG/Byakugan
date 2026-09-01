@@ -38,6 +38,7 @@ test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and
   assert.match(html, /id="customOverlayWidth"/);
   assert.match(html, /id="customOverlayHeight"/);
   assert.match(html, /id="customEditorCanvas"/);
+  assert.match(html, /id="customEditorCanvasInGame"/);
   assert.match(html, /id="customElementPalette"/);
   assert.match(html, /id="customElementX"/);
   assert.match(html, /id="customElementFontSize"/);
@@ -46,5 +47,6 @@ test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and
   assert.match(html, /id="resetSelectedCustomElement"/);
   assert.match(app, /beginCustomElementDrag/);
   assert.match(app, /persistCustomOverlay/);
-  assert.match(app, /Reactive Vision Dock/);
+  assert.match(app, /Reactive Vision Mode/);
+  assert.match(app, /config\.inGameElements/);
 });

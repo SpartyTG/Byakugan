@@ -95,18 +95,19 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     : 'horizontal';
   const customOverlay = normalizeCustomOverlay(settings.streamOverlayCustom);
   const custom = layout === 'custom';
-  const customReactiveDock = custom && customElementVisible(customOverlay, 'reactiveDock');
-  const showIdentity = custom ? customElementVisible(customOverlay, 'playerName') : Boolean(settings.streamOverlayShowIdentity);
-  const showWl = custom ? customElementVisible(customOverlay, 'sessionWL') || customReactiveDock : settings.streamOverlayShowWl !== false;
-  const showKd = custom ? customElementVisible(customOverlay, 'sessionKD') || customReactiveDock : settings.streamOverlayShowKd !== false;
-  const showAgent = custom ? customElementVisible(customOverlay, 'agent') : settings.streamOverlayShowAgent !== false;
-  const showMap = custom ? customElementVisible(customOverlay, 'map') : settings.streamOverlayShowMap !== false;
+  const customInGame = custom && customOverlay.reactive
+    && ['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase());
+  const showIdentity = custom ? customElementVisible(customOverlay, 'playerName', customInGame) : Boolean(settings.streamOverlayShowIdentity);
+  const showWl = custom ? customElementVisible(customOverlay, 'sessionWL', customInGame) : settings.streamOverlayShowWl !== false;
+  const showKd = custom ? customElementVisible(customOverlay, 'sessionKD', customInGame) : settings.streamOverlayShowKd !== false;
+  const showAgent = custom ? customElementVisible(customOverlay, 'agent', customInGame) : settings.streamOverlayShowAgent !== false;
+  const showMap = custom ? customElementVisible(customOverlay, 'map', customInGame) : settings.streamOverlayShowMap !== false;
   const showRR = custom
-    ? customElementVisible(customOverlay, 'currentRR') || customElementVisible(customOverlay, 'rrBeam') || customReactiveDock
+    ? customElementVisible(customOverlay, 'currentRR', customInGame) || customElementVisible(customOverlay, 'rrBeam', customInGame)
     : settings.streamOverlayShowRR !== false;
-  const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank') || customReactiveDock : settings.streamOverlayShowPeakRank !== false;
+  const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank', customInGame) : settings.streamOverlayShowPeakRank !== false;
   const showRrChange = custom
-    ? customElementVisible(customOverlay, 'rrChange') || customElementVisible(customOverlay, 'lastMatch') || customReactiveDock
+    ? customElementVisible(customOverlay, 'rrChange', customInGame) || customElementVisible(customOverlay, 'lastMatch', customInGame)
     : settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const recentMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};

@@ -13,7 +13,7 @@ const state = {
   openPlayerId: '',
   selectedSynergyFriendId: '',
   customOverlaySelectedId: 'branding',
-  customReactivePreviewState: 'between',
+  customOverlayCanvasState: 'between',
   overlayStatus: null,
   remoteStatus: null,
   updateStatus: null
@@ -33,8 +33,7 @@ const OVERLAY_DIMENSIONS = Object.freeze({
 const CUSTOM_OVERLAY_LABELS = Object.freeze({
   branding: 'BYAKUGAN branding', playerName: 'Riot name', currentRank: 'Current rank', currentRR: 'Current RR',
   peakRank: 'Peak rank', sessionWL: 'Session W/L', sessionKD: 'Session K/D', rrChange: 'Session RR change',
-  lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam',
-  reactiveDock: 'Reactive Vision Dock'
+  lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam'
 });
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
   width: 960, height: 360, backgroundColor: '#0b0d1d',
@@ -44,8 +43,16 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['peakRank',true,58,44,39,17,20,100,'left','#eeeaff'], ['sessionWL',true,3,48,22,14,25,100,'left','#ffffff'],
     ['sessionKD',true,27,48,18,14,25,100,'left','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
     ['lastMatch',true,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
-    ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff'],
-    ['reactiveDock',false,3,55,94,36,18,100,'left','#ffffff']
+    ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff']
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color })),
+  reactive: false,
+  inGameElements: [
+    ['branding',false,3,5,24,18,24,100,'left','#ffffff'], ['playerName',false,3,27,25,12,22,100,'left','#c9bcff'],
+    ['currentRank',true,3,7,51,28,30,100,'left','#ffffff'], ['currentRR',false,78,31,18,11,22,100,'right','#c9bcff'],
+    ['peakRank',false,58,44,39,17,20,100,'left','#eeeaff'], ['sessionWL',true,58,8,22,22,24,100,'center','#ffffff'],
+    ['sessionKD',true,81,8,16,22,24,100,'center','#ffffff'], ['rrChange',false,78,65,18,12,22,100,'right','#38e6c1'],
+    ['lastMatch',false,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
+    ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['rrBeam',true,3,58,94,28,20,100,'left','#70dfff']
   ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color]) => ({ id,visible,x,y,width,height,fontSize,opacity,align,color }))
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
@@ -812,14 +819,6 @@ function customEditorBeam(preview) {
   return `<span class="custom-editor-beam-fill"><img src="../overlay/rr-energy-beam.gif" alt=""></span><strong class="custom-editor-beam-marker">${escapeHtml(preview.rr)} RR</strong>`;
 }
 
-function customEditorReactiveBetween(preview) {
-  return `<span class="custom-editor-state-tag">BETWEEN GAMES</span><span class="custom-reactive-between-grid"><span class="custom-reactive-last">${customEditorCopy('LAST MATCH', customEditorSigned(preview.lastRR, ' RR'), preview.lastResult)}</span><span class="custom-reactive-session">${customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`)}${customEditorCopy('K/D', preview.kd)}</span><span class="custom-reactive-ranks"><span>${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank, `${preview.rr} RR`)}</span><span>${customEditorIcon(preview.peakRankImage, initials(preview.peakRank))}${customEditorCopy('ALL-TIME PEAK', preview.peakRank, preview.peakContext)}</span></span><span class="custom-reactive-beam">${customEditorBeam(preview)}</span></span>`;
-}
-
-function customEditorReactiveInGame(preview) {
-  return `<span class="custom-editor-state-tag">IN GAME</span><span class="custom-reactive-ingame-grid"><span class="custom-reactive-player">${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank)}</span><span class="custom-reactive-session">${customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`)}${customEditorCopy('K/D', preview.kd)}</span><span class="custom-reactive-beam">${customEditorBeam(preview)}</span></span>`;
-}
-
 function customOverlayEditorPreview() {
   const snapshot = state.snapshot || {};
   const profile = snapshot.profile || {};
@@ -866,14 +865,15 @@ function customOverlayEditorMarkup(id, preview) {
   if (id === 'agent') return `${customEditorIcon(preview.agentImage, initials(preview.agent), 'custom-editor-agent-icon')}${customEditorCopy('AGENT', preview.agent)}`;
   if (id === 'map') return customEditorCopy('CURRENT MAP', preview.map, preview.liveLabel);
   if (id === 'rrBeam') return customEditorBeam(preview);
-  if (id === 'reactiveDock') return state.customReactivePreviewState === 'ingame'
-    ? customEditorReactiveInGame(preview)
-    : customEditorReactiveBetween(preview);
   return '';
 }
 
+function customElementsForState(config, canvasState = state.customOverlayCanvasState) {
+  return canvasState === 'ingame' && config?.reactive ? config.inGameElements : config?.elements;
+}
+
 function selectedCustomElement(config = state.settings?.streamOverlayCustom) {
-  return config?.elements?.find((element) => element.id === state.customOverlaySelectedId) || null;
+  return customElementsForState(config)?.find((element) => element.id === state.customOverlaySelectedId) || null;
 }
 
 function renderCustomInspector(config) {
@@ -897,9 +897,15 @@ function customPaletteRow(element) {
 }
 
 function customReactivePalette(config) {
-  const element = config.elements.find((entry) => entry.id === 'reactiveDock');
-  const enabled = Boolean(element?.visible);
-  return `<div class="custom-palette-item custom-reactive-toggle ${enabled ? 'enabled' : ''} ${state.customOverlaySelectedId === 'reactiveDock' ? 'selected' : ''}" data-custom-select="reactiveDock"><input type="checkbox" data-custom-reactive-visible ${enabled ? 'checked' : ''} aria-label="Show custom Reactive Vision Dock"><span>Reactive Vision Dock</span><button type="button" data-custom-reset="reactiveDock" title="Reset only the Reactive Vision Dock">↺</button></div>${enabled ? `<div class="custom-reactive-preview-switch" aria-label="Reactive Vision preview state"><small>PREVIEW STATE</small><button type="button" data-custom-reactive-preview="between" class="${state.customReactivePreviewState === 'between' ? 'active' : ''}">Between games</button><button type="button" data-custom-reactive-preview="ingame" class="${state.customReactivePreviewState === 'ingame' ? 'active' : ''}">In game</button></div>` : ''}`;
+  return `<div class="custom-palette-item custom-reactive-toggle ${config.reactive ? 'enabled' : ''}"><input type="checkbox" data-custom-reactive-visible ${config.reactive ? 'checked' : ''} aria-label="Enable two-state custom Reactive Vision"><span>Reactive Vision Mode</span></div>${config.reactive ? `<div class="custom-reactive-preview-switch" aria-label="Choose the custom canvas to edit"><small>EDITING CANVAS</small><button type="button" data-custom-canvas-select="between" class="${state.customOverlayCanvasState === 'between' ? 'active' : ''}">Between games</button><button type="button" data-custom-canvas-select="ingame" class="${state.customOverlayCanvasState === 'ingame' ? 'active' : ''}">In game</button></div>` : ''}`;
+}
+
+function renderCustomEditorCanvas(canvas, elements, canvasState, config, scale, preview) {
+  canvas.style.width = `${Math.round(config.width * scale)}px`;
+  canvas.style.height = `${Math.round(config.height * scale)}px`;
+  canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
+  canvas.setAttribute('aria-label', `${canvasState === 'ingame' ? 'In-game' : config.reactive ? 'Between-games' : 'Base'} custom overlay canvas ${config.width} by ${config.height}`);
+  canvas.innerHTML = elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${element.id === 'rrBeam' && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${canvasState === state.customOverlayCanvasState && element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
 }
 
 function renderCustomOverlayBuilder() {
@@ -909,21 +915,24 @@ function renderCustomOverlayBuilder() {
   $('#customOverlayHeight').value = String(config.height);
   $('#customOverlayBackgroundColor').value = config.backgroundColor;
 
-  const regularElements = config.elements.filter((element) => element.id !== 'reactiveDock');
-  $('#customElementPalette').innerHTML = `${regularElements.map(customPaletteRow).join('')}${customReactivePalette(config)}`;
+  if (!config.reactive) state.customOverlayCanvasState = 'between';
+  const activeElements = customElementsForState(config);
+  $('#customElementPalette').innerHTML = `${activeElements.map(customPaletteRow).join('')}${customReactivePalette(config)}`;
 
   const stage = $('.custom-stage-shell');
-  const canvas = $('#customEditorCanvas');
+  const betweenCanvas = $('#customEditorCanvas');
+  const inGameCanvas = $('#customEditorCanvasInGame');
   const availableWidth = Math.max(300, stage.getBoundingClientRect().width - 26);
-  const availableHeight = Math.max(260, Math.min(560, window.innerHeight * .55));
-  const scale = Math.min(availableWidth / config.width, availableHeight / config.height);
+  const scale = Math.min(1.25, availableWidth / config.width);
   const preview = customOverlayEditorPreview();
-  canvas.style.width = `${Math.round(config.width * scale)}px`;
-  canvas.style.height = `${Math.round(config.height * scale)}px`;
-  canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
-  canvas.setAttribute('aria-label', `Custom overlay canvas ${config.width} by ${config.height}`);
-  text('#customCanvasPreviewSize', `${config.width} × ${config.height} canvas • ${Math.round(scale * 100)}% preview`);
-  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${['rrBeam', 'reactiveDock'].includes(element.id) && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;--custom-font-size:${Math.max(3,element.fontSize * scale)}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
+  $('[data-custom-state-frame="between"] > small').textContent = config.reactive ? 'BETWEEN GAMES' : 'BASE CANVAS';
+  $('#customInGameEditorState').hidden = !config.reactive;
+  $$('[data-custom-state-frame]', $('#customEditorStack')).forEach((frame) => frame.classList.toggle('active', frame.dataset.customStateFrame === state.customOverlayCanvasState));
+  renderCustomEditorCanvas(betweenCanvas, config.elements, 'between', config, scale, preview);
+  if (config.reactive) renderCustomEditorCanvas(inGameCanvas, config.inGameElements, 'ingame', config, scale, preview);
+  text('#customCanvasPreviewSize', config.reactive
+    ? `${config.width} × ${config.height} each • ${config.width} × ${config.height * 2} editor stack • ${Math.round(scale * 100)}% preview`
+    : `${config.width} × ${config.height} canvas • ${Math.round(scale * 100)}% preview`);
   renderCustomInspector(config);
   renderOverlayDimensions('custom');
 }
@@ -948,8 +957,11 @@ function updateSelectedCustomElement(property, rawValue) {
 
 function resetCustomElement(id) {
   const config = cloneCustomOverlay();
-  const element = config.elements.find((entry) => entry.id === id);
-  const fallback = DEFAULT_CUSTOM_OVERLAY.elements.find((entry) => entry.id === id);
+  const elements = customElementsForState(config);
+  const fallbackElements = state.customOverlayCanvasState === 'ingame' && config.reactive
+    ? DEFAULT_CUSTOM_OVERLAY.inGameElements : DEFAULT_CUSTOM_OVERLAY.elements;
+  const element = elements.find((entry) => entry.id === id);
+  const fallback = fallbackElements.find((entry) => entry.id === id);
   if (!element || !fallback) return null;
   const visible = element.visible;
   Object.assign(element, JSON.parse(JSON.stringify(fallback)), { visible });
@@ -960,14 +972,18 @@ function resetCustomElement(id) {
 
 function beginCustomElementDrag(event) {
   if (event.button !== undefined && event.button !== 0) return;
+  state.customOverlayCanvasState = event.currentTarget.dataset.customCanvasState === 'ingame' ? 'ingame' : 'between';
   const item = event.target.closest('[data-custom-element]');
-  if (!item) return;
+  if (!item) {
+    renderCustomOverlayBuilder();
+    return;
+  }
   const id = item.dataset.customElement;
   state.customOverlaySelectedId = id;
   const config = cloneCustomOverlay();
-  const element = config.elements.find((entry) => entry.id === id);
+  const element = customElementsForState(config).find((entry) => entry.id === id);
   if (!element) return;
-  const canvasRect = $('#customEditorCanvas').getBoundingClientRect();
+  const canvasRect = event.currentTarget.getBoundingClientRect();
   const start = { x: event.clientX, y: event.clientY, element: { ...element } };
   const resizing = Boolean(event.target.closest('[data-custom-resize]'));
   event.preventDefault();
@@ -986,7 +1002,7 @@ function beginCustomElementDrag(event) {
       element.y = Math.max(0, Math.min(100 - element.height, Math.round((start.element.y + dy) * 10) / 10));
     }
     state.settings.streamOverlayCustom = config;
-    const liveItem = $(`[data-custom-element="${id}"]`, $('#customEditorCanvas'));
+    const liveItem = $(`[data-custom-element="${id}"]`, event.currentTarget);
     if (liveItem) {
       liveItem.style.left = `${element.x}%`;
       liveItem.style.top = `${element.y}%`;
@@ -1006,7 +1022,7 @@ function beginCustomElementDrag(event) {
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', end, { once: true });
   window.addEventListener('pointercancel', end, { once: true });
-  $$('.custom-editor-item', $('#customEditorCanvas')).forEach((node) => node.classList.toggle('selected', node.dataset.customElement === id));
+  $$('.custom-editor-item', $('#customEditorStack')).forEach((node) => node.classList.toggle('selected', node === item));
   renderCustomInspector(config);
 }
 
@@ -1356,19 +1372,20 @@ function bindEvents() {
       if (config) await persistCustomOverlay(config, true);
       return;
     }
-    const reactivePreview = event.target.closest('[data-custom-reactive-preview]');
-    if (reactivePreview) {
-      state.customReactivePreviewState = reactivePreview.dataset.customReactivePreview === 'ingame' ? 'ingame' : 'between';
-      state.customOverlaySelectedId = 'reactiveDock';
+    const canvasSelect = event.target.closest('[data-custom-canvas-select]');
+    if (canvasSelect) {
+      state.customOverlayCanvasState = canvasSelect.dataset.customCanvasSelect === 'ingame' ? 'ingame' : 'between';
+      const config = cloneCustomOverlay();
+      const activeElements = customElementsForState(config);
+      if (!activeElements.some((element) => element.id === state.customOverlaySelectedId)) state.customOverlaySelectedId = 'currentRank';
       renderCustomOverlayBuilder();
       return;
     }
     const reactiveToggle = event.target.closest('[data-custom-reactive-visible]');
     if (reactiveToggle) {
       const config = cloneCustomOverlay();
-      const element = config.elements.find((entry) => entry.id === 'reactiveDock');
-      if (element) element.visible = reactiveToggle.checked;
-      if (reactiveToggle.checked) state.customOverlaySelectedId = 'reactiveDock';
+      config.reactive = reactiveToggle.checked;
+      state.customOverlayCanvasState = 'between';
       state.settings.streamOverlayCustom = config;
       await persistCustomOverlay(config);
       return;
@@ -1378,7 +1395,7 @@ function bindEvents() {
     state.customOverlaySelectedId = option.dataset.customSelect;
     if (event.target.matches('[data-custom-visible]')) {
       const config = cloneCustomOverlay();
-      const element = config.elements.find((entry) => entry.id === event.target.dataset.customVisible);
+      const element = customElementsForState(config).find((entry) => entry.id === event.target.dataset.customVisible);
       if (element) element.visible = event.target.checked;
       state.settings.streamOverlayCustom = config;
       await persistCustomOverlay(config);
@@ -1387,6 +1404,7 @@ function bindEvents() {
     }
   });
   $('#customEditorCanvas').addEventListener('pointerdown', beginCustomElementDrag);
+  $('#customEditorCanvasInGame').addEventListener('pointerdown', beginCustomElementDrag);
   for (const [id, property, minimum, maximum] of [['customOverlayWidth', 'width', 320, 1920], ['customOverlayHeight', 'height', 120, 1080]]) {
     $(`#${id}`).addEventListener('input', (event) => {
       const value = Number(event.target.value);

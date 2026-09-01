@@ -2,8 +2,7 @@
 
 const CUSTOM_ELEMENT_TYPES = Object.freeze([
   'branding', 'playerName', 'currentRank', 'currentRR', 'peakRank',
-  'sessionWL', 'sessionKD', 'rrChange', 'lastMatch', 'agent', 'map', 'rrBeam',
-  'reactiveDock'
+  'sessionWL', 'sessionKD', 'rrChange', 'lastMatch', 'agent', 'map', 'rrBeam'
 ]);
 
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
@@ -22,8 +21,22 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     { id: 'lastMatch', visible: true, x: 58, y: 65, width: 38, height: 13, fontSize: 20, opacity: 100, align: 'right', color: '#ffffff' },
     { id: 'agent', visible: false, x: 3, y: 65, width: 20, height: 27, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
     { id: 'map', visible: false, x: 25, y: 69, width: 20, height: 16, fontSize: 22, opacity: 100, align: 'left', color: '#ffffff' },
-    { id: 'rrBeam', visible: true, x: 3, y: 82, width: 94, height: 13, fontSize: 16, opacity: 100, align: 'left', color: '#70dfff' },
-    { id: 'reactiveDock', visible: false, x: 3, y: 55, width: 94, height: 36, fontSize: 18, opacity: 100, align: 'left', color: '#ffffff' }
+    { id: 'rrBeam', visible: true, x: 3, y: 82, width: 94, height: 13, fontSize: 16, opacity: 100, align: 'left', color: '#70dfff' }
+  ]),
+  reactive: false,
+  inGameElements: Object.freeze([
+    { id: 'branding', visible: false, x: 3, y: 5, width: 24, height: 18, fontSize: 24, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'playerName', visible: false, x: 3, y: 27, width: 25, height: 12, fontSize: 22, opacity: 100, align: 'left', color: '#c9bcff' },
+    { id: 'currentRank', visible: true, x: 3, y: 7, width: 51, height: 28, fontSize: 30, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'currentRR', visible: false, x: 78, y: 31, width: 18, height: 11, fontSize: 22, opacity: 100, align: 'right', color: '#c9bcff' },
+    { id: 'peakRank', visible: false, x: 58, y: 44, width: 39, height: 17, fontSize: 20, opacity: 100, align: 'left', color: '#eeeaff' },
+    { id: 'sessionWL', visible: true, x: 58, y: 8, width: 22, height: 22, fontSize: 24, opacity: 100, align: 'center', color: '#ffffff' },
+    { id: 'sessionKD', visible: true, x: 81, y: 8, width: 16, height: 22, fontSize: 24, opacity: 100, align: 'center', color: '#ffffff' },
+    { id: 'rrChange', visible: false, x: 78, y: 65, width: 18, height: 12, fontSize: 22, opacity: 100, align: 'right', color: '#38e6c1' },
+    { id: 'lastMatch', visible: false, x: 58, y: 65, width: 38, height: 13, fontSize: 20, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'agent', visible: false, x: 3, y: 65, width: 20, height: 27, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'map', visible: false, x: 25, y: 69, width: 20, height: 16, fontSize: 22, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'rrBeam', visible: true, x: 3, y: 58, width: 94, height: 28, fontSize: 20, opacity: 100, align: 'left', color: '#70dfff' }
   ])
 });
 
@@ -57,25 +70,29 @@ function normalizeElement(candidate, fallback) {
 function normalizeCustomOverlay(value) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const supplied = Array.isArray(source.elements) ? source.elements : [];
+  const suppliedInGame = Array.isArray(source.inGameElements) ? source.inGameElements : [];
+  const legacyReactiveDock = supplied.find((element) => element?.id === 'reactiveDock');
+  const legacyReactiveBetween = supplied.find((element) => element?.id === 'reactiveBetween');
+  const legacyReactiveInGame = supplied.find((element) => element?.id === 'reactiveInGame');
   return {
     width: numberWithin(source.width, DEFAULT_CUSTOM_OVERLAY.width, 320, 1920),
     height: numberWithin(source.height, DEFAULT_CUSTOM_OVERLAY.height, 120, 1080),
     backgroundColor: safeColor(source.backgroundColor, DEFAULT_CUSTOM_OVERLAY.backgroundColor),
-    elements: DEFAULT_CUSTOM_OVERLAY.elements.map((fallback) => {
-      let candidate = supplied.find((element) => element?.id === fallback.id);
-      if (fallback.id === 'reactiveDock' && !candidate) {
-        const between = supplied.find((element) => element?.id === 'reactiveBetween');
-        const inGame = supplied.find((element) => element?.id === 'reactiveInGame');
-        candidate = between || inGame;
-        if (candidate) candidate = { ...candidate, visible: Boolean(between?.visible || inGame?.visible) };
-      }
-      return normalizeElement(candidate, fallback);
-    })
+    reactive: typeof source.reactive === 'boolean'
+      ? source.reactive
+      : Boolean(legacyReactiveDock?.visible || legacyReactiveBetween?.visible || legacyReactiveInGame?.visible),
+    elements: DEFAULT_CUSTOM_OVERLAY.elements.map((fallback) => normalizeElement(
+      supplied.find((element) => element?.id === fallback.id), fallback
+    )),
+    inGameElements: DEFAULT_CUSTOM_OVERLAY.inGameElements.map((fallback) => normalizeElement(
+      suppliedInGame.find((element) => element?.id === fallback.id), fallback
+    ))
   };
 }
 
-function customElementVisible(config, id) {
-  return Boolean(config?.elements?.find((element) => element.id === id)?.visible);
+function customElementVisible(config, id, inGame = false) {
+  const elements = inGame && config?.reactive ? config?.inGameElements : config?.elements;
+  return Boolean(elements?.find((element) => element.id === id)?.visible);
 }
 
 module.exports = { CUSTOM_ELEMENT_TYPES, DEFAULT_CUSTOM_OVERLAY, normalizeCustomOverlay, customElementVisible };

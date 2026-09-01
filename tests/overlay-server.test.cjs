@@ -131,29 +131,39 @@ test('custom overlay derives privacy fields from its own element visibility', ()
   assert.equal(payload.preferences.showIdentity, true);
 });
 
-test('custom Reactive Vision receives the personal fields used by both state bars', () => {
+test('custom Reactive Vision exposes fields from the canvas matching live state', () => {
   const payload = buildOverlayPayload(snapshot, settings({
     streamOverlayLayout: 'custom',
     streamOverlayCustom: {
+      reactive: true,
       elements: [
-        { id: 'sessionWL', visible: false },
-        { id: 'sessionKD', visible: false },
-        { id: 'currentRR', visible: false },
-        { id: 'peakRank', visible: false },
-        { id: 'rrChange', visible: false },
-        { id: 'lastMatch', visible: false },
-        { id: 'rrBeam', visible: false },
-        { id: 'reactiveDock', visible: true }
+        { id: 'sessionWL', visible: false }, { id: 'sessionKD', visible: false },
+        { id: 'currentRR', visible: false }, { id: 'peakRank', visible: true },
+        { id: 'rrBeam', visible: false }
+      ],
+      inGameElements: [
+        { id: 'sessionWL', visible: true }, { id: 'sessionKD', visible: true },
+        { id: 'currentRR', visible: false }, { id: 'peakRank', visible: false },
+        { id: 'rrChange', visible: false }, { id: 'lastMatch', visible: false },
+        { id: 'rrBeam', visible: true }
       ]
     }
   }));
   assert.equal(payload.preferences.showWl, true);
   assert.equal(payload.preferences.showKd, true);
   assert.equal(payload.preferences.showRR, true);
-  assert.equal(payload.preferences.showPeakRank, true);
-  assert.equal(payload.preferences.showRrChange, true);
+  assert.equal(payload.preferences.showPeakRank, false);
+  assert.equal(payload.preferences.showRrChange, false);
   assert.equal(payload.session.games, 3);
-  assert.equal(payload.session.lastMatchResult, 'VICTORY');
+
+  const menuPayload = buildOverlayPayload({ ...snapshot, live: { ...snapshot.live, state: 'MENUS' } }, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayCustom: payload.customOverlay
+  }));
+  assert.equal(menuPayload.preferences.showWl, false);
+  assert.equal(menuPayload.preferences.showKd, false);
+  assert.equal(menuPayload.preferences.showRR, false);
+  assert.equal(menuPayload.preferences.showPeakRank, true);
 });
 
 test('RR energy beam follows current rank rating from empty to full', () => {
