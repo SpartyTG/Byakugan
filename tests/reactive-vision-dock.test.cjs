@@ -56,7 +56,7 @@ test('Awakened Rank remains a separate untouched layout selector', () => {
   assert.doesNotMatch(styles, /\.layout-rank\.reactive-compact/);
 });
 
-test('expanded Reactive Vision Dock groups last match with session and uses parallel equal ranks', () => {
+test('expanded Reactive Vision Dock groups last match with session and vertically stacks equal ranks', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
   assert.match(html, /class="reactive-menu-left"/);
   assert.match(html, /id="reactiveSessionRecord"/);
@@ -66,7 +66,8 @@ test('expanded Reactive Vision Dock groups last match with session and uses para
   assert.match(html, /class="reactive-current-rank"/);
   assert.match(html, /class="reactive-peak-rank"/);
   assert.match(styles, /grid-template-columns:\s*43% 57%/);
-  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*grid-template-columns:\s*1fr 1fr/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*grid-template-rows:\s*1fr 1fr/);
+  assert.match(styles, /\.layout-reactive \.reactive-peak-rank[^}]*border-top:/);
   assert.match(styles, /\.layout-reactive \.reactive-rank-emblem[^}]*width:\s*40px[^}]*height:\s*40px/);
   assert.match(styles, /\.layout-reactive \.reactive-peak-copy strong[^}]*font-size:\s*15px/);
   assert.match(styles, /\.layout-reactive:not\(\.reactive-compact\) > \.brand-block[^}]*bottom:\s*7px/);
