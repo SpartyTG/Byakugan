@@ -267,6 +267,8 @@ function render(data) {
   text('#rankSessionKd', `${Number(session.kd || 0).toFixed(2)} K/D`);
   text('#reactiveSessionRecord', `${Number(session.wins) || 0} W / ${Number(session.losses) || 0} L`);
   text('#reactiveSessionKd', Number(session.kd || 0).toFixed(2));
+  text('#reactiveLastMatchRR', signed(session.lastMatchRR, ' RR'));
+  text('#reactiveLastMatchResult', session.lastMatchResult || 'NO MATCH');
   text('#sessionGames', `${Number(session.games) || 0} ${(Number(session.games) || 0) === 1 ? 'GAME' : 'GAMES'}`);
   text('#sessionKd', Number(session.kd || 0).toFixed(2));
   text('#sessionRR', signed(session.rrChange));

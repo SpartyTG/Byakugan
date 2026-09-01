@@ -339,70 +339,72 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
   border-right: 1px solid rgba(194,180,255,.14);
   background: linear-gradient(105deg, rgba(139,108,255,.055), transparent 78%);
 }
-.layout-reactive .reactive-menu-brand { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.layout-reactive .reactive-menu-brand .eye-mark { width: 43px; height: 43px; border-radius: 13px; }
-.layout-reactive .reactive-menu-brand .eye-mark span { width: 24px; height: 15px; border-width: 2px; }
-.layout-reactive .reactive-menu-brand .eye-mark span::before { width: 7px; height: 7px; left: 6px; top: 2px; border-width: 1px; }
-.layout-reactive .reactive-menu-brand .eye-mark span::after { display: block; width: 2px; height: 2px; left: 8px; top: 4px; border-width: 1px; }
-.layout-reactive .reactive-menu-brand .brand-copy strong { font-size: 12px; letter-spacing: .15em; }
-.layout-reactive .reactive-menu-brand .brand-copy small { margin-top: 4px; font-size: 7px; letter-spacing: .18em; }
-.layout-reactive .reactive-status-dot { position: absolute; top: 0; right: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 11px var(--teal); }
-.layout-reactive .reactive-menu-session { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; margin: 8px 0 0 53px; }
-.layout-reactive .reactive-menu-session > small { grid-column: 1 / 3; margin-bottom: 4px; color: var(--muted); font-size: 6px; font-weight: 900; letter-spacing: .13em; }
+.layout-reactive .reactive-menu-last-match { --result-color: #7765eb; position: relative; min-width: 0; padding-bottom: 8px; border-bottom: 1px solid rgba(194,180,255,.11); }
+.layout-reactive .reactive-menu-last-match small { display: block; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
+.layout-reactive .reactive-menu-last-match span { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.layout-reactive .reactive-menu-last-match strong { color: white; font-size: 17px; line-height: 1; white-space: nowrap; }
+.layout-reactive .reactive-menu-last-match em { overflow: hidden; padding: 4px 7px; border-radius: 6px; background: var(--result-color); color: white; font-size: 10px; font-style: normal; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.layout-reactive.last-positive .reactive-menu-last-match { --result-color: #19a980; }
+.layout-reactive.last-negative .reactive-menu-last-match { --result-color: #ea4867; }
+.layout-reactive .reactive-menu-session { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; margin: 9px 0 0; }
+.layout-reactive .reactive-menu-session > small { grid-column: 1 / 3; margin-bottom: 5px; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
 .layout-reactive .reactive-menu-session span { min-width: 0; }
 .layout-reactive .reactive-menu-session b, .layout-reactive .reactive-menu-session strong { display: block; }
-.layout-reactive .reactive-menu-session b { color: var(--violet-soft); font-size: 6px; letter-spacing: .12em; }
-.layout-reactive .reactive-menu-session strong { overflow: hidden; margin-top: 2px; color: white; font-size: 11px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
-.layout-reactive .reactive-menu-ranks { display: grid; grid-template-rows: 1fr 1fr; min-width: 0; padding: 8px 13px 7px 16px; }
+.layout-reactive .reactive-menu-session b { color: var(--violet-soft); font-size: 8px; letter-spacing: .12em; }
+.layout-reactive .reactive-menu-session strong { overflow: hidden; margin-top: 3px; color: white; font-size: 16px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.layout-reactive .reactive-menu-ranks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 0; padding: 11px 12px 10px 14px; }
 .layout-reactive .reactive-current-rank, .layout-reactive .reactive-peak-rank { display: flex; align-items: center; min-width: 0; }
-.layout-reactive .reactive-current-rank { align-self: start; gap: 11px; }
-.layout-reactive .reactive-peak-rank { align-self: end; gap: 10px; padding-top: 6px; border-top: 1px solid rgba(194,180,255,.1); }
-.layout-reactive .reactive-rank-emblem { width: 47px; height: 47px; flex: 0 0 auto; display: grid; place-items: center; }
+.layout-reactive .reactive-current-rank { gap: 8px; padding-right: 9px; }
+.layout-reactive .reactive-peak-rank { gap: 8px; padding-left: 10px; border-left: 1px solid rgba(194,180,255,.1); }
+.layout-reactive .reactive-rank-emblem { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; }
 .layout-reactive .reactive-rank-emblem img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 13px rgba(123,103,246,.38)); }
 .layout-reactive .reactive-rank-emblem i { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(194,180,255,.22); border-radius: 50%; background: rgba(139,108,255,.09); color: var(--violet-soft); font-size: 8px; font-style: normal; font-weight: 900; }
-.layout-reactive .reactive-rank-copy { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 8px; align-items: end; }
+.layout-reactive .reactive-rank-copy { min-width: 0; display: block; }
 .layout-reactive .reactive-rank-copy b { grid-column: 1 / 3; color: var(--muted); font-size: 6px; letter-spacing: .13em; }
-.layout-reactive .reactive-rank-copy strong { overflow: hidden; margin-top: 3px; color: white; font-size: 19px; line-height: 1; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
-.layout-reactive .reactive-rank-copy em { margin-bottom: 1px; padding: 3px 6px; border: 1px solid rgba(194,180,255,.2); border-radius: 6px; background: rgba(139,108,255,.12); color: var(--violet-soft); font-size: 8px; font-style: normal; font-weight: 900; white-space: nowrap; }
-.layout-reactive .reactive-peak-emblem { width: 27px; height: 27px; flex: 0 0 auto; display: grid; place-items: center; }
+.layout-reactive .reactive-rank-copy strong { display: block; overflow: hidden; margin-top: 4px; color: white; font-size: 15px; line-height: 1; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+.layout-reactive .reactive-rank-copy em { display: inline-block; margin-top: 5px; padding: 3px 6px; border: 1px solid rgba(194,180,255,.2); border-radius: 6px; background: rgba(139,108,255,.12); color: var(--violet-soft); font-size: 8px; font-style: normal; font-weight: 900; white-space: nowrap; }
+.layout-reactive .reactive-peak-emblem { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; }
 .layout-reactive .reactive-peak-emblem img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(139,108,255,.34)); }
 .layout-reactive .reactive-peak-emblem i { color: var(--violet-soft); font-size: 7px; font-style: normal; font-weight: 900; }
 .layout-reactive .reactive-peak-copy { min-width: 0; }
 .layout-reactive .reactive-peak-copy b, .layout-reactive .reactive-peak-copy strong { display: block; }
 .layout-reactive .reactive-peak-copy b { color: var(--violet-soft); font-size: 6px; letter-spacing: .12em; }
-.layout-reactive .reactive-peak-copy strong { overflow: hidden; margin-top: 3px; color: #eeeaff; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.layout-reactive .reactive-peak-copy strong { display: -webkit-box; overflow: hidden; margin-top: 4px; color: #eeeaff; font-size: 15px; line-height: 1.12; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .layout-reactive .reactive-rank-emblem [hidden], .layout-reactive .reactive-peak-emblem [hidden], .layout-reactive .rank-emblem [hidden], .layout-reactive .peak-rank-emblem [hidden] { display: none !important; }
-.layout-reactive:not(.reactive-compact) > .brand-block { display: none; }
+.layout-reactive:not(.reactive-compact) > .brand-block { top: auto; right: 8px; bottom: 7px; width: 105px; height: 47px; display: flex; gap: 6px; padding: 6px; border: 1px solid rgba(194,180,255,.14); border-radius: 9px; background: rgba(5,9,20,.84); }
 .layout-reactive:not(.reactive-compact) .player-block { z-index: 7; grid-column: 1 / 3; grid-row: 1; padding: 0; border: 0; pointer-events: none; }
 .layout-reactive:not(.reactive-compact) .player-block > .rank-emblem, .layout-reactive:not(.reactive-compact) .player-block > .player-copy { display: none; }
-.layout-reactive:not(.reactive-compact) .rank-last-match-record { position: absolute; right: 8px; bottom: -48px; width: 105px; margin: 0; pointer-events: auto; }
+.layout-reactive:not(.reactive-compact) .rank-last-match-record { display: none; }
 .layout-reactive:not(.reactive-compact) .last-match-strip { grid-template-columns: minmax(0,1fr); margin-right: 121px; }
 .layout-reactive:not(.reactive-compact) .last-match-strip .rank-session-record { display: none; }
-.layout-reactive:not(.reactive-compact).hide-rr-change .last-match-strip { margin-right: 8px; }
-.layout-reactive.hide-wl .reactive-session-wl, .layout-reactive.hide-kd .reactive-session-kd, .layout-reactive.hide-peak-rank .reactive-peak-rank { display: none; }
+.layout-reactive.hide-wl .reactive-session-wl, .layout-reactive.hide-kd .reactive-session-kd, .layout-reactive.hide-peak-rank .reactive-peak-rank, .layout-reactive.hide-rr-change .reactive-menu-last-match { display: none; }
 .layout-reactive.is-offline .reactive-status-dot { background: var(--red); box-shadow: 0 0 10px var(--red); }
 
-.layout-reactive.reactive-compact { height: 124px; grid-template-rows: minmax(0,1fr) 52px; border-radius: 14px; box-shadow: 0 12px 38px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.035); }
-.layout-reactive.reactive-compact .reactive-menu-panel { display: none; }
+.layout-reactive.reactive-compact { height: 130px; grid-template-rows: minmax(0,1fr) 58px; border-radius: 14px; box-shadow: 0 12px 38px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.035); }
+.layout-reactive.reactive-compact .reactive-menu-panel { position: absolute; z-index: 8; top: 5px; right: 8px; width: 160px; height: 62px; display: block; pointer-events: none; }
+.layout-reactive.reactive-compact .reactive-menu-left { padding: 5px 0 4px 11px; border: 0; border-left: 1px solid rgba(194,180,255,.12); background: none; }
+.layout-reactive.reactive-compact .reactive-menu-last-match, .layout-reactive.reactive-compact .reactive-menu-ranks { display: none; }
+.layout-reactive.reactive-compact .reactive-menu-session { grid-template-columns: 1.2fr .8fr; column-gap: 8px; margin: 0; }
+.layout-reactive.reactive-compact .reactive-menu-session > small { margin-bottom: 4px; font-size: 6px; }
+.layout-reactive.reactive-compact .reactive-menu-session b { font-size: 6px; }
+.layout-reactive.reactive-compact .reactive-menu-session strong { margin-top: 3px; font-size: 16px; }
+.layout-reactive.reactive-compact .reactive-session-kd strong { font-size: 14px; }
 .layout-reactive.reactive-compact .brand-block { opacity: 0; transform: translateY(-8px) scale(.8); pointer-events: none; }
-.layout-reactive.reactive-compact .player-block { gap: 7px; padding: 4px 11px 2px 9px; }
+.layout-reactive.reactive-compact .player-block { gap: 7px; padding: 4px 174px 2px 9px; }
 .layout-reactive.reactive-compact .rank-emblem { width: 58px; height: 58px; }
 .layout-reactive.reactive-compact .rank-emblem span { width: 48px; height: 48px; border-radius: 9px; }
 .layout-reactive.reactive-compact .player-copy small { font-size: 7px; }
 .layout-reactive.reactive-compact .player-copy strong { margin-top: 3px; font-size: 21px; }
-.layout-reactive.reactive-compact .player-copy em { padding: 4px 8px; font-size: 12px; }
+.layout-reactive.reactive-compact .player-copy em { display: none; }
 .layout-reactive.reactive-compact .peak-rank-line { max-height: 0; margin: 0; opacity: 0; transform: translateY(-4px); overflow: hidden; }
 .layout-reactive.reactive-compact .rank-last-match-record { max-width: 0; flex-basis: 0; margin: 0; padding: 0; border: 0; opacity: 0; transform: translateX(12px); }
-.layout-reactive.reactive-compact .last-match-strip { margin: 0 6px 6px; border-radius: 8px; }
-.layout-reactive.reactive-compact .current-rr-marker { top: 0; width: 56px; height: 22px; }
-.layout-reactive.reactive-compact .current-rr-marker strong { font-size: 13px; }
-.layout-reactive.reactive-compact .rr-energy-beam { top: 20px; }
-.layout-reactive.reactive-compact .rank-session-record { padding-inline: 8px; }
-.layout-reactive.reactive-compact .rank-session-record small { display: none; }
-.layout-reactive.reactive-compact .rank-session-record strong { margin: 0; font-size: 17px; }
-.layout-reactive.reactive-compact .rank-session-record em { margin-top: 4px; font-size: 12px; }
+.layout-reactive.reactive-compact .last-match-strip { grid-template-columns: minmax(0,1fr); margin: 0 6px 6px; border-radius: 8px; }
+.layout-reactive.reactive-compact .current-rr-marker { top: 0; left: clamp(32px,var(--rr-beam-progress,0%),calc(100% - 32px)); width: 64px; height: 26px; }
+.layout-reactive.reactive-compact .current-rr-marker strong { font-size: 14px; }
+.layout-reactive.reactive-compact .rr-energy-beam { top: 24px; }
+.layout-reactive.reactive-compact .rank-session-record { display: none; }
 
-.layout-reactive.reactive-postmatch-pending .rank-last-match-record::after { content: "SYNCING RESULT"; position: absolute; inset: 0; display: grid; place-items: center; background: rgba(7,10,22,.94); color: var(--violet-soft); font-size: 7px; font-weight: 900; letter-spacing: .12em; }
+.layout-reactive.reactive-postmatch-pending .reactive-menu-last-match::after { content: "SYNCING RESULT"; position: absolute; inset: 0; display: grid; place-items: center; background: rgba(7,10,22,.94); color: var(--violet-soft); font-size: 8px; font-weight: 900; letter-spacing: .12em; }
 .layout-reactive.reactive-postmatch-pending .eye-mark { animation: reactive-eye-wait 1.15s ease-in-out infinite; }
 .layout-reactive.reactive-awakening { animation: reactive-awaken 1.1s cubic-bezier(.2,.8,.2,1); }
 .layout-reactive.reactive-awakening .eye-mark { animation: reactive-eye-awaken 1.2s ease-out; }

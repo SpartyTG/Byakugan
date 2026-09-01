@@ -12,16 +12,18 @@ const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.cj
 test('Reactive Vision Dock compacts for agent select and live games', () => {
   assert.match(script, /\['PREGAME', 'INGAME', 'CORE_GAME'\]/);
   assert.match(script, /reactive-compact/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*124px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*130px/);
   assert.match(styles, /\.layout-reactive\s*\{[\s\S]*height:\s*170px/);
 });
 
 test('compact Reactive Vision Dock remains legible at webcam width', () => {
   assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*21px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record strong[^}]*font-size:\s*17px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record em[^}]*font-size:\s*12px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.current-rr-marker strong[^}]*font-size:\s*13px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.rr-energy-beam[^}]*top:\s*20px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy em[^}]*display:\s*none/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-session strong[^}]*font-size:\s*16px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-session-kd strong[^}]*font-size:\s*14px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record[^}]*display:\s*none/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.current-rr-marker strong[^}]*font-size:\s*14px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rr-energy-beam[^}]*top:\s*24px/);
 });
 
 test('Reactive Vision preview simultaneously shows between-games and in-game docks', () => {
@@ -54,16 +56,23 @@ test('Awakened Rank remains a separate untouched layout selector', () => {
   assert.doesNotMatch(styles, /\.layout-rank\.reactive-compact/);
 });
 
-test('expanded Reactive Vision Dock uses separate session and stacked rank regions', () => {
+test('expanded Reactive Vision Dock groups last match with session and uses parallel equal ranks', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
   assert.match(html, /class="reactive-menu-left"/);
   assert.match(html, /id="reactiveSessionRecord"/);
   assert.match(html, /id="reactiveSessionKd"/);
+  assert.match(html, /id="reactiveLastMatchRR"/);
+  assert.match(html, /id="reactiveLastMatchResult"/);
   assert.match(html, /class="reactive-current-rank"/);
   assert.match(html, /class="reactive-peak-rank"/);
   assert.match(styles, /grid-template-columns:\s*43% 57%/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*grid-template-columns:\s*1fr 1fr/);
+  assert.match(styles, /\.layout-reactive \.reactive-rank-emblem[^}]*width:\s*40px[^}]*height:\s*40px/);
+  assert.match(styles, /\.layout-reactive \.reactive-peak-copy strong[^}]*font-size:\s*15px/);
+  assert.match(styles, /\.layout-reactive:not\(\.reactive-compact\) > \.brand-block[^}]*bottom:\s*7px/);
   assert.match(styles, /\.layout-reactive:not\(\.reactive-compact\) \.player-block > \.rank-emblem/);
   assert.match(styles, /\.layout-reactive \.rank-emblem \[hidden\][\s\S]*display:\s*none !important/);
   assert.match(script, /#reactiveSessionRecord/);
+  assert.match(script, /#reactiveLastMatchRR/);
   assert.match(script, /#reactivePlayerPeakRank/);
 });
