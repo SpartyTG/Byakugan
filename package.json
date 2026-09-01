@@ -1,9 +1,9 @@
 {
   "name": "byakugan",
-  "version": "0.8.0-beta.56",
-  "description": "BYAKUGAN — a clean-room, extensible desktop companion for VALORANT.",
+  "version": "0.8.0-beta.59",
+  "description": "BYAKUGAN — a VALORANT performance, post-game analysis, and streaming companion.",
   "main": "src/main/index.cjs",
-  "author": "Tyler",
+  "author": "Tyler Ganza (Spartan)",
   "license": "UNLICENSED",
   "private": true,
   "updateFeedConfigured": true,

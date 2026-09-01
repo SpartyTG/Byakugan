@@ -1,10 +1,58 @@
 # BYAKUGAN
 
-BYAKUGAN is a clean-room Windows desktop companion for VALORANT. It is
-designed as an editable foundation rather than a copy of another application's
-source, brand, or proprietary assets.
+BYAKUGAN is a Windows desktop companion for VALORANT that helps players
+understand their performance and improve over time. It combines player and act
+statistics, match history, post-game tactical heat maps, evidence-based
+insights, customizable stream overlays, and dual-PC support for creators who use
+a gaming PC and streaming PC simultaneously.
 
-## Included in version 0.8.0-beta.56
+## Read-only operating model
+
+BYAKUGAN is read-only with respect to VALORANT, the Riot Client, and Riot
+account or game state. It reads the Riot Client lockfile and queries available
+Riot data endpoints, but it does **not** inject code or DLLs, access or alter
+game memory, modify VALORANT or Riot Client files, install gameplay hooks or
+drivers, automate player input, or send commands that change gameplay or the
+player's Riot account. No BYAKUGAN file is injected into a VALORANT or Riot
+Client process or installation directory.
+
+BYAKUGAN writes only its own application data—such as settings, session-recovery
+records, and local statistics caches—and its own installed updates. Keeping the
+product external to the game and read-only is a permanent BYAKUGAN design
+boundary for future features.
+
+## Product vision
+
+BYAKUGAN is designed to turn match data into clear, useful information for
+players and streamers. Its analysis features focus on reflection and coaching
+after gameplay, while its streaming tools make personal performance data easy
+to present without interrupting the game.
+
+## Creator, inspiration, and development disclosure
+
+BYAKUGAN's creative direction, product design, original feature concepts,
+visual direction, and release decisions are created and led by **Tyler Ganza
+(A.K.A. Spartan)**.
+
+Some companion-app conventions and feature ideas were inspired by the wider
+VALORANT companion ecosystem, including **Valorant Tracker** and
+**ValRadiant**. Credit goes to their teams for helping demonstrate the value of
+accessible player statistics and streaming integrations. BYAKUGAN is an
+independently directed project and is not affiliated with either product.
+
+Approximately **99% of BYAKUGAN's implementation code has been written with AI
+assistance**, primarily through **ChatGPT Work, Grok Build, and Claude**. Tyler
+Ganza remains responsible for product requirements, creative decisions,
+testing, review, release approval, and maintenance.
+
+## Riot Games notice
+
+BYAKUGAN isn't endorsed by Riot Games and doesn't reflect the views or opinions
+of Riot Games or anyone officially involved in producing or managing Riot Games
+properties. Riot Games, and all associated properties are trademarks or
+registered trademarks of Riot Games, Inc.
+
+## Included in version 0.8.0-beta.59
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -31,6 +79,8 @@ source, brand, or proprietary assets.
 - Revised **Reactive Vision Dock** expanded state with BYAKUGAN branding and session W/L plus K/D on the left, current and all-time peak ranks stacked on the right, and duplicate fallback-rank artwork suppressed
 - Larger **Reactive Vision Dock** in-match bar with a taller frame, enlarged current rank and emblem, clearer RR marker, and stream-legible session W/L plus K/D at webcam width
 - Separate **Custom Overlay Builder** with a freeform high-resolution canvas, exact OBS Width and Height controls, drag placement, corner resizing, field visibility, text sizing, element opacity, alignment, text colors, canvas color, automatic saving, live preview, and one-click layout reset
+- Repaired Custom Overlay Builder geometry with CSP-approved position and size styles, captured pointer dragging, out-of-canvas pointer recovery, and persistent drag/resize placement
+- True visual Custom Overlay Builder components using live player data, rank/agent artwork, styled stat cards, BYAKUGAN branding, and the actual animated RR beam instead of placeholder option names
 - Twelve custom live elements: BYAKUGAN branding, Riot name, current rank, current RR, all-time peak, session W/L, session K/D, session RR movement, last-match result, agent, map, and animated RR beam
 - Strict custom-layout validation clamps canvas and element geometry, rejects unknown fields and unsafe colors, and derives private data access only from the fields explicitly enabled in the custom design
 - Reactive Vision preview comparison that simultaneously renders the live-data **Between Games** and **In Game** docks in one taller preview window
@@ -140,7 +190,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.56-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.59-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -169,10 +219,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.56`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.59`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.56`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.59`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -180,8 +230,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.56
-git push origin v0.8.0-beta.56
+git tag v0.8.0-beta.59
+git push origin v0.8.0-beta.59
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -274,8 +324,10 @@ Electron main process
   receives status only and can request only check or confirmed download actions.
 - TLS verification is relaxed only for Riot's self-signed localhost endpoint.
 - Remote requests are restricted to known Riot and metadata hosts.
-- The initial implementation is read-only. Automated agent locking and other
-  game-changing writes are intentionally not enabled.
+- BYAKUGAN's VALORANT integration is read-only. It does not inject into game
+  processes, inspect or alter game memory, modify Riot files, automate input,
+  or issue gameplay-changing commands. Its file writes are confined to its own
+  settings, recovery data, caches, and application updates.
 - Riot's local/private endpoints are undocumented and can change. Keep the
   connector isolated and verify Riot's current policies before distribution.
 - Riot prohibits opponent scouting before a match. BYAKUGAN therefore conceals
@@ -283,10 +335,28 @@ Electron main process
   enemy identities, stats, skins, or profiles. Current and peak competitive-rank
   summaries may be resolved only after the active core game begins, and only
   those rank summaries are retained.
-- Another product exposing a feature is not itself Riot approval. Register and
-  submit BYAKUGAN's live-match flow for Riot audit before public distribution.
+- Feature availability elsewhere in the VALORANT ecosystem does not constitute
+  Riot approval. Register BYAKUGAN and submit its complete user and data flows
+  for Riot audit before public distribution.
 - `BYAKUGAN_LOCKFILE_PATH` can override lockfile discovery for development.
   `COMPANION_LOCKFILE_PATH` remains supported for compatibility with older builds.
+
+## Riot approval readiness
+
+BYAKUGAN is currently a beta prototype and is not represented as an approved
+Riot Games product. Before a public production release intended for official
+approval, the project should:
+
+1. Register the product and its current feature set through the Riot Developer
+   Portal, then submit all material changes for audit.
+2. Use Riot-supported data services wherever required and implement Riot Sign
+   On (RSO) for player authorization when production access becomes available.
+3. Require player opt-in before exposing identifiable player statistics to
+   other users, and remove or disable any data flow Riot declines during review.
+4. Publish an accessible privacy policy, terms of use, support contact, and data
+   deletion process before collecting or sharing production user data.
+5. Sign production installers and document the security boundaries used by the
+   desktop app, overlays, and dual-PC connection.
 
 ## Suggested next milestones
 

@@ -9,6 +9,9 @@ const { CUSTOM_ELEMENT_TYPES, normalizeCustomOverlay } = require('../src/main/cu
 const overlayHtml = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
 const overlayScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'overlay.js'), 'utf8');
 const overlayStyles = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'overlay.css'), 'utf8');
+const rendererHtml = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
+const rendererScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
+const rendererStyles = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
 
 test('custom overlay schema always returns the complete allowlisted element set', () => {
   const normalized = normalizeCustomOverlay({ elements: [{ id: 'branding', visible: false }, { id: 'evil', visible: true }] });
@@ -26,4 +29,23 @@ test('custom OBS renderer uses validated layout data and safe DOM construction',
   assert.match(overlayStyles, /body\.custom-layout\s*\{\s*padding:\s*0/);
   assert.match(overlayStyles, /\.custom-overlay-item/);
   assert.match(overlayStyles, /--custom-beam-progress/);
+});
+
+test('custom editor permits validated geometry and supports captured pointer dragging', () => {
+  assert.match(rendererHtml, /style-src-attr 'unsafe-inline'/);
+  assert.match(rendererScript, /style="left:\$\{element\.x\}%/);
+  assert.match(rendererScript, /setPointerCapture/);
+  assert.match(rendererScript, /pointercancel/);
+  assert.match(rendererScript, /element\.x = Math\.max\(0, Math\.min\(100 - element\.width/);
+  assert.match(rendererScript, /element\.y = Math\.max\(0, Math\.min\(100 - element\.height/);
+});
+
+test('custom editor renders visual components instead of text placeholders', () => {
+  assert.doesNotMatch(rendererScript, /CUSTOM_OVERLAY_SAMPLES/);
+  assert.match(rendererScript, /function customOverlayEditorMarkup/);
+  assert.match(rendererScript, /custom-editor-eye/);
+  assert.match(rendererScript, /\.\.\/overlay\/rr-energy-beam\.gif/);
+  assert.match(rendererStyles, /\.custom-editor-beam-fill/);
+  assert.match(rendererStyles, /--custom-editor-beam-progress/);
+  assert.match(rendererStyles, /\.custom-editor-icon/);
 });

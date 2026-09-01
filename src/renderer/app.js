@@ -34,11 +34,6 @@ const CUSTOM_OVERLAY_LABELS = Object.freeze({
   peakRank: 'Peak rank', sessionWL: 'Session W/L', sessionKD: 'Session K/D', rrChange: 'Session RR change',
   lastMatch: 'Last match', agent: 'Agent', map: 'Map', rrBeam: 'Animated RR beam'
 });
-const CUSTOM_OVERLAY_SAMPLES = Object.freeze({
-  branding: 'BYAKUGAN', playerName: 'PLAYER', currentRank: 'ASCENDANT 1', currentRR: '42 RR', peakRank: 'IMMORTAL 2',
-  sessionWL: '2 W / 1 L', sessionKD: '1.24 K/D', rrChange: '+38 RR', lastMatch: 'VICTORY +18 RR',
-  agent: 'OMEN', map: 'ABYSS', rrBeam: 'RR ENERGY BEAM'
-});
 const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
   width: 960, height: 360, backgroundColor: '#0b0d1d',
   elements: [
@@ -796,6 +791,71 @@ function customCanvasColor(hex, opacity) {
   return `rgba(${value >> 16},${(value >> 8) & 255},${value & 255},${Math.max(0,Math.min(1,opacity))})`;
 }
 
+function customEditorSigned(value, suffix = '') {
+  const number = Number(value) || 0;
+  return `${number > 0 ? '+' : number < 0 ? '−' : '±'}${Math.abs(number)}${suffix}`;
+}
+
+function customEditorCopy(label, value, detail = '') {
+  return `<span class="custom-editor-copy"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong>${detail ? `<em>${escapeHtml(detail)}</em>` : ''}</span>`;
+}
+
+function customEditorIcon(url, fallback, extraClass = '') {
+  const image = safeImage(url);
+  return image
+    ? `<img class="custom-editor-icon ${extraClass}" src="${image}" alt="">`
+    : `<span class="custom-editor-icon-fallback ${extraClass}">${escapeHtml(fallback)}</span>`;
+}
+
+function customOverlayEditorPreview() {
+  const snapshot = state.snapshot || {};
+  const profile = snapshot.profile || {};
+  const session = snapshot.analytics?.session || {};
+  const live = snapshot.live || {};
+  const matches = Array.isArray(snapshot.matches) ? snapshot.matches : [];
+  const recentMatch = matches.find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
+  const self = (live.players || []).find((player) => player?.isSelf) || {};
+  const hasProfile = Boolean(profile.gameName || profile.rank);
+  const rr = Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 42;
+  const kd = Number.isFinite(Number(session.kd)) ? Number(session.kd).toFixed(2) : '1.24';
+  const agent = self.agent || recentMatch.agent || 'OMEN';
+  return {
+    playerName: hasProfile ? [profile.gameName, profile.tagLine ? `#${profile.tagLine}` : ''].filter(Boolean).join('') : 'PLAYER',
+    currentRank: profile.rank || 'ASCENDANT 1',
+    rankImage: profile.rankImage || '',
+    rr,
+    peakRank: profile.peakRank || 'IMMORTAL 2',
+    peakRankImage: profile.peakRankImage || '',
+    peakContext: [profile.peakEpisode, profile.peakAct].filter(Boolean).join(' • ') || 'ALL-TIME PEAK',
+    wins: Number.isFinite(Number(session.wins)) ? Number(session.wins) : 2,
+    losses: Number.isFinite(Number(session.losses)) ? Number(session.losses) : 1,
+    kd,
+    rrChange: Number.isFinite(Number(session.rrChange)) ? Number(session.rrChange) : 38,
+    lastResult: recentMatch.result || 'VICTORY',
+    lastRR: Number.isFinite(Number(recentMatch.rr)) ? Number(recentMatch.rr) : 18,
+    agent,
+    agentImage: self.agentImage || recentMatch.agentImage || '',
+    map: live.map || recentMatch.map || 'ABYSS',
+    liveLabel: live.state ? formatState(live.state) : 'IN MENUS'
+  };
+}
+
+function customOverlayEditorMarkup(id, preview) {
+  if (id === 'branding') return `<span class="custom-editor-eye"></span>${customEditorCopy('BYAKUGAN', 'SESSION VISION')}`;
+  if (id === 'playerName') return customEditorCopy('RIOT ID', preview.playerName);
+  if (id === 'currentRank') return `${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank)}`;
+  if (id === 'currentRR') return customEditorCopy('CURRENT RR', `${preview.rr} RR`);
+  if (id === 'peakRank') return `${customEditorIcon(preview.peakRankImage, initials(preview.peakRank))}${customEditorCopy('ALL-TIME PEAK', preview.peakRank, preview.peakContext)}`;
+  if (id === 'sessionWL') return customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`);
+  if (id === 'sessionKD') return customEditorCopy('SESSION K/D', preview.kd);
+  if (id === 'rrChange') return customEditorCopy('SESSION RR', customEditorSigned(preview.rrChange, ' RR'));
+  if (id === 'lastMatch') return customEditorCopy('LAST MATCH', preview.lastResult, customEditorSigned(preview.lastRR, ' RR'));
+  if (id === 'agent') return `${customEditorIcon(preview.agentImage, initials(preview.agent), 'custom-editor-agent-icon')}${customEditorCopy('AGENT', preview.agent)}`;
+  if (id === 'map') return customEditorCopy('CURRENT MAP', preview.map, preview.liveLabel);
+  if (id === 'rrBeam') return `<span class="custom-editor-beam-fill"><img src="../overlay/rr-energy-beam.gif" alt=""></span><strong class="custom-editor-beam-marker">${escapeHtml(preview.rr)} RR</strong>`;
+  return '';
+}
+
 function selectedCustomElement(config = state.settings?.streamOverlayCustom) {
   return config?.elements?.find((element) => element.id === state.customOverlaySelectedId) || null;
 }
@@ -830,10 +890,11 @@ function renderCustomOverlayBuilder() {
   const availableWidth = Math.max(300, stage.clientWidth - 26);
   const availableHeight = Math.max(210, stage.clientHeight - 48);
   const scale = Math.min(1, availableWidth / config.width, availableHeight / config.height);
+  const preview = customOverlayEditorPreview();
   canvas.style.width = `${Math.round(config.width * scale)}px`;
   canvas.style.height = `${Math.round(config.height * scale)}px`;
   canvas.style.background = customCanvasColor(config.backgroundColor, (Number(state.settings.streamOverlayBackgroundOpacity) || 0) / 100);
-  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;font-size:${Math.max(6,Math.min(18,element.fontSize * scale))}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align}"><span>${escapeHtml(CUSTOM_OVERLAY_SAMPLES[element.id])}</span><i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
+  canvas.innerHTML = config.elements.filter((element) => element.visible).map((element) => `<div class="custom-editor-item custom-editor-${element.id} align-${element.align} ${element.id === 'rrBeam' && state.settings.streamOverlayAnimatedRrBeam === false ? 'beam-static' : ''} ${element.id === state.customOverlaySelectedId ? 'selected' : ''}" data-custom-element="${element.id}" style="left:${element.x}%;top:${element.y}%;width:${element.width}%;height:${element.height}%;font-size:${Math.max(6,Math.min(18,element.fontSize * scale))}px;color:${element.color};opacity:${element.opacity / 100};text-align:${element.align};--custom-editor-beam-progress:${Math.max(0,Math.min(100,preview.rr))}%">${customOverlayEditorMarkup(element.id, preview)}<i class="resize-handle" data-custom-resize="${element.id}"></i></div>`).join('');
   renderCustomInspector(config);
   renderOverlayDimensions('custom');
 }
@@ -857,6 +918,7 @@ function updateSelectedCustomElement(property, rawValue) {
 }
 
 function beginCustomElementDrag(event) {
+  if (event.button !== undefined && event.button !== 0) return;
   const item = event.target.closest('[data-custom-element]');
   if (!item) return;
   const id = item.dataset.customElement;
@@ -868,6 +930,9 @@ function beginCustomElementDrag(event) {
   const start = { x: event.clientX, y: event.clientY, element: { ...element } };
   const resizing = Boolean(event.target.closest('[data-custom-resize]'));
   event.preventDefault();
+  const pointerTarget = event.currentTarget;
+  pointerTarget.setPointerCapture?.(event.pointerId);
+  document.body.classList.add('custom-editor-dragging');
 
   const move = (moveEvent) => {
     const dx = ((moveEvent.clientX - start.x) / canvasRect.width) * 100;
@@ -889,13 +954,17 @@ function beginCustomElementDrag(event) {
     }
     renderCustomInspector(config);
   };
-  const end = async () => {
+  const end = async (endEvent) => {
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    if (pointerTarget.hasPointerCapture?.(endEvent?.pointerId)) pointerTarget.releasePointerCapture(endEvent.pointerId);
+    document.body.classList.remove('custom-editor-dragging');
     await persistCustomOverlay(config);
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', end, { once: true });
+  window.addEventListener('pointercancel', end, { once: true });
   renderCustomOverlayBuilder();
 }
 
