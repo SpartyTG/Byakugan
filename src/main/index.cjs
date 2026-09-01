@@ -431,7 +431,7 @@ function registerIpc() {
     const layout = overlaySettings.streamOverlayLayout || 'horizontal';
     const customCanvas = overlaySettings.streamOverlayCustom || { width: 960, height: 360 };
     const sizes = {
-      rank: [590, 270], reactive: [590, 270],
+      rank: [590, 270], reactive: [620, 490],
       custom: [Math.min(1400, Math.max(520, Number(customCanvas.width) + 80)), Math.min(900, Math.max(300, Number(customCanvas.height) + 100))],
       horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
     };

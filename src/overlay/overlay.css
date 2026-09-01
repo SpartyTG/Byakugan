@@ -16,6 +16,11 @@ body { padding: 10px; color: var(--text); font-family: "Segoe UI", Arial, sans-s
 .preview-mode { padding: 28px; background-color: #10121c; background-image: linear-gradient(45deg, #171a27 25%, transparent 25%), linear-gradient(-45deg, #171a27 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #171a27 75%), linear-gradient(-45deg, transparent 75%, #171a27 75%); background-position: 0 0, 0 12px, 12px -12px, -12px 0; background-size: 24px 24px; }
 body.custom-layout { padding: 0; }
 body.preview-mode.custom-layout { padding: 28px; }
+body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
+.reactive-preview-comparison { width: 100%; display: grid; gap: 15px; }
+.reactive-preview-state { min-width: 0; display: grid; gap: 6px; }
+.reactive-preview-label { color: var(--violet-soft); font-size: 8px; font-weight: 900; letter-spacing: .16em; }
+.reactive-preview-state .overlay { width: 100%; }
 
 .overlay {
   --overlay-bg-opacity: .7;
@@ -377,25 +382,25 @@ body.preview-mode.custom-layout { padding: 28px; }
 .layout-reactive.hide-wl .reactive-session-wl, .layout-reactive.hide-kd .reactive-session-kd, .layout-reactive.hide-peak-rank .reactive-peak-rank { display: none; }
 .layout-reactive.is-offline .reactive-status-dot { background: var(--red); box-shadow: 0 0 10px var(--red); }
 
-.layout-reactive.reactive-compact { height: 112px; grid-template-rows: minmax(0,1fr) 40px; border-radius: 14px; box-shadow: 0 12px 38px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.035); }
+.layout-reactive.reactive-compact { height: 124px; grid-template-rows: minmax(0,1fr) 52px; border-radius: 14px; box-shadow: 0 12px 38px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.035); }
 .layout-reactive.reactive-compact .reactive-menu-panel { display: none; }
 .layout-reactive.reactive-compact .brand-block { opacity: 0; transform: translateY(-8px) scale(.8); pointer-events: none; }
 .layout-reactive.reactive-compact .player-block { gap: 7px; padding: 4px 11px 2px 9px; }
 .layout-reactive.reactive-compact .rank-emblem { width: 58px; height: 58px; }
 .layout-reactive.reactive-compact .rank-emblem span { width: 48px; height: 48px; border-radius: 9px; }
 .layout-reactive.reactive-compact .player-copy small { font-size: 7px; }
-.layout-reactive.reactive-compact .player-copy strong { margin-top: 3px; font-size: 23px; }
-.layout-reactive.reactive-compact .player-copy em { padding: 4px 7px; font-size: 11px; }
+.layout-reactive.reactive-compact .player-copy strong { margin-top: 3px; font-size: 21px; }
+.layout-reactive.reactive-compact .player-copy em { padding: 4px 8px; font-size: 12px; }
 .layout-reactive.reactive-compact .peak-rank-line { max-height: 0; margin: 0; opacity: 0; transform: translateY(-4px); overflow: hidden; }
 .layout-reactive.reactive-compact .rank-last-match-record { max-width: 0; flex-basis: 0; margin: 0; padding: 0; border: 0; opacity: 0; transform: translateX(12px); }
 .layout-reactive.reactive-compact .last-match-strip { margin: 0 6px 6px; border-radius: 8px; }
-.layout-reactive.reactive-compact .current-rr-marker { top: 0; width: 46px; height: 18px; }
-.layout-reactive.reactive-compact .current-rr-marker strong { font-size: 10px; }
-.layout-reactive.reactive-compact .rr-energy-beam { top: 17px; }
+.layout-reactive.reactive-compact .current-rr-marker { top: 0; width: 56px; height: 22px; }
+.layout-reactive.reactive-compact .current-rr-marker strong { font-size: 13px; }
+.layout-reactive.reactive-compact .rr-energy-beam { top: 20px; }
 .layout-reactive.reactive-compact .rank-session-record { padding-inline: 8px; }
 .layout-reactive.reactive-compact .rank-session-record small { display: none; }
-.layout-reactive.reactive-compact .rank-session-record strong { margin: 0; font-size: 14px; }
-.layout-reactive.reactive-compact .rank-session-record em { margin-top: 3px; font-size: 10px; }
+.layout-reactive.reactive-compact .rank-session-record strong { margin: 0; font-size: 17px; }
+.layout-reactive.reactive-compact .rank-session-record em { margin-top: 4px; font-size: 12px; }
 
 .layout-reactive.reactive-postmatch-pending .rank-last-match-record::after { content: "SYNCING RESULT"; position: absolute; inset: 0; display: grid; place-items: center; background: rgba(7,10,22,.94); color: var(--violet-soft); font-size: 7px; font-weight: 900; letter-spacing: .12em; }
 .layout-reactive.reactive-postmatch-pending .eye-mark { animation: reactive-eye-wait 1.15s ease-in-out infinite; }

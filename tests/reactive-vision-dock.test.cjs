@@ -12,15 +12,25 @@ const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.cj
 test('Reactive Vision Dock compacts for agent select and live games', () => {
   assert.match(script, /\['PREGAME', 'INGAME', 'CORE_GAME'\]/);
   assert.match(script, /reactive-compact/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*112px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*124px/);
   assert.match(styles, /\.layout-reactive\s*\{[\s\S]*height:\s*170px/);
 });
 
 test('compact Reactive Vision Dock remains legible at webcam width', () => {
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*23px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record strong[^}]*font-size:\s*14px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record em[^}]*font-size:\s*10px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.current-rr-marker strong[^}]*font-size:\s*10px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*21px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record strong[^}]*font-size:\s*17px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record em[^}]*font-size:\s*12px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.current-rr-marker strong[^}]*font-size:\s*13px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.rr-energy-beam[^}]*top:\s*20px/);
+});
+
+test('Reactive Vision preview simultaneously shows between-games and in-game docks', () => {
+  assert.match(script, /function renderReactivePreviewComparison/);
+  assert.match(script, /BETWEEN GAMES/);
+  assert.match(script, /IN GAME/);
+  assert.match(script, /cloneNode\(true\)/);
+  assert.match(styles, /\.reactive-preview-comparison/);
+  assert.match(main, /reactive:\s*\[620,\s*490\]/);
 });
 
 test('Reactive Vision Dock expands, waits for post-match data, then awakens', () => {
@@ -32,8 +42,7 @@ test('Reactive Vision Dock expands, waits for post-match data, then awakens', ()
   assert.match(styles, /@keyframes reactive-awaken/);
 });
 
-test('Reactive Vision Dock keeps OBS dimensions fixed and supports reduced motion', () => {
-  assert.match(main, /reactive:\s*\[590,\s*270\]/);
+test('Reactive Vision Dock supports reduced motion', () => {
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
   assert.match(styles, /\.layout-reactive, \.layout-reactive \*/);
 });

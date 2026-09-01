@@ -2,7 +2,8 @@
 
 const overlay = document.querySelector('#overlay');
 const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at(-1) || '');
-document.body.classList.toggle('preview-mode', new URLSearchParams(location.search).get('preview') === '1');
+const previewMode = new URLSearchParams(location.search).get('preview') === '1';
+document.body.classList.toggle('preview-mode', previewMode);
 let staleTimer = null;
 let currentBeamProgress = 0;
 let previousLiveState = '';
@@ -122,6 +123,40 @@ function rgbaFromHex(value, opacity) {
   if (!match) return 'transparent';
   const number = Number.parseInt(match[1], 16);
   return `rgba(${number >> 16},${(number >> 8) & 255},${number & 255},${Math.max(0, Math.min(1, opacity))})`;
+}
+
+function renderReactivePreviewComparison(layout) {
+  let comparison = document.querySelector('.reactive-preview-comparison');
+  if (!previewMode || layout !== 'reactive') {
+    if (comparison) {
+      document.body.insertBefore(overlay, comparison);
+      comparison.remove();
+    }
+    document.body.classList.remove('reactive-comparison-mode');
+    return;
+  }
+
+  document.body.classList.add('reactive-comparison-mode');
+  if (!comparison) {
+    comparison = customNode('section', 'reactive-preview-comparison');
+    const expandedFrame = customNode('article', 'reactive-preview-state reactive-expanded-preview');
+    expandedFrame.append(customNode('small', 'reactive-preview-label', 'BETWEEN GAMES'), overlay);
+    const compactFrame = customNode('article', 'reactive-preview-state reactive-compact-preview');
+    compactFrame.append(customNode('small', 'reactive-preview-label', 'IN GAME'));
+    comparison.append(expandedFrame, compactFrame);
+    document.body.append(comparison);
+  }
+
+  overlay.classList.remove('reactive-compact', 'reactive-postmatch-pending', 'reactive-awakening');
+  overlay.classList.add('reactive-expanded');
+  const compactFrame = comparison.querySelector('.reactive-compact-preview');
+  compactFrame.querySelector('.overlay')?.remove();
+  const compactDock = overlay.cloneNode(true);
+  compactDock.removeAttribute('id');
+  compactDock.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+  compactDock.classList.remove('reactive-expanded', 'reactive-postmatch-pending', 'reactive-awakening');
+  compactDock.classList.add('reactive-compact');
+  compactFrame.append(compactDock);
 }
 
 function renderCustomOverlay(data, player, session, live, appearance) {
@@ -253,6 +288,7 @@ function render(data) {
   renderCustomOverlay(data, player, session, live, appearance);
 
   markAlive();
+  renderReactivePreviewComparison(layout);
 }
 
 function setOffline() {
