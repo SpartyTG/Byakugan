@@ -19,9 +19,11 @@ test('Reactive Vision Dock compacts for agent select and live games', () => {
 test('compact Reactive Vision Dock remains legible at webcam width', () => {
   assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy strong[^}]*font-size:\s*21px/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.player-copy em[^}]*display:\s*none/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-panel[^}]*right:\s*26px[^}]*width:\s*176px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-session strong[^}]*font-size:\s*18px/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-session-kd strong[^}]*font-size:\s*17px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-panel[^}]*right:\s*26px[^}]*width:\s*190px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-session > small[^}]*font-size:\s*9px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-session b[^}]*font-size:\s*9px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-menu-session strong[^}]*font-size:\s*22px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact \.reactive-session-kd strong[^}]*font-size:\s*20px/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.rank-session-record[^}]*display:\s*none/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.current-rr-marker strong[^}]*font-size:\s*14px/);
   assert.match(styles, /\.layout-reactive\.reactive-compact \.rr-energy-beam[^}]*top:\s*24px/);
@@ -67,6 +69,9 @@ test('expanded Reactive Vision Dock groups last match with session and verticall
   assert.match(html, /class="reactive-current-rank"/);
   assert.match(html, /class="reactive-peak-rank"/);
   assert.match(styles, /grid-template-columns:\s*43% 57%/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-session > small[^}]*font-size:\s*9px/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-session b[^}]*font-size:\s*9px/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-session strong[^}]*font-size:\s*18px/);
   assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*grid-template-rows:\s*auto auto[^}]*align-content:\s*start/);
   assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*transform:\s*translate\(-7px,-4px\)/);
   assert.match(styles, /\.layout-reactive \.reactive-current-rank \.reactive-rank-copy[^}]*grid-template-columns:\s*max-content auto/);

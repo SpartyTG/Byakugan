@@ -347,11 +347,11 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
 .layout-reactive.last-positive .reactive-menu-last-match { --result-color: #19a980; }
 .layout-reactive.last-negative .reactive-menu-last-match { --result-color: #ea4867; }
 .layout-reactive .reactive-menu-session { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; margin: 9px 0 0; }
-.layout-reactive .reactive-menu-session > small { grid-column: 1 / 3; margin-bottom: 5px; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
+.layout-reactive .reactive-menu-session > small { grid-column: 1 / 3; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .13em; }
 .layout-reactive .reactive-menu-session span { min-width: 0; }
 .layout-reactive .reactive-menu-session b, .layout-reactive .reactive-menu-session strong { display: block; }
-.layout-reactive .reactive-menu-session b { color: var(--violet-soft); font-size: 8px; letter-spacing: .12em; }
-.layout-reactive .reactive-menu-session strong { overflow: hidden; margin-top: 3px; color: white; font-size: 16px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.layout-reactive .reactive-menu-session b { color: var(--violet-soft); font-size: 9px; letter-spacing: .12em; }
+.layout-reactive .reactive-menu-session strong { overflow: hidden; margin-top: 3px; color: white; font-size: 18px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 .layout-reactive .reactive-menu-ranks { display: grid; grid-template-rows: auto auto; align-content: start; min-width: 0; padding: 7px 12px 7px 14px; transform: translate(-7px,-4px); }
 .layout-reactive .reactive-current-rank, .layout-reactive .reactive-peak-rank { display: flex; align-items: center; min-width: 0; }
 .layout-reactive .reactive-current-rank { gap: 9px; padding-bottom: 4px; }
@@ -382,16 +382,16 @@ body.preview-mode.reactive-comparison-mode { overflow-y: auto; }
 .layout-reactive.is-offline .reactive-status-dot { background: var(--red); box-shadow: 0 0 10px var(--red); }
 
 .layout-reactive.reactive-compact { height: 130px; grid-template-rows: minmax(0,1fr) 58px; border-radius: 14px; box-shadow: 0 12px 38px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.035); }
-.layout-reactive.reactive-compact .reactive-menu-panel { position: absolute; z-index: 8; top: 4px; right: 26px; width: 176px; height: 66px; display: block; pointer-events: none; }
+.layout-reactive.reactive-compact .reactive-menu-panel { position: absolute; z-index: 8; top: 4px; right: 26px; width: 190px; height: 66px; display: block; pointer-events: none; }
 .layout-reactive.reactive-compact .reactive-menu-left { padding: 5px 0 4px 11px; border: 0; border-left: 1px solid rgba(194,180,255,.12); background: none; }
 .layout-reactive.reactive-compact .reactive-menu-last-match, .layout-reactive.reactive-compact .reactive-menu-ranks { display: none; }
 .layout-reactive.reactive-compact .reactive-menu-session { grid-template-columns: 1.2fr .8fr; column-gap: 8px; margin: 0; }
-.layout-reactive.reactive-compact .reactive-menu-session > small { margin-bottom: 5px; font-size: 7px; }
-.layout-reactive.reactive-compact .reactive-menu-session b { font-size: 7px; }
-.layout-reactive.reactive-compact .reactive-menu-session strong { margin-top: 3px; font-size: 18px; }
-.layout-reactive.reactive-compact .reactive-session-kd strong { font-size: 17px; }
+.layout-reactive.reactive-compact .reactive-menu-session > small { margin-bottom: 5px; font-size: 9px; }
+.layout-reactive.reactive-compact .reactive-menu-session b { font-size: 9px; }
+.layout-reactive.reactive-compact .reactive-menu-session strong { margin-top: 3px; font-size: 22px; }
+.layout-reactive.reactive-compact .reactive-session-kd strong { font-size: 20px; }
 .layout-reactive.reactive-compact .brand-block { opacity: 0; transform: translateY(-8px) scale(.8); pointer-events: none; }
-.layout-reactive.reactive-compact .player-block { gap: 7px; padding: 4px 212px 2px 9px; }
+.layout-reactive.reactive-compact .player-block { gap: 7px; padding: 4px 226px 2px 9px; }
 .layout-reactive.reactive-compact .rank-emblem { width: 58px; height: 58px; }
 .layout-reactive.reactive-compact .rank-emblem span { width: 48px; height: 48px; border-radius: 9px; }
 .layout-reactive.reactive-compact .player-copy small { font-size: 7px; }
