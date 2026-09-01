@@ -319,10 +319,13 @@
                 <button class="ghost-button" id="resetCustomOverlay">Reset layout</button>
               </div>
               <div class="custom-canvas-controls">
-                <label><span>Canvas width</span><input type="number" id="customOverlayWidth" min="320" max="1920" step="10"></label>
-                <label><span>Canvas height</span><input type="number" id="customOverlayHeight" min="120" max="1080" step="10"></label>
+                <label><span id="customOverlayWidthLabel">Canvas width</span><input type="number" id="customOverlayWidth" min="320" max="1920" step="10"></label>
+                <label><span id="customOverlayHeightLabel">Canvas height</span><input type="number" id="customOverlayHeight" min="120" max="1080" step="10"></label>
+                <label id="customInGameWidthControl" hidden><span>In-game width</span><input type="number" id="customOverlayInGameWidth" min="320" max="1920" step="10"></label>
+                <label id="customInGameHeightControl" hidden><span>In-game height</span><input type="number" id="customOverlayInGameHeight" min="120" max="1080" step="10"></label>
                 <label><span>Canvas color</span><input type="color" id="customOverlayBackgroundColor" value="#0b0d1d"></label>
                 <label><span>Animate beam</span><input type="checkbox" id="customOverlayAnimatedRrBeam"></label>
+                <label><span id="customOverlayShowBeamRRLabel">Show beam RR</span><input type="checkbox" id="customOverlayShowBeamRR"></label>
               </div>
               <div class="custom-builder-workspace">
                 <aside class="custom-element-palette"><small>ELEMENTS</small><div id="customElementPalette"></div></aside>
@@ -341,7 +344,7 @@
                   <button type="button" class="ghost-button custom-reset-selected" id="resetSelectedCustomElement">Reset selected element</button>
                 </aside>
               </div>
-              <p class="custom-builder-note">Changes save automatically. The canvas dimensions shown above are the exact Width and Height to enter in OBS.</p>
+              <p class="custom-builder-note">Changes save automatically. With Reactive Vision enabled, OBS uses the larger width and height as a safe envelope while each state keeps its own visible canvas size.</p>
             </section>
             <div class="overlay-options-heading"><div><small>VISIBLE FIELDS</small><strong>Build your overlay</strong></div><span>Every field updates live</span></div>
             <div class="overlay-field-grid">

@@ -170,6 +170,10 @@ function renderCustomOverlay(data, player, session, live, appearance) {
   canvas.style.setProperty('--custom-canvas-background', rgbaFromHex(config.backgroundColor, appearance.backgroundOpacity / 100));
   const compact = config.reactive && isReactiveCompactState(live.state);
   const elements = compact ? config.inGameElements : config.elements;
+  const canvasWidth = Number(compact ? config.inGameWidth : config.width) || 960;
+  const canvasHeight = Number(compact ? config.inGameHeight : config.height) || 360;
+  canvas.style.width = `${canvasWidth}px`;
+  canvas.style.height = `${canvasHeight}px`;
 
   for (const element of elements || []) {
     if (!element.visible) continue;
@@ -213,7 +217,8 @@ function renderCustomOverlay(data, player, session, live, appearance) {
       beam.alt = '';
       fill.append(beam);
       item.style.setProperty('--custom-beam-progress', `${Math.max(0, Math.min(100, Number(session.beamProgress) || 0))}%`);
-      item.append(fill, customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
+      item.append(fill);
+      if (element.showMarker !== false) item.append(customNode('strong', 'custom-beam-marker', `${Number(player.rr) || 0} RR`));
     }
     canvas.append(item);
   }

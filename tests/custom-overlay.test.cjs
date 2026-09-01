@@ -51,8 +51,8 @@ test('custom editor renders visual components instead of text placeholders', () 
 });
 
 test('custom editor independently scales canvas axes and applies uncapped text sizing', () => {
-  assert.match(rendererScript, /canvas\.style\.width = `\$\{Math\.round\(config\.width \* scale\)\}px`/);
-  assert.match(rendererScript, /canvas\.style\.height = `\$\{Math\.round\(config\.height \* scale\)\}px`/);
+  assert.match(rendererScript, /canvas\.style\.width = `\$\{Math\.round\(dimensions\.width \* scale\)\}px`/);
+  assert.match(rendererScript, /canvas\.style\.height = `\$\{Math\.round\(dimensions\.height \* scale\)\}px`/);
   assert.doesNotMatch(rendererScript, /availableHeight\s*=\s*Math\.max\([^\n]*stage\.clientHeight/);
   assert.match(rendererScript, /--custom-font-size:\$\{Math\.max\(3,element\.fontSize \* scale\)\}px/);
   assert.doesNotMatch(rendererScript, /Math\.min\(18,element\.fontSize/);
@@ -82,7 +82,8 @@ test('custom Reactive Vision turns the base canvas into between-games and adds a
   assert.match(rendererScript, /function customElementsForState/);
   assert.match(rendererScript, /renderCustomEditorCanvas\(betweenCanvas, config\.elements/);
   assert.match(rendererScript, /renderCustomEditorCanvas\(inGameCanvas, config\.inGameElements/);
-  assert.match(rendererScript, /config\.height \* 2/);
+  assert.match(rendererScript, /Math\.max\(config\.width, config\.inGameWidth/);
+  assert.match(rendererScript, /In game \$\{config\.inGameWidth\} × \$\{config\.inGameHeight\}/);
   assert.match(overlayScript, /const elements = compact \? config\.inGameElements : config\.elements/);
   assert.doesNotMatch(overlayScript, /element\.id === 'reactiveDock'/);
 });
@@ -100,5 +101,30 @@ test('beta.60 and beta.61 Reactive Vision settings migrate into two-canvas mode'
 
   const beta61 = normalizeCustomOverlay({ elements: [{ id: 'reactiveDock', visible: true }] });
   assert.equal(beta61.reactive, true);
+  assert.equal(beta61.inGameWidth, beta61.width);
+  assert.equal(beta61.inGameHeight, beta61.height);
   assert.equal(beta61.elements.some((element) => element.id === 'reactiveDock'), false);
+});
+
+test('Reactive Vision canvas dimensions and beam RR markers are independent by state', () => {
+  const normalized = normalizeCustomOverlay({
+    reactive: true,
+    width: 1200,
+    height: 420,
+    inGameWidth: 640,
+    inGameHeight: 220,
+    elements: [{ id: 'rrBeam', showMarker: true }],
+    inGameElements: [{ id: 'rrBeam', showMarker: false }]
+  });
+  assert.equal(normalized.width, 1200);
+  assert.equal(normalized.height, 420);
+  assert.equal(normalized.inGameWidth, 640);
+  assert.equal(normalized.inGameHeight, 220);
+  assert.equal(normalized.elements.find((element) => element.id === 'rrBeam').showMarker, true);
+  assert.equal(normalized.inGameElements.find((element) => element.id === 'rrBeam').showMarker, false);
+  assert.match(rendererHtml, /id="customOverlayInGameWidth"/);
+  assert.match(rendererHtml, /id="customOverlayInGameHeight"/);
+  assert.match(rendererHtml, /id="customOverlayShowBeamRR"/);
+  assert.match(overlayScript, /if \(element\.showMarker !== false\)/);
+  assert.match(overlayStyles, /calc\(var\(--custom-beam-progress,0%\) \+ \.25em\)/);
 });

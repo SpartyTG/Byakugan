@@ -37,6 +37,9 @@ test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and
   assert.match(html, /<option value="custom">Custom Overlay Builder<\/option>/);
   assert.match(html, /id="customOverlayWidth"/);
   assert.match(html, /id="customOverlayHeight"/);
+  assert.match(html, /id="customOverlayInGameWidth"/);
+  assert.match(html, /id="customOverlayInGameHeight"/);
+  assert.match(html, /id="customOverlayShowBeamRR"/);
   assert.match(html, /id="customEditorCanvas"/);
   assert.match(html, /id="customEditorCanvasInGame"/);
   assert.match(html, /id="customElementPalette"/);

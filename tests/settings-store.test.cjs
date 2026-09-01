@@ -71,13 +71,15 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     const custom = store.update({
       streamOverlayLayout: 'custom',
       streamOverlayCustom: {
-        width: 5000, height: 20, backgroundColor: 'red',
+        width: 5000, height: 20, inGameWidth: 200, inGameHeight: 5000, backgroundColor: 'red',
         elements: [{ id: 'playerName', visible: true, x: -50, y: 200, width: 200, height: 1, fontSize: 500, opacity: 0, align: 'sideways', color: 'javascript:red' }]
       }
     });
     assert.equal(custom.streamOverlayLayout, 'custom');
     assert.equal(custom.streamOverlayCustom.width, 1920);
     assert.equal(custom.streamOverlayCustom.height, 120);
+    assert.equal(custom.streamOverlayCustom.inGameWidth, 320);
+    assert.equal(custom.streamOverlayCustom.inGameHeight, 1080);
     assert.equal(custom.streamOverlayCustom.backgroundColor, '#0b0d1d');
     assert.equal(custom.streamOverlayCustom.elements.length, 12);
     assert.equal(custom.streamOverlayCustom.inGameElements.length, 12);
