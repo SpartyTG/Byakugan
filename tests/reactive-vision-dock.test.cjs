@@ -67,8 +67,10 @@ test('expanded Reactive Vision Dock groups last match with session and verticall
   assert.match(html, /class="reactive-current-rank"/);
   assert.match(html, /class="reactive-peak-rank"/);
   assert.match(styles, /grid-template-columns:\s*43% 57%/);
-  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*grid-template-rows:\s*1fr 1fr/);
-  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*transform:\s*translate\(-7px,-10px\)/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*grid-template-rows:\s*auto auto[^}]*align-content:\s*start/);
+  assert.match(styles, /\.layout-reactive \.reactive-menu-ranks[^}]*transform:\s*translate\(-7px,-4px\)/);
+  assert.match(styles, /\.layout-reactive \.reactive-current-rank \.reactive-rank-copy[^}]*grid-template-columns:\s*max-content auto/);
+  assert.match(styles, /\.layout-reactive \.reactive-rank-copy em[^}]*grid-column:\s*2[^}]*grid-row:\s*2/);
   assert.match(styles, /\.layout-reactive \.reactive-peak-rank[^}]*border-top:/);
   assert.match(styles, /\.layout-reactive \.reactive-rank-emblem[^}]*width:\s*40px[^}]*height:\s*40px/);
   assert.match(styles, /\.layout-reactive \.reactive-peak-copy strong[^}]*font-size:\s*15px/);
