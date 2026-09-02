@@ -56,9 +56,11 @@ test('Reactive Vision Dock expands, waits for post-match data, then awakens', ()
   assert.match(styles, /@keyframes reactive-awaken/);
 });
 
-test('Reactive Vision Dock supports reduced motion', () => {
-  assert.match(styles, /prefers-reduced-motion:\s*reduce/);
-  assert.match(styles, /body:not\(\.transition-preview-mode\) \.layout-reactive, body:not\(\.transition-preview-mode\) \.layout-reactive \*/);
+test('Reactive Vision Dock uses its explicit motion toggle inside OBS', () => {
+  assert.doesNotMatch(script, /matchMedia/);
+  assert.doesNotMatch(styles, /prefers-reduced-motion/);
+  assert.match(script, /preferences\.smoothTransitions !== false/);
+  assert.match(styles, /\.layout-reactive\.motion-instant/);
 });
 
 test('BYAKUGAN Shift preserves an outgoing frame and animates the incoming state', () => {
@@ -71,7 +73,6 @@ test('BYAKUGAN Shift preserves an outgoing frame and animates the incoming state
   assert.match(script, /activeShiftAnimation = overlay\.animate/);
   assert.match(script, /renderedVisionState !== anticipatedState/);
   assert.match(script, /preferences\.smoothTransitions !== false/);
-  assert.match(script, /prefers-reduced-motion: reduce/);
   assert.match(script, /if \(latestOverlayData\) render\(latestOverlayData\)/);
   assert.match(script, /overlay\.classList\.remove\(\.\.\.OVERLAY_LAYOUT_CLASSES\)/);
   assert.doesNotMatch(script, /overlay\.className = `overlay layout-/);
@@ -111,10 +112,9 @@ test('Reactive Vision can safely preview the complete transition and RR beam seq
   assert.match(script, /showTransitionPreviewState\('ingame'/);
   assert.match(script, /showTransitionPreviewState\('postmatch'/);
   assert.match(script, /Preview data only — OBS is unchanged/);
-  assert.match(script, /const reduceMotion = !transitionPreviewMode && window\.matchMedia/);
+  assert.doesNotMatch(script, /const reduceMotion/);
   assert.match(script, /transitionPreviewMode \? 1_450 : 1_000/);
   assert.match(styles, /\.transition-preview-badge/);
-  assert.match(styles, /body:not\(\.transition-preview-mode\) \.byakugan-shift-effect/);
   assert.match(styles, /\.transition-preview-mode \.byakugan-shift-effect\.active/);
 });
 

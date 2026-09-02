@@ -112,6 +112,7 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(main, /shell\.trashItem\(source\)/);
   assert.match(main, /ipcMain\.handle\('sensei:vod-cancel'/);
   assert.match(main, /sensei:vod-progress/);
+  assert.match(main, /analysisStartedAt/);
   assert.match(main, /powerSaveBlocker\.start\('prevent-app-suspension'\)/);
   assert.match(main, /visionCapable/);
   assert.match(renderer, /Run Sensei Vision/);
@@ -119,6 +120,7 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(renderer, /FULL-MATCH ANALYSIS IN PROGRESS/);
   assert.match(renderer, /Pause safely/);
   assert.match(renderer, /Resume full analysis/);
+  assert.match(renderer, /Number\(entry\.vod\.analysisStartedAt\)/);
   assert.match(html, /Enable Sensei Vision/);
   assert.match(html, /No paid API and no live coaching/);
   assert.match(html, /Source Record plugin/);
@@ -275,4 +277,13 @@ test('full-match VOD checkpoints survive interruption and become resumable on st
     assert.equal(recovered.vod.checkpoint.completedSegments, 47);
     assert.match(recovered.vod.error, /resume/i);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('active full-match analysis preserves its elapsed-clock origin across navigation', () => {
+  const startedAt = Date.now() - 42_000;
+  const entry = normalizeEntry({
+    matchId: 'clock', updatedAt: Date.now(),
+    vod: { path: 'C:\\recordings\\clock.mkv', status: 'analyzing', analysisStartedAt: startedAt }
+  });
+  assert.equal(entry.vod.analysisStartedAt, startedAt);
 });

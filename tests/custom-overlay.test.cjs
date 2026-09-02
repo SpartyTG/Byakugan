@@ -140,8 +140,11 @@ test('Reactive Vision canvas dimensions and beam RR markers are independent by s
   assert.match(rendererHtml, /id="customOverlayPostMatchWidth"/);
   assert.match(rendererHtml, /id="customOverlayPostMatchHeight"/);
   assert.match(rendererHtml, /id="customOverlayShowBeamRR"/);
+  assert.match(rendererHtml, /Show \+\/- RR on beam/);
   assert.match(overlayScript, /if \(element\.showMarker !== false\)/);
   assert.match(overlayStyles, /calc\(var\(--custom-beam-progress,0%\) \+ \.25em\)/);
+  assert.match(overlayStyles, /clip-path: inset\(0 calc\(100% - var\(--custom-beam-progress,0%\)\) 0 0\)/);
+  assert.match(rendererStyles, /clip-path: inset\(0 calc\(100% - var\(--custom-editor-beam-progress,42%\)\) 0 0\)/);
 });
 
 test('custom copy layers have independent sizing and the beam marker shows last-match RR', () => {

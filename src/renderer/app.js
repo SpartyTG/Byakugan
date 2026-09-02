@@ -607,6 +607,7 @@ async function hydrateSenseiPanel(matchId) {
   try {
     const entry = await window.companion.getSenseiReport(matchId);
     if (state.openMatchId === matchId) {
+      if (entry?.vod?.status === 'analyzing') state.senseiVodStartedAt = Number(entry.vod.analysisStartedAt) || Date.now();
       renderSenseiPanel(entry);
       if (entry?.vod?.status === 'analyzing') { state.senseiBusy = true; startSenseiVodTimer(); }
       if (state.settings?.senseiVodEnabled) refreshSenseiStatus();
@@ -1176,8 +1177,8 @@ function renderCustomOverlayBuilder() {
   const activeBeam = activeElements.find((element) => element.id === 'rrBeam');
   $('#customOverlayShowBeamRR').checked = activeBeam?.showMarker !== false;
   text('#customOverlayShowBeamRRLabel', config.reactive
-    ? `Show last-match RR (${state.customOverlayCanvasState === 'ingame' ? 'In game' : state.customOverlayCanvasState === 'postmatch' ? 'Post match' : 'Between'})`
-    : 'Show last-match RR');
+    ? `Show +/- RR on beam (${state.customOverlayCanvasState === 'ingame' ? 'In game' : state.customOverlayCanvasState === 'postmatch' ? 'Post match' : 'Between'})`
+    : 'Show +/- RR on beam');
   text('#customOverlayWidthLabel', config.reactive ? 'Between width' : 'Canvas width');
   text('#customOverlayHeightLabel', config.reactive ? 'Between height' : 'Canvas height');
   $('#customInGameWidthControl').hidden = !config.reactive;
@@ -1990,7 +1991,8 @@ function bindEvents() {
   window.companion.onSenseiVodProgress(async (progress) => {
     if (!progress || String(progress.matchId || '') !== String(state.openMatchId || '')) return;
     state.senseiVodProgress = progress;
-    if (!state.senseiVodStartedAt) state.senseiVodStartedAt = Date.now();
+    if (Number(progress.analysisStartedAt) > 0) state.senseiVodStartedAt = Number(progress.analysisStartedAt);
+    else if (!state.senseiVodStartedAt) state.senseiVodStartedAt = Date.now();
     if (!['complete', 'failed', 'canceled'].includes(progress.phase)) {
       startSenseiVodTimer();
       if (state.senseiEntry) renderSenseiPanel({ ...state.senseiEntry, vod: { ...state.senseiEntry.vod, status: 'analyzing', error: '' } });

@@ -68,6 +68,7 @@ function normalizeEntry(value = {}) {
       size: Math.max(0, Number(value.vod.size) || 0),
       importedAt: Number(value.vod.importedAt) || 0,
       analyzedAt: Number(value.vod.analyzedAt) || 0,
+      analysisStartedAt: Number(value.vod.analysisStartedAt) || 0,
       deletedAt: Number(value.vod.deletedAt) || 0,
       status: ['ready', 'analyzing', 'analyzed', 'deleted', 'failed', 'canceled'].includes(value.vod.status) ? value.vod.status : 'ready',
       error: cleanText(value.vod.error, 1_000),

@@ -479,12 +479,13 @@ function registerIpc() {
     if (senseiVodJobs.has(jobKey)) throw new Error('VOD analysis is already running for this match.');
     const controller = new AbortController();
     senseiVodJobs.set(jobKey, controller);
+    const analysisStartedAt = Date.now();
     let powerBlockerId = null;
     try { powerBlockerId = powerSaveBlocker.start('prevent-app-suspension'); } catch {}
     const progress = (payload) => {
-      if (!event.sender.isDestroyed()) event.sender.send('sensei:vod-progress', { matchId, at: Date.now(), ...payload });
+      if (!event.sender.isDestroyed()) event.sender.send('sensei:vod-progress', { matchId, at: Date.now(), analysisStartedAt, ...payload });
     };
-    let vodState = { ...existing.vod, status: 'analyzing', error: '' };
+    let vodState = { ...existing.vod, analysisStartedAt, status: 'analyzing', error: '' };
     senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
     let temporary = '';
     try {

@@ -535,8 +535,10 @@ function render(data) {
   const preferences = data.preferences || {};
   if (preferences.transitionSound === true) prepareByakuganShiftSound();
   const anticipatedState = anticipatedVisionState(data);
-  const reduceMotion = !transitionPreviewMode && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const shouldShift = (!previewMode || transitionPreviewMode) && preferences.smoothTransitions !== false && !reduceMotion
+  // The overlay has its own explicit motion control. OBS's embedded Chromium can
+  // report reduced motion even when the streamer enabled BYAKUGAN Shift, which
+  // previously made the live Browser Source snap while the preview animated.
+  const shouldShift = (!previewMode || transitionPreviewMode) && preferences.smoothTransitions !== false
     && Boolean(renderedVisionState && anticipatedState && renderedVisionState !== anticipatedState);
   const captured = shouldShift ? captureVisionGhost() : null;
   renderFrame(data);

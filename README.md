@@ -89,7 +89,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.81
+## Included in version 0.8.0-beta.84
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
@@ -100,6 +100,7 @@ registered trademarks of Riot Games, Inc.
 - Hard VOD-analysis gating that explains every missing prerequisite before confirmation, including the required full BYAKUGAN restart after changing the Windows PATH
 - Continuous start-to-finish review in consecutive four-second sections at four ordered frames per second, producing roughly 7,200 chronologically ordered frames for a 30-minute match instead of the former 24-screenshot scan
 - Immediate overnight-analysis progress with elapsed time, video timestamp, completed section count, rolling estimated time remaining, and a safe Pause action that never removes the original recording
+- An analysis clock anchored to the persisted background job so navigating away from the match and returning does not reset the displayed elapsed time
 - Per-section persistence and automatic interrupted-job recovery so completed work can resume after a pause, model failure, application close, or PC restart
 - A Windows app-suspension blocker during analysis so an unattended overnight job can continue while the display turns off normally
 - Tactical findings that require a visible decision, visible consequence, multi-frame evidence, and a specific adjustment or repeatable strength; generic webcam, HUD, weapon, health, and centered-crosshair descriptions are rejected
@@ -112,6 +113,9 @@ registered trademarks of Riot Games, Inc.
 - Local consolidation of validated four-frame reports, removing the final model-formatting request and its remaining JSON failure point while deduplicating observations and preserving timestamps
 - Honest failure behavior for empty or unusable output: normalization never invents a finding, and the original recording remains untouched
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
+- A proportionally accurate custom RR beam that reveals the full-size artwork to the exact current-RR percentage instead of compressing the animation into the filled area
+- A clearly labeled, independent **Show +/- RR on beam** control for the Between Games, In Game, and Post Match custom Reactive Vision canvases
+- Live OBS transitions that honor BYAKUGAN's explicit Shift toggle instead of being silently disabled by an incorrect reduced-motion signal from OBS's embedded browser
 - Independently scrollable page and navigation regions that keep every control accessible at increased interface scales
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
 - Connector health now treats Riot's optional player-loadout `404` as unavailable cosmetic data instead of a failed core connection; authentication, match, rank, and relay failures remain visible
@@ -276,7 +280,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.81-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.84-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -305,10 +309,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.81`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.84`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.81`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.84`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -316,8 +320,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.81
-git push origin v0.8.0-beta.81
+git tag v0.8.0-beta.84
+git push origin v0.8.0-beta.84
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
