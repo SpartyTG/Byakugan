@@ -87,6 +87,13 @@ test('BYAKUGAN Shift has a longer eye hold and optional original audio cue', () 
   assert.match(script, /window\.AudioContext \|\| window\.webkitAudioContext/);
   assert.match(script, /createOscillator/);
   assert.match(script, /createBufferSource/);
+  assert.match(script, /createDynamicsCompressor/);
+  assert.match(script, /const reverseSwell/);
+  assert.match(script, /const ocularSnap/);
+  assert.match(script, /const subImpact/);
+  assert.match(script, /const shadowRumble/);
+  assert.doesNotMatch(script, /eye\.type = 'triangle'/);
+  assert.doesNotMatch(script, /frequency\.exponentialRampToValueAtTime\(1_180/);
   assert.match(script, /playByakuganShiftSound\(latestOverlayData\?\.preferences\)/);
   assert.match(script, /transitionPreviewMode \? 1_450 : 1_000/);
   assert.match(styles, /animation:\s*byakugan-shift-eye 1\.03s/);

@@ -52,7 +52,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.74
+## Included in version 0.8.0-beta.75
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -109,7 +109,8 @@ registered trademarks of Riot Games, Inc.
 - Animation-preview controls that are available only for Reactive Vision layouts and automatically disable when BYAKUGAN Shift transitions are turned off
 - Deterministic animation-preview playback that honors the explicit preview request even when Windows reduced-motion is enabled, with a slightly slower test-only sequence so every shift and beam movement is visible; normal OBS behavior still respects accessibility preferences
 - Slower **BYAKUGAN Shift** timing with a longer eye-activation hold, while keeping the full state change close to one second during normal OBS use
-- Optional **Transition audio cue**, disabled by default, that synthesizes an original layered chakra swell, eye chime, and filtered shimmer directly in the overlay without external or copyrighted audio assets
+- Optional **Transition audio cue**, disabled by default, that synthesizes an original dark reverse swell, sub-bass impact, supernatural eye snap, and decaying shadow rumble directly in the overlay without external or copyrighted audio assets
+- Non-melodic cinematic sound design that avoids the cheerful rising intervals and bouncy game-power-up character of the earlier cue
 - Preview-window autoplay support for the optional cue; OBS users can enable browser-source audio control to route the cue through the OBS mixer
 - Smoother RR beam extension and retraction that eases from the previously displayed rating to the new 0–100 RR position instead of snapping
 - Rebalanced Reactive Vision in-game dock with a larger RR beam and marker, larger session W/L and K/D, and slightly reduced rank-name text for clearer visual hierarchy at webcam width
@@ -218,7 +219,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.74-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.75-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -247,10 +248,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.74`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.75`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.74`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.75`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -258,8 +259,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.74
-git push origin v0.8.0-beta.74
+git tag v0.8.0-beta.75
+git push origin v0.8.0-beta.75
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
