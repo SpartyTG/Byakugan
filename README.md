@@ -87,7 +87,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.79
+## Included in version 0.8.0-beta.80
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
@@ -103,6 +103,9 @@ registered trademarks of Riot Games, Inc.
 - Vision-response compatibility for models that emit thinking tags, explanatory prefixes, fenced JSON, double-encoded objects, or trailing commas
 - Lightweight JSON repair that sends only the failed candidate text—not the VOD frames—to the installed Sensei text model when available, with the vision model as an offline fallback
 - Accurate first-batch progress that changes from model loading to **Reviewing frames 1–4** before inference begins and identifies any structured-output repair pass
+- A deterministic local compatibility fallback that recovers completed summary and finding fields from usable malformed model output, validates them into BYAKUGAN's internal JSON report, and explicitly marks the result low-confidence instead of discarding the full analysis
+- Local consolidation of validated four-frame reports, removing the final model-formatting request and its remaining JSON failure point while deduplicating observations and preserving timestamps
+- Honest failure behavior for empty or unusable output: normalization never invents a finding, and the original recording remains untouched
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
 - Independently scrollable page and navigation regions that keep every control accessible at increased interface scales
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -268,7 +271,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.79-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.80-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -297,10 +300,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.79`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.80`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.79`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.80`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -308,8 +311,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.79
-git push origin v0.8.0-beta.79
+git tag v0.8.0-beta.80
+git push origin v0.8.0-beta.80
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

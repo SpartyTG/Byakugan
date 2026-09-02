@@ -260,6 +260,7 @@ function modelPrompt(matchCard, contextPack) {
 async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {} }) {
   let lastError;
   let candidate = '';
+  const candidates = [];
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     if (signal?.aborted) throw canceledError();
     try {
@@ -277,14 +278,19 @@ async function generateStructured({ endpoint, model, repairModel = '', prompt, s
           options: { temperature: attempt ? 0 : .1, num_predict: attempt ? Math.max(1_200, numPredict) : numPredict }
         })
       }, timeoutMs, signal);
-      candidate = String(response.response || '').trim();
+      const returned = [response.response, response.message?.content, response.output, response.thinking]
+        .find((value) => value && (typeof value === 'object' || String(value).trim())) || '';
+      candidate = typeof returned === 'object' && returned !== null ? JSON.stringify(returned) : String(returned || '').trim();
+      if (candidate) candidates.push(candidate);
       return validate(parseStructuredJson(candidate, label));
     } catch (error) {
       if (error?.code === 'SENSEI_CANCELED' || /^Ollama returned HTTP/.test(error?.message || '') || /lost contact with Ollama|local model timed out/i.test(error?.message || '')) throw error;
       lastError = error;
     }
   }
-  throw new Error(`${lastError?.message || `The ${label} response was invalid`} Automatic JSON repair also failed.`);
+  const error = new Error(`${lastError?.message || `The ${label} response was invalid`} Automatic JSON repair also failed.`);
+  error.candidates = candidates;
+  throw error;
 }
 
 function vodSchema(maxFindings = 12) {
@@ -315,6 +321,69 @@ function validateVodReport(parsed, frameCount, frameIntervalSeconds) {
     frameIntervalSeconds,
     framesReviewed: frameCount
   };
+}
+
+function decodedFieldValues(source, field) {
+  const values = [];
+  const expression = new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 'gi');
+  for (const match of String(source || '').matchAll(expression)) {
+    try { values.push(JSON.parse(`"${match[1]}"`)); } catch { values.push(match[1].replace(/\\n/g, ' ').replace(/\\"/g, '"')); }
+  }
+  return values.map((value) => String(value).trim()).filter(Boolean);
+}
+
+function normalizeVodCandidate(candidates, timestamps = [], frameIntervalSeconds = 120) {
+  const sources = (Array.isArray(candidates) ? candidates : [candidates]).map(String).map((item) => item.trim()).filter(Boolean);
+  if (!sources.length) return null;
+  const source = sources.sort((a, b) => b.length - a.length)[0];
+  const summaries = decodedFieldValues(source, 'summary');
+  const observations = decodedFieldValues(source, 'observation');
+  const evidence = decodedFieldValues(source, 'evidence');
+  const categories = decodedFieldValues(source, 'category');
+  const returnedTimestamps = decodedFieldValues(source, 'timestamp');
+  const clean = source
+    .replace(/<\/?think>/gi, '')
+    .replace(/```(?:json)?/gi, '')
+    .replace(/[{}\[\]"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const summary = summaries[0] || (clean.length >= 30 ? clean.slice(0, 1_200) : '');
+  if (!summary) return null;
+  const findings = observations.slice(0, 4).map((observation, index) => ({
+    timestamp: returnedTimestamps[index] || `${Math.floor((Number(timestamps[index]) || index * frameIntervalSeconds) / 60)}:${String(Math.round(Number(timestamps[index]) || index * frameIntervalSeconds) % 60).padStart(2, '0')}`,
+    round: null,
+    category: categories[index] || 'Visual observation',
+    observation,
+    evidence: evidence[index] || 'Recovered from the local vision model response.'
+  }));
+  return validateVodReport({
+    summary,
+    findings,
+    limitations: ['The local model returned unstructured output; BYAKUGAN recovered its usable text locally.', 'Only sampled frames were reviewed.'],
+    confidence: 'low'
+  }, timestamps.length || 1, frameIntervalSeconds);
+}
+
+function consolidateVodReports(reports, frameCount, frameIntervalSeconds) {
+  const findings = [];
+  const seen = new Set();
+  for (const report of reports) {
+    for (const finding of report.findings || []) {
+      const key = String(finding.observation || '').toLowerCase().replace(/\s+/g, ' ').slice(0, 180);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      findings.push(finding);
+    }
+  }
+  const limitations = [...new Set(reports.flatMap((report) => report.limitations || []).map(String))].slice(0, 8);
+  const summaries = [...new Set(reports.map((report) => String(report.summary || '').trim()).filter(Boolean))];
+  const normalized = reports.some((report) => (report.limitations || []).some((item) => /unstructured output/i.test(item)));
+  const confidenceValues = reports.map((report) => report.confidence);
+  const confidence = normalized || confidenceValues.includes('low') ? 'low' : confidenceValues.includes('average') ? 'average' : 'high';
+  return validateVodReport({
+    summary: `Across ${frameCount} sampled frames, the local vision model returned ${findings.length} distinct visual finding${findings.length === 1 ? '' : 's'}. ${summaries.slice(0, 3).join(' ')}`.slice(0, 1_500),
+    findings: findings.slice(0, 12), limitations, confidence
+  }, frameCount, frameIntervalSeconds);
 }
 
 class SenseiService {
@@ -380,7 +449,6 @@ class SenseiService {
     if (!model) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
     const files = (frameFiles || []).slice(0, 24);
     if (!files.length) throw new Error('No video frames were available for VOD analysis.');
-    const schema = vodSchema(12);
     const batchSchema = vodSchema(4);
     const batches = [];
     const batchSize = 4;
@@ -391,24 +459,25 @@ class SenseiService {
       const labels = timestamps.map((seconds, index) => `Image ${index + 1} = ${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`).join(', ');
       const prompt = `Review only these ${batchFiles.length} sequential sampled frames from one completed VALORANT first-person VOD. ${labels}. Use only visible evidence. Never infer hidden enemies, unheard communications, off-screen utility, exact intent, or events between samples. A webcam or overlay may obstruct evidence; list it as a limitation. Return no more than four concise timestamped findings about visible crosshair placement, exposure, peeking, positioning, utility, rotations, trading opportunities, or objective play. Keep the summary to two sentences. Return strict JSON only.\nMATCH:${JSON.stringify(compactMatch(match))}`;
       onProgress({ phase: 'reviewing', current: start, total: files.length, message: `Reviewing frames ${start + 1}-${start + batchFiles.length}` });
-      const report = await generateStructured({
-        endpoint: this.endpoint, model, repairModel, prompt, schema: batchSchema,
-        images: batchFiles.map((file) => fs.readFileSync(file).toString('base64')),
-        timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_200,
-        onRepair: () => onProgress({ phase: 'reviewing', current: start, total: files.length, message: `Repairing structured output for frames ${start + 1}-${start + batchFiles.length}` }),
-        validate: (value) => validateVodReport(value, batchFiles.length, frameIntervalSeconds)
-      });
+      let report;
+      try {
+        report = await generateStructured({
+          endpoint: this.endpoint, model, repairModel, prompt, schema: batchSchema,
+          images: batchFiles.map((file) => fs.readFileSync(file).toString('base64')),
+          timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_200,
+          onRepair: () => onProgress({ phase: 'reviewing', current: start, total: files.length, message: `Repairing structured output for frames ${start + 1}-${start + batchFiles.length}` }),
+          validate: (value) => validateVodReport(value, batchFiles.length, frameIntervalSeconds)
+        });
+      } catch (error) {
+        report = normalizeVodCandidate(error?.candidates, timestamps, frameIntervalSeconds);
+        if (!report) throw error;
+        onProgress({ phase: 'reviewing', current: start, total: files.length, message: `Recovered usable output for frames ${start + 1}-${start + batchFiles.length}` });
+      }
       batches.push(report);
       onProgress({ phase: 'reviewing', current: Math.min(start + batchFiles.length, files.length), total: files.length, message: `Reviewed ${Math.min(start + batchFiles.length, files.length)} of ${files.length} frames` });
     }
-    onProgress({ phase: 'validating', current: files.length, total: files.length, message: 'Consolidating visual findings' });
-    const consolidationPrompt = `Consolidate these sampled-frame observations into one conservative VALORANT VOD report. Use only supplied visual findings. Remove duplicates and contradictions. Do not claim continuous video review or invent events between frames. Keep the most actionable findings and preserve their timestamps. The statistical report is supporting context only. Return strict JSON.\nMATCH:${JSON.stringify(compactMatch(match))}\nSAVED STATS REPORT:${JSON.stringify(statisticalReport)}\nFRAME BATCH REPORTS:${JSON.stringify(batches)}`;
-    return generateStructured({
-      endpoint: this.endpoint, model, repairModel, prompt: consolidationPrompt, schema,
-      timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 3_200,
-      onRepair: () => onProgress({ phase: 'validating', current: files.length, total: files.length, message: 'Repairing final report structure' }),
-      validate: (value) => validateVodReport(value, files.length, frameIntervalSeconds)
-    });
+    onProgress({ phase: 'validating', current: files.length, total: files.length, message: 'Validating and consolidating visual findings' });
+    return consolidateVodReports(batches, files.length, frameIntervalSeconds);
   }
 }
 

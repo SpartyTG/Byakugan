@@ -164,13 +164,49 @@ test('VOD Vision repairs invalid vision JSON with the text model without resendi
       frameFiles, frameTimestamps: [5, 10, 15, 20], model: 'vision-model', repairModel: 'text-model', onProgress: (event) => events.push(event)
     });
     assert.equal(report.framesReviewed, 4);
-    assert.equal(requests.length, 3);
+    assert.equal(requests.length, 2);
     assert.equal(requests[0].model, 'vision-model');
     assert.equal(requests[0].images.length, 4);
     assert.equal(requests[1].model, 'text-model');
     assert.equal(requests[1].images, undefined);
     assert.match(events.map((event) => event.message).join(' '), /Reviewing frames 1-4/);
     assert.match(events.map((event) => event.message).join(' '), /Repairing structured output/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('VOD Vision locally normalizes usable malformed output after model repair fails', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-vod-normalize-'));
+  const frameFiles = Array.from({ length: 4 }, (_, index) => {
+    const file = path.join(directory, `frame-${index}.jpg`);
+    fs.writeFileSync(file, Buffer.from([0xff, 0xd8, index, 0xff, 0xd9]));
+    return file;
+  });
+  const malformed = '"summary":"The player held an exposed angle in the sampled frames.","timestamp":"0:05","category":"Positioning","observation":"The player was visible away from cover.","evidence":"Open space was visible on both sides."';
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: '', thinking: malformed }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const report = await service.analyzeVod({
+      match: match('vod-normalize'), statisticalReport: {}, frameFiles, frameTimestamps: [5, 10, 15, 20],
+      model: 'vision-model', repairModel: 'text-model'
+    });
+    assert.equal(requests.length, 2);
+    assert.equal(report.framesReviewed, 4);
+    assert.equal(report.findings.length, 1);
+    assert.equal(report.confidence, 'low');
+    assert.match(report.limitations.join(' '), /unstructured output/i);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(directory, { recursive: true, force: true });
