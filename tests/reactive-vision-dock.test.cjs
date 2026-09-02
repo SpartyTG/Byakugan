@@ -12,7 +12,8 @@ const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.cj
 test('Reactive Vision Dock compacts for agent select and live games', () => {
   assert.match(script, /\['PREGAME', 'INGAME', 'CORE_GAME'\]/);
   assert.match(script, /reactive-compact/);
-  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*130px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*148px/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact\.hide-match-pulse\s*\{\s*height:\s*130px/);
   assert.match(styles, /\.layout-reactive\s*\{[\s\S]*height:\s*170px/);
 });
 
@@ -34,13 +35,15 @@ test('compact Reactive Vision Dock remains legible at webcam width', () => {
   assert.match(styles, /@media \(max-width:\s*900px\)[\s\S]*\.layout-horizontal\.layout-reactive[^}]*grid-template-columns:\s*minmax\(0,1fr\) 112px/);
 });
 
-test('Reactive Vision preview simultaneously shows between-games and in-game docks', () => {
+test('Reactive Vision preview simultaneously shows between-games, in-game, and optional post-match docks', () => {
   assert.match(script, /function renderReactivePreviewComparison/);
   assert.match(script, /BETWEEN GAMES/);
   assert.match(script, /IN GAME/);
+  assert.match(script, /POST MATCH/);
+  assert.match(script, /preferences\.postMatchRecap === false/);
   assert.match(script, /cloneNode\(true\)/);
   assert.match(styles, /\.reactive-preview-comparison/);
-  assert.match(main, /reactive:\s*\[620,\s*490\]/);
+  assert.match(main, /reactive:\s*\[620,\s*overlaySettings\.streamOverlayPostMatchRecap === false \? 490 : 700\]/);
 });
 
 test('Reactive Vision Dock expands, waits for post-match data, then awakens', () => {
@@ -55,6 +58,22 @@ test('Reactive Vision Dock expands, waits for post-match data, then awakens', ()
 test('Reactive Vision Dock supports reduced motion', () => {
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
   assert.match(styles, /\.layout-reactive, \.layout-reactive \*/);
+});
+
+test('Reactive Vision Match Pulse and post-match recap are animated, optional states', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
+  assert.match(html, /id="reactiveRoundPulse"/);
+  assert.match(html, /id="reactiveLiveScore"/);
+  assert.match(html, /class="reactive-postmatch-recap"/);
+  assert.match(html, /id="reactiveRecapResult"/);
+  assert.match(script, /function renderMatchPulse/);
+  assert.match(script, /preferences\.matchPulse/);
+  assert.match(script, /reactiveRecapActive/);
+  assert.match(script, /preferences\.postMatchRecapSeconds/);
+  assert.match(styles, /\.layout-reactive\.reactive-compact:not\(\.hide-match-pulse\) \.reactive-match-pulse/);
+  assert.match(styles, /\.layout-reactive\.reactive-recap-active/);
+  assert.match(styles, /--recap-beam-progress/);
+  assert.match(styles, /\.layout-reactive\.motion-instant/);
 });
 
 test('Awakened Rank remains a separate untouched layout selector', () => {

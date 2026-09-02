@@ -30,6 +30,11 @@ const DEFAULTS = Object.freeze({
   streamOverlayShowPeakRank: true,
   streamOverlayShowRrChange: true,
   streamOverlayAnimatedRrBeam: true,
+  streamOverlaySmoothTransitions: true,
+  streamOverlayMatchPulse: false,
+  streamOverlayMatchPulseStyle: 'segments',
+  streamOverlayPostMatchRecap: true,
+  streamOverlayPostMatchRecapSeconds: 7,
   streamOverlayBackgroundOpacity: 70,
   streamOverlayCustom: DEFAULT_CUSTOM_OVERLAY,
   streamOverlayToken: ''
@@ -74,9 +79,12 @@ class SettingsStore {
           if (!UI_SCALE_OPTIONS.includes(value)) continue;
         } else if (key === 'streamOverlayBackgroundOpacity') {
           if (value < 0 || value > 100) continue;
+        } else if (key === 'streamOverlayPostMatchRecapSeconds') {
+          if (value < 3 || value > 15) continue;
         } else if (value < 1) continue;
       }
       if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
+      if (key === 'streamOverlayMatchPulseStyle' && !['segments', 'dots'].includes(value)) continue;
       if (key === 'pcRole' && !['gaming', 'viewer'].includes(value)) continue;
       if (['streamOverlayToken', 'remoteViewerToken'].includes(key) && !/^[a-f0-9]{48}$/.test(value)) continue;
       if (key === 'remoteSourceUrl') {

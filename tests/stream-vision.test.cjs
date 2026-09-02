@@ -31,6 +31,10 @@ test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', 
   assert.match(html, /<option value="rank">Awakened rank card<\/option><option value="reactive">Reactive Vision Dock<\/option>/);
   assert.match(app, /reactive:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
   assert.match(app, /The dock animates inside this fixed canvas/);
+  assert.match(html, /id="streamOverlaySmoothTransitions"/);
+  assert.match(html, /id="streamOverlayMatchPulse"/);
+  assert.match(html, /id="streamOverlayPostMatchRecap"/);
+  assert.match(html, /id="streamOverlayPostMatchRecapSeconds"/);
 });
 
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
@@ -39,9 +43,12 @@ test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and
   assert.match(html, /id="customOverlayHeight"/);
   assert.match(html, /id="customOverlayInGameWidth"/);
   assert.match(html, /id="customOverlayInGameHeight"/);
+  assert.match(html, /id="customOverlayPostMatchWidth"/);
+  assert.match(html, /id="customOverlayPostMatchHeight"/);
   assert.match(html, /id="customOverlayShowBeamRR"/);
   assert.match(html, /id="customEditorCanvas"/);
   assert.match(html, /id="customEditorCanvasInGame"/);
+  assert.match(html, /id="customEditorCanvasPostMatch"/);
   assert.match(html, /id="customElementPalette"/);
   assert.match(html, /id="customElementX"/);
   assert.match(html, /id="customElementFontSize"/);
@@ -52,4 +59,5 @@ test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and
   assert.match(app, /persistCustomOverlay/);
   assert.match(app, /Reactive Vision Mode/);
   assert.match(app, /config\.inGameElements/);
+  assert.match(app, /config\.postMatchElements/);
 });

@@ -115,6 +115,13 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       || showBeamLastMatchRr
     : settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
+  const smoothTransitions = settings.streamOverlaySmoothTransitions !== false;
+  const matchPulse = custom
+    ? Boolean(settings.streamOverlayMatchPulse) && customOverlay.reactive && customElementVisible(customOverlay, 'matchPulse', true)
+    : Boolean(settings.streamOverlayMatchPulse);
+  const matchPulseStyle = settings.streamOverlayMatchPulseStyle === 'dots' ? 'dots' : 'segments';
+  const postMatchRecap = settings.streamOverlayPostMatchRecap !== false;
+  const postMatchRecapSeconds = Math.round(Math.max(3, Math.min(15, Number(settings.streamOverlayPostMatchRecapSeconds) || 7)));
   const recentMatch = (snapshot.matches || []).find((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match?.result)) || {};
   const sessionMatchIds = new Set((session.matchIds || []).map(String));
   const lastMatch = (snapshot.matches || []).find((match) => sessionMatchIds.has(String(match?.id || ''))
@@ -123,12 +130,33 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const fallbackAgentAvailable = recentMatch.agent && recentMatch.agent !== '—';
   const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? recentMatch : {};
   const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
+  const recapElements = custom && customOverlay.reactive ? customOverlay.postMatchElements : [];
+  const recapVisible = (id) => recapElements.some((element) => element.id === id && element.visible);
+  const recapBeam = recapElements.find((element) => element.id === 'rrBeam');
+  const recapShowIdentity = custom ? recapVisible('playerName') : showIdentity;
+  const recapShowCurrentRank = custom ? recapVisible('currentRank') : true;
+  const recapShowWl = custom ? recapVisible('sessionWL') : showWl;
+  const recapShowKd = custom ? recapVisible('sessionKD') : showKd;
+  const recapShowRR = custom ? recapVisible('currentRR') || recapVisible('rrBeam') : showRR;
+  const recapShowPeak = custom ? recapVisible('peakRank') : showPeakRank;
+  const recapShowChange = custom
+    ? recapVisible('rrChange') || recapVisible('lastMatch') || Boolean(recapBeam?.visible && recapBeam.showMarker !== false)
+    : showRrChange;
+  const recapShowAgent = custom ? recapVisible('agent') : showAgent;
+  const recapShowMap = custom ? recapVisible('map') : showMap;
+  const recapShowScore = custom ? recapVisible('matchScore') : true;
+  const recapShowPulse = custom
+    ? Boolean(settings.streamOverlayMatchPulse) && recapVisible('matchPulse')
+    : matchPulse;
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
     layout,
     customOverlay,
-    preferences: { showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange, animatedRrBeam },
+    preferences: {
+      showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange, animatedRrBeam,
+      smoothTransitions, matchPulse, matchPulseStyle, postMatchRecap, postMatchRecapSeconds
+    },
     appearance: { backgroundOpacity: overlayBackgroundOpacity(settings.streamOverlayBackgroundOpacity) },
     player: {
       name: showIdentity ? cleanText(profile.gameName, 'PLAYER', 32) : 'PLAYER',
@@ -150,17 +178,55 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       lastMatchId: cleanText(lastMatch.id, '', 100),
       lastMatchRR: showRrChange ? Number(lastMatch.rr) || 0 : 0,
       lastMatchResult: showRrChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
+      lastMatchScore: cleanText(lastMatch.score, '—', 20),
       startingRank: showRrChange ? cleanText(session.startingRank, 'Unrated', 40) : 'Unrated',
       currentRank: showRrChange ? cleanText(session.currentRank || profile.rank, 'Unrated', 40) : 'Unrated'
     },
     live: {
       state: cleanText(live.state, 'MENUS', 24).toUpperCase(),
       label: liveLabel(live.state),
+      score: cleanText(live.score, '', 20),
+      roundPulse: matchPulse ? (live.roundPulse || []).map((round) => (
+        ['WIN', 'LOSS'].includes(String(round).toUpperCase()) ? String(round).toUpperCase() : 'UNKNOWN'
+      )).slice(-50) : [],
+      roundPulseRevision: matchPulse ? Number(live.roundPulseRevision) || 0 : 0,
       agentLabel: showAgent ? agentLabel : '',
       queue: cleanText(live.queue, 'Not queued', 40),
       map: showMap ? cleanText(live.map, '—', 40) : '—',
       agent: showAgent ? cleanText(overlayAgent.agent, 'Waiting…', 40) : '—',
       agentImage: showAgent ? mediaUrl(overlayAgent.agentImage) : ''
+    },
+    recap: {
+      player: {
+        name: recapShowIdentity ? cleanText(profile.gameName, 'PLAYER', 32) : 'PLAYER',
+        rank: recapShowCurrentRank ? cleanText(profile.rank, 'Unrated', 40) : 'Unrated',
+        rankImage: recapShowCurrentRank ? mediaUrl(profile.rankImage) : '',
+        rr: recapShowRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0,
+        peakRank: recapShowPeak ? cleanText(profile.peakRank, 'Unrated', 40) : '',
+        peakRankImage: recapShowPeak ? mediaUrl(profile.peakRankImage) : '',
+        peakEpisode: recapShowPeak ? cleanText(profile.peakEpisode, '', 32) : '',
+        peakAct: recapShowPeak ? cleanText(profile.peakAct, '', 32) : ''
+      },
+      session: {
+        wins: recapShowWl ? Number(session.wins) || 0 : 0,
+        losses: recapShowWl ? Number(session.losses) || 0 : 0,
+        kd: recapShowKd && Number.isFinite(Number(session.kd)) ? Number(session.kd) : 0,
+        rrChange: recapShowChange ? Number(session.rrChange) || 0 : 0,
+        beamProgress: recapShowRR ? rrBeamProgress(profile.rr) : 0,
+        lastMatchRR: recapShowChange ? Number(lastMatch.rr) || 0 : 0,
+        lastMatchResult: recapShowChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
+        lastMatchScore: recapShowScore ? cleanText(lastMatch.score, '—', 20) : '—'
+      },
+      live: {
+        label: liveLabel(live.state),
+        score: recapShowScore || recapShowPulse ? cleanText(live.score, '', 20) : '',
+        roundPulse: recapShowPulse ? (live.roundPulse || []).map((round) => (
+          ['WIN', 'LOSS'].includes(String(round).toUpperCase()) ? String(round).toUpperCase() : 'UNKNOWN'
+        )).slice(-50) : [],
+        map: recapShowMap ? cleanText(lastMatch.map || live.map, '—', 40) : '—',
+        agent: recapShowAgent ? cleanText(lastMatch.agent || overlayAgent.agent, 'Waiting…', 40) : '—',
+        agentImage: recapShowAgent ? mediaUrl(lastMatch.agentImage || overlayAgent.agentImage) : ''
+      }
     }
   };
 }

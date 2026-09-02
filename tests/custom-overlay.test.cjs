@@ -76,21 +76,26 @@ test('rank components keep a visible emblem layer and load the actual rank image
   assert.match(overlayStyles, /\.custom-overlay-item \.custom-icon-image/);
 });
 
-test('custom Reactive Vision turns the base canvas into between-games and adds an in-game canvas below', () => {
+test('custom Reactive Vision turns the base canvas into between-games and adds in-game and post-match canvases', () => {
   assert.equal(CUSTOM_ELEMENT_TYPES.includes('reactiveDock'), false);
   assert.match(rendererScript, /data-custom-reactive-visible/);
   assert.match(rendererHtml, /id="customEditorCanvas"[^>]*data-custom-canvas-state="between"/);
   assert.match(rendererHtml, /id="customEditorCanvasInGame"[^>]*data-custom-canvas-state="ingame"/);
+  assert.match(rendererHtml, /id="customEditorCanvasPostMatch"[^>]*data-custom-canvas-state="postmatch"/);
   assert.match(rendererScript, /function customElementsForState/);
   assert.match(rendererScript, /renderCustomEditorCanvas\(betweenCanvas, config\.elements/);
   assert.match(rendererScript, /renderCustomEditorCanvas\(inGameCanvas, config\.inGameElements/);
-  assert.match(rendererScript, /Math\.max\(config\.width, config\.inGameWidth/);
+  assert.match(rendererScript, /renderCustomEditorCanvas\(postMatchCanvas, config\.postMatchElements/);
+  assert.match(rendererScript, /Math\.max\(config\.width, config\.inGameWidth[^\n]*config\.postMatchWidth/);
   assert.match(rendererScript, /In game \$\{config\.inGameWidth\} × \$\{config\.inGameHeight\}/);
-  assert.match(overlayScript, /const elements = compact \? config\.inGameElements : config\.elements/);
+  assert.match(rendererScript, /Post match \$\{config\.postMatchWidth\} × \$\{config\.postMatchHeight\}/);
+  assert.match(overlayScript, /const elements = recap \? config\.postMatchElements : compact \? config\.inGameElements : config\.elements/);
+  assert.equal(CUSTOM_ELEMENT_TYPES.includes('matchPulse'), true);
+  assert.equal(CUSTOM_ELEMENT_TYPES.includes('matchScore'), true);
   assert.doesNotMatch(overlayScript, /element\.id === 'reactiveDock'/);
 });
 
-test('beta.60 and beta.61 Reactive Vision settings migrate into two-canvas mode', () => {
+test('beta.60 and beta.61 Reactive Vision settings migrate into three-canvas mode', () => {
   const migrated = normalizeCustomOverlay({ elements: [
     { id: 'reactiveBetween', visible: true, x: 24, y: 3.8, width: 94, height: 42 },
     { id: 'reactiveInGame', visible: true, x: 3, y: 55, width: 94, height: 36 }
@@ -98,6 +103,7 @@ test('beta.60 and beta.61 Reactive Vision settings migrate into two-canvas mode'
   assert.equal(migrated.reactive, true);
   assert.equal(migrated.elements.length, CUSTOM_ELEMENT_TYPES.length);
   assert.equal(migrated.inGameElements.length, CUSTOM_ELEMENT_TYPES.length);
+  assert.equal(migrated.postMatchElements.length, CUSTOM_ELEMENT_TYPES.length);
   assert.equal(migrated.elements.some((element) => element.id === 'reactiveBetween'), false);
   assert.equal(migrated.elements.some((element) => element.id === 'reactiveInGame'), false);
 
@@ -115,17 +121,24 @@ test('Reactive Vision canvas dimensions and beam RR markers are independent by s
     height: 420,
     inGameWidth: 640,
     inGameHeight: 220,
+    postMatchWidth: 800,
+    postMatchHeight: 300,
     elements: [{ id: 'rrBeam', showMarker: true }],
-    inGameElements: [{ id: 'rrBeam', showMarker: false }]
+    inGameElements: [{ id: 'rrBeam', showMarker: false }],
+    postMatchElements: [{ id: 'rrBeam', showMarker: true }]
   });
   assert.equal(normalized.width, 1200);
   assert.equal(normalized.height, 420);
   assert.equal(normalized.inGameWidth, 640);
   assert.equal(normalized.inGameHeight, 220);
+  assert.equal(normalized.postMatchWidth, 800);
+  assert.equal(normalized.postMatchHeight, 300);
   assert.equal(normalized.elements.find((element) => element.id === 'rrBeam').showMarker, true);
   assert.equal(normalized.inGameElements.find((element) => element.id === 'rrBeam').showMarker, false);
   assert.match(rendererHtml, /id="customOverlayInGameWidth"/);
   assert.match(rendererHtml, /id="customOverlayInGameHeight"/);
+  assert.match(rendererHtml, /id="customOverlayPostMatchWidth"/);
+  assert.match(rendererHtml, /id="customOverlayPostMatchHeight"/);
   assert.match(rendererHtml, /id="customOverlayShowBeamRR"/);
   assert.match(overlayScript, /if \(element\.showMarker !== false\)/);
   assert.match(overlayStyles, /calc\(var\(--custom-beam-progress,0%\) \+ \.25em\)/);

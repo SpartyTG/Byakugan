@@ -30,6 +30,11 @@ function settings(patch = {}) {
     streamOverlayShowPeakRank: true,
     streamOverlayShowRrChange: true,
     streamOverlayAnimatedRrBeam: true,
+    streamOverlaySmoothTransitions: true,
+    streamOverlayMatchPulse: false,
+    streamOverlayMatchPulseStyle: 'segments',
+    streamOverlayPostMatchRecap: true,
+    streamOverlayPostMatchRecapSeconds: 7,
     streamOverlayBackgroundOpacity: 35,
     streamOverlayToken: token,
     ...patch
@@ -54,6 +59,9 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(payload.session.lastMatchResult, 'VICTORY');
   assert.equal(payload.session.beamProgress, 72);
   assert.equal(payload.preferences.animatedRrBeam, true);
+  assert.equal(payload.preferences.smoothTransitions, true);
+  assert.equal(payload.preferences.postMatchRecap, true);
+  assert.equal(payload.session.lastMatchScore, snapshot.matches[0].score);
   assert.equal(payload.appearance.backgroundOpacity, 35);
   assert.equal(serialized.includes('PixelPilot'), false);
   assert.equal(serialized.includes('EchoBloom'), false);
@@ -99,6 +107,30 @@ test('Reactive Vision Dock is a separate accepted OBS layout', () => {
   const payload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'reactive' }));
   assert.equal(payload.layout, 'reactive');
   assert.equal(payload.session.lastMatchId, snapshot.matches[0].id);
+});
+
+test('Reactive Vision payload carries toggleable Match Pulse and recap settings', () => {
+  const payload = buildOverlayPayload({
+    ...snapshot,
+    live: {
+      ...snapshot.live,
+      state: 'INGAME', score: '7–5',
+      roundPulse: ['UNKNOWN', 'WIN', 'LOSS'], roundPulseRevision: 3
+    }
+  }, settings({
+    streamOverlayLayout: 'reactive', streamOverlayMatchPulse: true,
+    streamOverlayMatchPulseStyle: 'dots', streamOverlayPostMatchRecapSeconds: 10
+  }));
+  assert.equal(payload.preferences.matchPulse, true);
+  assert.equal(payload.preferences.matchPulseStyle, 'dots');
+  assert.equal(payload.preferences.postMatchRecap, true);
+  assert.equal(payload.preferences.postMatchRecapSeconds, 10);
+  assert.equal(payload.live.score, '7–5');
+  assert.deepEqual(payload.live.roundPulse, ['UNKNOWN', 'WIN', 'LOSS']);
+  assert.equal(payload.live.roundPulseRevision, 3);
+
+  const hidden = buildOverlayPayload({ ...snapshot, live: { ...snapshot.live, roundPulse: ['WIN'] } }, settings());
+  assert.deepEqual(hidden.live.roundPulse, []);
 });
 
 test('custom overlay derives privacy fields from its own element visibility', () => {
@@ -165,6 +197,40 @@ test('custom Reactive Vision exposes fields from the canvas matching live state'
   assert.equal(menuPayload.preferences.showKd, false);
   assert.equal(menuPayload.preferences.showRR, false);
   assert.equal(menuPayload.preferences.showPeakRank, true);
+});
+
+test('custom post-match recap receives only fields enabled on its own canvas', () => {
+  const payload = buildOverlayPayload({
+    ...snapshot,
+    live: { ...snapshot.live, state: 'MENUS', score: '13–9', roundPulse: ['WIN', 'LOSS'] }
+  }, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayMatchPulse: true,
+    streamOverlayCustom: {
+      reactive: true,
+      postMatchElements: [
+        { id: 'playerName', visible: false }, { id: 'currentRank', visible: false },
+        { id: 'currentRR', visible: true }, { id: 'peakRank', visible: false },
+        { id: 'sessionWL', visible: true }, { id: 'sessionKD', visible: false },
+        { id: 'rrChange', visible: false }, { id: 'lastMatch', visible: true },
+        { id: 'agent', visible: false }, { id: 'map', visible: false },
+        { id: 'matchScore', visible: true }, { id: 'matchPulse', visible: true },
+        { id: 'rrBeam', visible: true, showMarker: true }
+      ]
+    }
+  }));
+
+  assert.equal(payload.recap.player.name, 'PLAYER');
+  assert.equal(payload.recap.player.rank, 'Unrated');
+  assert.equal(payload.recap.player.rr, snapshot.profile.rr);
+  assert.equal(payload.recap.player.peakRank, '');
+  assert.equal(payload.recap.session.wins, snapshot.analytics.session.wins);
+  assert.equal(payload.recap.session.kd, 0);
+  assert.equal(payload.recap.session.lastMatchResult, snapshot.matches[0].result);
+  assert.equal(payload.recap.session.lastMatchScore, snapshot.matches[0].score);
+  assert.deepEqual(payload.recap.live.roundPulse, ['WIN', 'LOSS']);
+  assert.equal(payload.recap.live.agent, '—');
+  assert.equal(payload.recap.live.map, '—');
 });
 
 test('custom beam marker alone receives last-match RR while a hidden marker does not', () => {

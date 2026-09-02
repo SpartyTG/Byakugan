@@ -184,6 +184,57 @@ function summarizePresence(presence) {
   };
 }
 
+function parseLiveScore(value) {
+  const match = /^\s*(\d{1,2})\s*[–—-]\s*(\d{1,2})\s*$/.exec(String(value || ''));
+  if (!match) return null;
+  return { ally: Number(match[1]), enemy: Number(match[2]) };
+}
+
+function advanceRoundPulse(previous, matchId, score) {
+  const id = String(matchId || '');
+  const parsed = parseLiveScore(score);
+  if (!id || !parsed) {
+    return previous?.matchId === id ? previous : { matchId: id, ally: 0, enemy: 0, score: '', rounds: [], revision: 0 };
+  }
+  const formatted = `${parsed.ally}–${parsed.enemy}`;
+  if (!previous || previous.matchId !== id) {
+    return {
+      matchId: id,
+      ally: parsed.ally,
+      enemy: parsed.enemy,
+      score: formatted,
+      rounds: Array.from({ length: Math.min(50, parsed.ally + parsed.enemy) }, () => 'UNKNOWN'),
+      revision: parsed.ally + parsed.enemy ? 1 : 0
+    };
+  }
+  if (previous.ally === parsed.ally && previous.enemy === parsed.enemy) return { ...previous, score: formatted };
+  const allyGain = parsed.ally - previous.ally;
+  const enemyGain = parsed.enemy - previous.enemy;
+  if (allyGain < 0 || enemyGain < 0) {
+    return {
+      matchId: id,
+      ally: parsed.ally,
+      enemy: parsed.enemy,
+      score: formatted,
+      rounds: Array.from({ length: Math.min(50, parsed.ally + parsed.enemy) }, () => 'UNKNOWN'),
+      revision: previous.revision + 1
+    };
+  }
+  const observed = allyGain > 0 && enemyGain === 0
+    ? Array.from({ length: allyGain }, () => 'WIN')
+    : enemyGain > 0 && allyGain === 0
+      ? Array.from({ length: enemyGain }, () => 'LOSS')
+      : Array.from({ length: allyGain + enemyGain }, () => 'UNKNOWN');
+  return {
+    matchId: id,
+    ally: parsed.ally,
+    enemy: parsed.enemy,
+    score: formatted,
+    rounds: [...(previous.rounds || []), ...observed].slice(-50),
+    revision: previous.revision + 1
+  };
+}
+
 function formatAgo(timestamp) {
   if (!timestamp) return 'Recent';
   const milliseconds = Number(timestamp) < 10_000_000_000 ? Number(timestamp) * 1000 : Number(timestamp);
@@ -1001,6 +1052,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayers = new Map();
     this.historicalPlayerIds = new Map();
     this.friendIds = new Set();
+    this.liveRoundPulse = null;
     this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [], excludedMatchIds: [], restored: false };
   }
@@ -1174,6 +1226,18 @@ class RiotClientService extends EventEmitter {
     } catch {
       this.friendIds.clear();
       return [];
+    }
+  }
+
+  async fetchOwnLiveScore(puuid) {
+    try {
+      const response = await this.localRequest('/chat/v4/presences');
+      const candidates = (response.data?.presences || []).filter((presence) => (
+        presence.puuid || presence.PUUID || presence.cid
+      ) === puuid).map(summarizePresence);
+      return candidates.find((presence) => presence.state === 'ingame' && presence.score)?.score || '';
+    } catch {
+      return '';
     }
   }
 
@@ -1372,6 +1436,7 @@ class RiotClientService extends EventEmitter {
     const session = await this.safeRemote(`/session/v1/sessions/${puuid}`, 'glz');
     if (!session) {
       this.inspectablePlayers.clear();
+      this.liveRoundPulse = null;
       return { state: 'MENUS', queue: 'Not queued', map: '—', partySize: 1, matchId: '', elapsed: '—', players: [] };
     }
 
@@ -1398,10 +1463,18 @@ class RiotClientService extends EventEmitter {
       }
     }
 
+    const activeMatch = ['INGAME', 'CORE_GAME'].includes(loopState);
+    const [party, observedScore] = await Promise.all([
+      this.fetchPartyPlayers(puuid),
+      activeMatch ? this.fetchOwnLiveScore(puuid) : Promise.resolve('')
+    ]);
+    this.liveRoundPulse = activeMatch
+      ? advanceRoundPulse(this.liveRoundPulse, matchId, observedScore)
+      : null;
+
     const mapId = match?.MapID || match?.mapId || session.map || session.MapID;
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
     let players = match?.Players || match?.players || match?.AllyTeam?.Players || match?.allyTeam?.players || [];
-    const party = await this.fetchPartyPlayers(puuid);
     const partyId = party.id;
     const partyIds = new Set(party.players.map((player) => player.Subject));
     if (players.length && partyIds.size) {
@@ -1429,6 +1502,9 @@ class RiotClientService extends EventEmitter {
       mapImage: map.image || '',
       partySize: party.players.length || session.partySize || session.PartySize || 1,
       matchId: matchId || partyId,
+      score: this.liveRoundPulse?.score || '',
+      roundPulse: this.liveRoundPulse?.rounds || [],
+      roundPulseRevision: this.liveRoundPulse?.revision || 0,
       elapsed: 'Live',
       players: roster,
       rosterStatus: loopState === 'MENUS' && roster.length
@@ -2075,6 +2151,7 @@ class RiotClientService extends EventEmitter {
     this.historicalPlayers.clear();
     this.historicalPlayerIds.clear();
     this.friendIds.clear();
+    this.liveRoundPulse = null;
     this.activeSeason = { id: '', startTime: 0, expiresAt: 0 };
     this.session = { startedAt: Date.now(), startingRank: '', startingRR: 0, initialized: false, trackedMatchIds: [], excludedMatchIds: [], restored: false };
   }
@@ -2169,6 +2246,8 @@ module.exports = {
   selectCurrentActUpdates,
   isDodgePenaltyUpdate,
   summarizeDodgePenalties,
+  parseLiveScore,
+  advanceRoundPulse,
   mergeSessionMatches,
   didActiveMatchEnd,
   mapWithConcurrency

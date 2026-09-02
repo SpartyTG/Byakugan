@@ -10,7 +10,8 @@ const {
   isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
-  summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency
+  summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
+  parseLiveScore, advanceRoundPulse
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -163,6 +164,24 @@ test('decodes VALORANT friend presence with playlist and live score', () => {
   assert.equal(presence.playlist, 'Competitive');
   assert.equal(presence.score, '7–5');
   assert.match(presence.status, /Competitive.*7–5/);
+});
+
+test('Match Pulse records observed round order without guessing earlier rounds', () => {
+  assert.deepEqual(parseLiveScore('7–5'), { ally: 7, enemy: 5 });
+  assert.equal(parseLiveScore('unavailable'), null);
+
+  let pulse = advanceRoundPulse(null, 'match-1', '2–1');
+  assert.deepEqual(pulse.rounds, ['UNKNOWN', 'UNKNOWN', 'UNKNOWN']);
+  pulse = advanceRoundPulse(pulse, 'match-1', '3–1');
+  assert.equal(pulse.rounds.at(-1), 'WIN');
+  pulse = advanceRoundPulse(pulse, 'match-1', '3–2');
+  assert.deepEqual(pulse.rounds.slice(-2), ['WIN', 'LOSS']);
+  pulse = advanceRoundPulse(pulse, 'match-1', '5–3');
+  assert.deepEqual(pulse.rounds.slice(-3), ['UNKNOWN', 'UNKNOWN', 'UNKNOWN']);
+
+  const nextMatch = advanceRoundPulse(pulse, 'match-2', '0–0');
+  assert.deepEqual(nextMatch.rounds, []);
+  assert.equal(nextMatch.revision, 0);
 });
 
 test('keeps other Riot titles online instead of marking them offline', () => {

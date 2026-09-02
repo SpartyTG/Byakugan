@@ -19,6 +19,9 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
       streamOverlayShowWl: false, streamOverlayShowKd: false, streamOverlayShowAgent: false,
       streamOverlayShowMap: false, streamOverlayShowPeakRank: false,
       streamOverlayShowRrChange: false, streamOverlayAnimatedRrBeam: false,
+      streamOverlaySmoothTransitions: false, streamOverlayMatchPulse: true,
+      streamOverlayMatchPulseStyle: 'dots', streamOverlayPostMatchRecap: false,
+      streamOverlayPostMatchRecapSeconds: 10,
       streamOverlayBackgroundOpacity: 0, uiScale: 175, unknown: 'ignored'
     });
     assert.equal(updated.dataMode, undefined);
@@ -36,6 +39,11 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(updated.streamOverlayShowPeakRank, false);
     assert.equal(updated.streamOverlayShowRrChange, false);
     assert.equal(updated.streamOverlayAnimatedRrBeam, false);
+    assert.equal(updated.streamOverlaySmoothTransitions, false);
+    assert.equal(updated.streamOverlayMatchPulse, true);
+    assert.equal(updated.streamOverlayMatchPulseStyle, 'dots');
+    assert.equal(updated.streamOverlayPostMatchRecap, false);
+    assert.equal(updated.streamOverlayPostMatchRecapSeconds, 10);
     assert.equal(updated.streamOverlayBackgroundOpacity, 0);
     assert.equal(updated.uiScale, 175);
     assert.equal(updated.unknown, undefined);
@@ -50,11 +58,15 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(restored.streamOverlayShowMap, false);
     assert.equal(restored.streamOverlayShowPeakRank, false);
     assert.equal(restored.streamOverlayAnimatedRrBeam, false);
+    assert.equal(restored.streamOverlayMatchPulse, true);
+    assert.equal(restored.streamOverlayMatchPulseStyle, 'dots');
+    assert.equal(restored.streamOverlayPostMatchRecapSeconds, 10);
     assert.equal(restored.streamOverlayBackgroundOpacity, 0);
     assert.equal(restored.uiScale, 175);
 
     const rejected = store.update({
       dataMode: 'live', refreshSeconds: -1, privacyMode: 'yes', pcRole: 'relay', streamOverlayBackgroundOpacity: 101, uiScale: 130,
+      streamOverlayMatchPulseStyle: 'triangles', streamOverlayPostMatchRecapSeconds: 30,
       remoteSourceUrl: `http://203.0.113.8:43871/remote/${'d'.repeat(48)}`
     });
     assert.equal(rejected.dataMode, undefined);
@@ -63,6 +75,8 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(rejected.pcRole, 'viewer');
     assert.equal(rejected.streamOverlayBackgroundOpacity, 0);
     assert.equal(rejected.uiScale, 175);
+    assert.equal(rejected.streamOverlayMatchPulseStyle, 'dots');
+    assert.equal(rejected.streamOverlayPostMatchRecapSeconds, 10);
     assert.match(rejected.remoteSourceUrl, /^http:\/\/192\.168\.50\.99/);
 
     const reactive = store.update({ streamOverlayLayout: 'reactive' });
@@ -81,8 +95,9 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(custom.streamOverlayCustom.inGameWidth, 320);
     assert.equal(custom.streamOverlayCustom.inGameHeight, 1080);
     assert.equal(custom.streamOverlayCustom.backgroundColor, '#0b0d1d');
-    assert.equal(custom.streamOverlayCustom.elements.length, 12);
-    assert.equal(custom.streamOverlayCustom.inGameElements.length, 12);
+    assert.equal(custom.streamOverlayCustom.elements.length, 14);
+    assert.equal(custom.streamOverlayCustom.inGameElements.length, 14);
+    assert.equal(custom.streamOverlayCustom.postMatchElements.length, 14);
     assert.equal(custom.streamOverlayCustom.reactive, false);
     const customName = custom.streamOverlayCustom.elements.find((element) => element.id === 'playerName');
     assert.equal(customName.visible, true);

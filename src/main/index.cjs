@@ -429,11 +429,15 @@ function registerIpc() {
     overlayServer.publish();
     const overlaySettings = settings.get();
     const layout = overlaySettings.streamOverlayLayout || 'horizontal';
-    const customCanvas = overlaySettings.streamOverlayCustom || { width: 960, height: 360, inGameWidth: 960, inGameHeight: 360 };
-    const customPreviewWidth = customCanvas.reactive ? Math.max(Number(customCanvas.width) || 960, Number(customCanvas.inGameWidth) || 960) : Number(customCanvas.width) || 960;
-    const customPreviewHeight = customCanvas.reactive ? Math.max(Number(customCanvas.height) || 360, Number(customCanvas.inGameHeight) || 360) : Number(customCanvas.height) || 360;
+    const customCanvas = overlaySettings.streamOverlayCustom || { width: 960, height: 360, inGameWidth: 960, inGameHeight: 360, postMatchWidth: 960, postMatchHeight: 360 };
+    const customPreviewWidth = customCanvas.reactive
+      ? Math.max(Number(customCanvas.width) || 960, Number(customCanvas.inGameWidth) || 960, Number(customCanvas.postMatchWidth) || 960)
+      : Number(customCanvas.width) || 960;
+    const customPreviewHeight = customCanvas.reactive
+      ? Math.max(Number(customCanvas.height) || 360, Number(customCanvas.inGameHeight) || 360, Number(customCanvas.postMatchHeight) || 360)
+      : Number(customCanvas.height) || 360;
     const sizes = {
-      rank: [590, 270], reactive: [620, 490],
+      rank: [590, 270], reactive: [620, overlaySettings.streamOverlayPostMatchRecap === false ? 490 : 700],
       custom: [Math.min(1400, Math.max(520, customPreviewWidth + 80)), Math.min(900, Math.max(300, customPreviewHeight + 100))],
       horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
     };

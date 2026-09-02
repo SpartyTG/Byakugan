@@ -323,13 +323,15 @@
                 <label><span id="customOverlayHeightLabel">Canvas height</span><input type="number" id="customOverlayHeight" min="120" max="1080" step="10"></label>
                 <label id="customInGameWidthControl" hidden><span>In-game width</span><input type="number" id="customOverlayInGameWidth" min="320" max="1920" step="10"></label>
                 <label id="customInGameHeightControl" hidden><span>In-game height</span><input type="number" id="customOverlayInGameHeight" min="120" max="1080" step="10"></label>
+                <label id="customPostMatchWidthControl" hidden><span>Post-match width</span><input type="number" id="customOverlayPostMatchWidth" min="320" max="1920" step="10"></label>
+                <label id="customPostMatchHeightControl" hidden><span>Post-match height</span><input type="number" id="customOverlayPostMatchHeight" min="120" max="1080" step="10"></label>
                 <label><span>Canvas color</span><input type="color" id="customOverlayBackgroundColor" value="#0b0d1d"></label>
                 <label><span>Animate beam</span><input type="checkbox" id="customOverlayAnimatedRrBeam"></label>
                 <label><span id="customOverlayShowBeamRRLabel">Show last-match RR</span><input type="checkbox" id="customOverlayShowBeamRR"></label>
               </div>
               <div class="custom-builder-workspace">
                 <aside class="custom-element-palette"><small>ELEMENTS</small><div id="customElementPalette"></div></aside>
-                <div class="custom-stage-shell"><div class="custom-editor-stack" id="customEditorStack"><section class="custom-editor-state" data-custom-state-frame="between"><small>BETWEEN GAMES</small><div class="custom-editor-canvas" id="customEditorCanvas" data-custom-canvas-state="between"></div></section><section class="custom-editor-state" id="customInGameEditorState" data-custom-state-frame="ingame" hidden><small>IN GAME</small><div class="custom-editor-canvas" id="customEditorCanvasInGame" data-custom-canvas-state="ingame"></div></section></div><small><b id="customCanvasPreviewSize">960 × 360 canvas</b><span>Drag an element to move it. Drag its lower-right handle to resize.</span></small></div>
+                <div class="custom-stage-shell"><div class="custom-editor-stack" id="customEditorStack"><section class="custom-editor-state" data-custom-state-frame="between"><small>BETWEEN GAMES</small><div class="custom-editor-canvas" id="customEditorCanvas" data-custom-canvas-state="between"></div></section><section class="custom-editor-state" id="customInGameEditorState" data-custom-state-frame="ingame" hidden><small>IN GAME</small><div class="custom-editor-canvas" id="customEditorCanvasInGame" data-custom-canvas-state="ingame"></div></section><section class="custom-editor-state" id="customPostMatchEditorState" data-custom-state-frame="postmatch" hidden><small>POST MATCH</small><div class="custom-editor-canvas" id="customEditorCanvasPostMatch" data-custom-canvas-state="postmatch"></div></section></div><small><b id="customCanvasPreviewSize">960 × 360 canvas</b><span>Drag an element to move it. Drag its lower-right handle to resize.</span></small></div>
                 <aside class="custom-element-inspector" id="customElementInspector">
                   <small>SELECTED ELEMENT</small>
                   <strong id="customSelectedElement">Choose an element</strong>
@@ -346,7 +348,7 @@
                   <button type="button" class="ghost-button custom-reset-selected" id="resetSelectedCustomElement">Reset selected element</button>
                 </aside>
               </div>
-              <p class="custom-builder-note">Changes save automatically. With Reactive Vision enabled, OBS uses the larger width and height as a safe envelope while each state keeps its own visible canvas size.</p>
+              <p class="custom-builder-note">Changes save automatically. With Reactive Vision enabled, OBS uses the largest width and height as a safe envelope while Between Games, In Game, and Post Match keep independent canvas sizes.</p>
             </section>
             <div class="overlay-options-heading"><div><small>VISIBLE FIELDS</small><strong>Build your overlay</strong></div><span>Every field updates live</span></div>
             <div class="overlay-field-grid">
@@ -360,6 +362,18 @@
               <label class="toggle-row"><span><strong>Agent</strong><small>Your selected agent and portrait.</small></span><input type="checkbox" id="streamOverlayShowAgent"><i></i></label>
               <label class="toggle-row"><span><strong>Map</strong><small>The map for your active match.</small></span><input type="checkbox" id="streamOverlayShowMap"><i></i></label>
             </div>
+            <section class="reactive-vision-options" id="reactiveVisionOptions" hidden>
+              <div class="overlay-options-heading"><div><small>REACTIVE VISION</small><strong>Motion and match states</strong></div><span>Each feature is optional</span></div>
+              <div class="overlay-field-grid">
+                <label class="toggle-row"><span><strong>Smooth dock transitions</strong><small>Morph between the between-games, in-game, and recap layouts instead of snapping.</small></span><input type="checkbox" id="streamOverlaySmoothTransitions"><i></i></label>
+                <label class="toggle-row"><span><strong>Match Pulse</strong><small>Show the observed win/loss order as each live round concludes.</small></span><input type="checkbox" id="streamOverlayMatchPulse"><i></i></label>
+                <label class="toggle-row"><span><strong>Post-match recap</strong><small>Temporarily show the result, final score, session update, and animated RR movement.</small></span><input type="checkbox" id="streamOverlayPostMatchRecap"><i></i></label>
+              </div>
+              <div class="reactive-option-selects">
+                <label class="range-row"><span>Match Pulse style</span><select id="streamOverlayMatchPulseStyle"><option value="segments">Segments</option><option value="dots">Dots</option></select></label>
+                <label class="range-row"><span>Recap duration</span><select id="streamOverlayPostMatchRecapSeconds"><option value="5">5 seconds</option><option value="7">7 seconds</option><option value="10">10 seconds</option><option value="15">15 seconds</option></select></label>
+              </div>
+            </section>
             <div class="overlay-url-row">
               <div><small>PRIVATE OBS URL</small><strong id="overlayUrl">Enable the overlay to create your URL.</strong></div>
               <button class="ghost-button overlay-preview-button" id="previewOverlay">Preview overlay</button>
