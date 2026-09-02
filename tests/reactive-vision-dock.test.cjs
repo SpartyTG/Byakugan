@@ -58,7 +58,7 @@ test('Reactive Vision Dock expands, waits for post-match data, then awakens', ()
 
 test('Reactive Vision Dock supports reduced motion', () => {
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
-  assert.match(styles, /\.layout-reactive, \.layout-reactive \*/);
+  assert.match(styles, /body:not\(\.transition-preview-mode\) \.layout-reactive, body:not\(\.transition-preview-mode\) \.layout-reactive \*/);
 });
 
 test('BYAKUGAN Shift preserves an outgoing frame and animates the incoming state', () => {
@@ -95,7 +95,11 @@ test('Reactive Vision can safely preview the complete transition and RR beam seq
   assert.match(script, /showTransitionPreviewState\('ingame'/);
   assert.match(script, /showTransitionPreviewState\('postmatch'/);
   assert.match(script, /Preview data only — OBS is unchanged/);
+  assert.match(script, /const reduceMotion = !transitionPreviewMode && window\.matchMedia/);
+  assert.match(script, /transitionPreviewMode \? 1_100 : 720/);
   assert.match(styles, /\.transition-preview-badge/);
+  assert.match(styles, /body:not\(\.transition-preview-mode\) \.byakugan-shift-effect/);
+  assert.match(styles, /\.transition-preview-mode \.byakugan-shift-effect\.active/);
 });
 
 test('Reactive Vision Match Pulse and post-match recap are animated, optional states', () => {

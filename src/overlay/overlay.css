@@ -39,6 +39,9 @@ body.transition-preview-mode.custom-layout { display: grid; place-items: center;
 .byakugan-shift-scan::after { bottom: -8px; }
 .byakugan-shift-eye { position: absolute; left: 50%; top: 50%; width: 48px; height: 30px; border: 3px solid white; border-radius: 78% 18%; background: radial-gradient(circle at 50% 50%,#fff 0 8%,#72f3dc 9% 17%,#6b52e5 18% 31%,rgba(22,16,58,.94) 32% 52%,rgba(139,108,255,.22) 53% 100%); box-shadow: 0 0 12px #fff,0 0 28px rgba(56,230,193,.95),0 0 48px rgba(139,108,255,.82); opacity: 0; transform: translate(-50%,-50%) rotate(45deg) scale(.2); animation: byakugan-shift-eye 700ms cubic-bezier(.2,.82,.22,1) both; }
 .byakugan-shift-eye i { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: #080b19; box-shadow: 0 0 0 3px rgba(255,255,255,.76); transform: translate(-50%,-50%); }
+.transition-preview-mode .byakugan-shift-effect.active { animation-duration: 1.12s; }
+.transition-preview-mode .byakugan-shift-effect.active .byakugan-shift-scan { animation-duration: 1.02s; }
+.transition-preview-mode .byakugan-shift-effect.active .byakugan-shift-eye { animation-duration: 1.08s; }
 @keyframes byakugan-shift-shell { 0%,100% { opacity: 0; } 12%,72% { opacity: 1; } }
 @keyframes byakugan-shift-scan { 0% { opacity: 0; transform: translate(-50%,-50%) scaleX(.02); } 18% { opacity: 1; } 58% { opacity: 1; transform: translate(-50%,-50%) scaleX(1); } 100% { opacity: 0; transform: translate(-50%,-50%) scaleX(1.08); } }
 @keyframes byakugan-shift-eye { 0% { opacity: 0; filter: brightness(2); transform: translate(-50%,-50%) rotate(45deg) scale(.2); } 22% { opacity: 1; transform: translate(-50%,-50%) rotate(45deg) scale(1.12); } 48% { opacity: 1; filter: brightness(1.65); transform: translate(-50%,-50%) rotate(45deg) scale(.94); } 72% { opacity: .82; filter: brightness(1.2); transform: translate(-50%,-50%) rotate(45deg) scale(1); } 100% { opacity: 0; filter: brightness(1); transform: translate(-50%,-50%) rotate(45deg) scale(1.35); } }
@@ -510,9 +513,9 @@ body.transition-preview-mode.custom-layout { display: grid; place-items: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .byakugan-shift-effect, .byakugan-shift-ghost { display: none !important; animation: none !important; }
-  .layout-rank .last-match-strip::before, .layout-reactive .last-match-strip::before, .layout-reactive.reactive-awakening, .layout-reactive .eye-mark { animation: none; }
-  .layout-reactive, .layout-reactive *, .layout-reactive *::before, .layout-reactive *::after { transition-duration: .01ms !important; }
+  body:not(.transition-preview-mode) .byakugan-shift-effect, body:not(.transition-preview-mode) .byakugan-shift-ghost { display: none !important; animation: none !important; }
+  body:not(.transition-preview-mode) .layout-rank .last-match-strip::before, body:not(.transition-preview-mode) .layout-reactive .last-match-strip::before, body:not(.transition-preview-mode) .layout-reactive.reactive-awakening, body:not(.transition-preview-mode) .layout-reactive .eye-mark { animation: none; }
+  body:not(.transition-preview-mode) .layout-reactive, body:not(.transition-preview-mode) .layout-reactive *, body:not(.transition-preview-mode) .layout-reactive *::before, body:not(.transition-preview-mode) .layout-reactive *::after { transition-duration: .01ms !important; }
 }
 
 /* User-built freeform OBS canvas. */
@@ -559,7 +562,7 @@ body.transition-preview-mode.custom-layout { display: grid; place-items: center;
 .layout-custom.is-offline .custom-overlay-canvas { filter: saturate(.55); }
 
 @media (prefers-reduced-motion: reduce) {
-  .layout-custom .custom-overlay-canvas, .custom-overlay-item .custom-beam-fill, .custom-overlay-item .custom-beam-marker { transition: none; }
+  body:not(.transition-preview-mode) .layout-custom .custom-overlay-canvas, body:not(.transition-preview-mode) .custom-overlay-item .custom-beam-fill, body:not(.transition-preview-mode) .custom-overlay-item .custom-beam-marker { transition: none; }
 }
 
 @media (max-width: 900px) {

@@ -86,7 +86,7 @@ function activateShiftEffect(oldRect, newRect) {
   void byakuganShiftEffect.offsetWidth;
   byakuganShiftEffect.classList.add('active');
   clearTimeout(shiftEffectTimer);
-  shiftEffectTimer = setTimeout(() => byakuganShiftEffect.classList.remove('active'), 760);
+  shiftEffectTimer = setTimeout(() => byakuganShiftEffect.classList.remove('active'), transitionPreviewMode ? 1_180 : 760);
 }
 
 function runByakuganShift(captured) {
@@ -97,16 +97,18 @@ function runByakuganShift(captured) {
   activeShiftAnimation?.cancel?.();
   const newRect = overlay.getBoundingClientRect();
   activateShiftEffect(captured.rect, newRect);
+  const outgoingDuration = transitionPreviewMode ? 720 : 430;
+  const incomingDuration = transitionPreviewMode ? 1_100 : 720;
   const outgoing = captured.ghost.animate([
     { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0) brightness(1)' },
     { opacity: .86, offset: .34, transform: 'translateX(-7px) scale(.994)', filter: 'blur(1px) brightness(1.28)' },
     { opacity: 0, transform: 'translateX(-34px) scale(.975)', filter: 'blur(6px) brightness(.72)' }
-  ], { duration: 430, easing: 'cubic-bezier(.5,0,.7,.2)', fill: 'forwards' });
+  ], { duration: outgoingDuration, easing: 'cubic-bezier(.5,0,.7,.2)', fill: 'forwards' });
   activeShiftAnimation = overlay.animate([
     { opacity: 0, transform: 'translateX(38px) scale(.975)', filter: 'blur(7px) brightness(1.5)' },
     { opacity: 0, offset: .2, transform: 'translateX(30px) scale(.98)', filter: 'blur(6px) brightness(1.4)' },
     { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0) brightness(1)' }
-  ], { duration: 720, easing: 'cubic-bezier(.16,.86,.24,1)', fill: 'both' });
+  ], { duration: incomingDuration, easing: 'cubic-bezier(.16,.86,.24,1)', fill: 'both' });
   outgoing.finished.catch(() => {}).finally(() => captured.ghost.remove());
   activeShiftAnimation.finished.catch(() => {}).finally(() => { activeShiftAnimation = null; });
 }
@@ -506,7 +508,7 @@ function render(data) {
   latestOverlayData = data;
   const preferences = data.preferences || {};
   const anticipatedState = anticipatedVisionState(data);
-  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const reduceMotion = !transitionPreviewMode && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const shouldShift = (!previewMode || transitionPreviewMode) && preferences.smoothTransitions !== false && !reduceMotion
     && Boolean(renderedVisionState && anticipatedState && renderedVisionState !== anticipatedState);
   const captured = shouldShift ? captureVisionGhost() : null;
