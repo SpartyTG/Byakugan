@@ -492,9 +492,12 @@ function registerIpc() {
         onProgress: progress
       });
       progress({ phase: 'loading-model', current: 0, total: extraction.files.length, message: `Loading ${current.senseiVodModel}` });
+      const repairModel = health.models.some((entry) => String(entry.name).toLowerCase() === String(current.senseiModel || '').toLowerCase())
+        ? current.senseiModel
+        : current.senseiVodModel;
       const vodReport = await senseiService.analyzeVod({
         match, statisticalReport: existing.report, frameFiles: extraction.files, frameTimestamps: extraction.timestamps,
-        frameIntervalSeconds: extraction.intervalSeconds, model: current.senseiVodModel, signal: controller.signal, onProgress: progress
+        frameIntervalSeconds: extraction.intervalSeconds, model: current.senseiVodModel, repairModel, signal: controller.signal, onProgress: progress
       });
       progress({ phase: 'saving', current: extraction.files.length, total: extraction.files.length, message: 'Saving report' });
       const saved = senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' } });

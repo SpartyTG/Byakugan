@@ -174,13 +174,38 @@ function validateReport(value) {
 }
 
 function parseStructuredJson(raw, label = 'local model') {
-  const source = String(raw || '').trim();
-  const candidates = [source, source.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')];
-  const first = source.indexOf('{');
-  const last = source.lastIndexOf('}');
-  if (first >= 0 && last > first) candidates.push(source.slice(first, last + 1));
+  const source = String(raw || '').replace(/^\uFEFF/, '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const candidates = [source];
+  for (const match of source.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) candidates.push(match[1].trim());
+  let depth = 0;
+  let start = -1;
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') quoted = false;
+      continue;
+    }
+    if (character === '"') { quoted = true; continue; }
+    if (character === '{') {
+      if (depth === 0) start = index;
+      depth += 1;
+    } else if (character === '}' && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) candidates.push(source.slice(start, index + 1));
+    }
+  }
   for (const candidate of candidates) {
-    try { return JSON.parse(candidate); } catch {}
+    for (const version of [candidate, candidate.replace(/,\s*([}\]])/g, '$1')]) {
+      try {
+        const parsed = JSON.parse(version);
+        if (typeof parsed === 'string') return JSON.parse(parsed);
+        return parsed;
+      } catch {}
+    }
   }
   throw new Error(`The ${label} did not return valid structured JSON.`);
 }
@@ -232,36 +257,51 @@ function modelPrompt(matchCard, contextPack) {
   return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines and reasonable role expectations. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}`;
 }
 
-async function generateStructured({ endpoint, model, prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1 }) {
+async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {} }) {
   let lastError;
+  let candidate = '';
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     if (signal?.aborted) throw canceledError();
     try {
+      if (attempt) onRepair(lastError);
+      const repairPrompt = `Convert the candidate below into exactly one valid JSON object matching the supplied schema. Preserve only claims already present. Do not add commentary, markdown, or new facts. If a field is incomplete, use the smallest conservative value allowed by the schema.\nSCHEMA:${JSON.stringify(schema)}\nCANDIDATE:${candidate.slice(0, 18_000)}`;
       const response = await requestJson(`${endpoint}/api/generate`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          model,
-          prompt: attempt
-            ? `${prompt}\n\nCORRECTION: Your previous response failed validation: ${lastError.message}. Return only one complete JSON object that follows the schema exactly.`
-            : prompt,
-          ...(images?.length ? { images } : {}),
+          model: attempt ? repairModel || model : model,
+          prompt: attempt ? repairPrompt : prompt,
+          ...(!attempt && images?.length ? { images } : {}),
           stream: false,
           format: schema,
           think: false,
-          options: { temperature: attempt ? .05 : .15, num_predict: 2_000 }
+          options: { temperature: attempt ? 0 : .1, num_predict: attempt ? Math.max(1_200, numPredict) : numPredict }
         })
       }, timeoutMs, signal);
-      return validate(parseStructuredJson(response.response, label));
+      candidate = String(response.response || '').trim();
+      return validate(parseStructuredJson(candidate, label));
     } catch (error) {
-      if (error?.code === 'SENSEI_CANCELED' || /^Ollama returned HTTP/.test(error?.message || '')) throw error;
+      if (error?.code === 'SENSEI_CANCELED' || /^Ollama returned HTTP/.test(error?.message || '') || /lost contact with Ollama|local model timed out/i.test(error?.message || '')) throw error;
       lastError = error;
     }
   }
-  throw lastError;
+  throw new Error(`${lastError?.message || `The ${label} response was invalid`} Automatic JSON repair also failed.`);
+}
+
+function vodSchema(maxFindings = 12) {
+  return {
+    type: 'object', required: ['summary', 'findings', 'limitations', 'confidence'],
+    properties: {
+      summary: { type: 'string' },
+      findings: { type: 'array', maxItems: maxFindings, items: { type: 'object', required: ['timestamp', 'category', 'observation', 'evidence'], properties: {
+        timestamp: { type: 'string' }, round: { type: 'integer' }, category: { type: 'string' }, observation: { type: 'string' }, evidence: { type: 'string' }
+      } } },
+      limitations: { type: 'array', maxItems: 8, items: { type: 'string' } }, confidence: { type: 'string', enum: ['high', 'average', 'low'] }
+    }
+  };
 }
 
 function validateVodReport(parsed, frameCount, frameIntervalSeconds) {
-  if (!parsed || typeof parsed.summary !== 'string' || !Array.isArray(parsed.findings) || !Array.isArray(parsed.limitations)) throw new Error('The vision model returned an incomplete report.');
+  if (!parsed || typeof parsed.summary !== 'string' || !parsed.summary.trim() || !Array.isArray(parsed.findings) || !Array.isArray(parsed.limitations)) throw new Error('The vision model returned an incomplete report.');
   return {
     summary: parsed.summary.trim().slice(0, 1_500),
     findings: parsed.findings.slice(0, 12).map((finding, index) => ({
@@ -336,20 +376,12 @@ class SenseiService {
     return String(response.response || '').trim().slice(0, 2_000);
   }
 
-  async analyzeVod({ match, statisticalReport, frameFiles, frameTimestamps = [], frameIntervalSeconds = 120, model = '', signal = null, onProgress = () => {} }) {
+  async analyzeVod({ match, statisticalReport, frameFiles, frameTimestamps = [], frameIntervalSeconds = 120, model = '', repairModel = '', signal = null, onProgress = () => {} }) {
     if (!model) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
     const files = (frameFiles || []).slice(0, 24);
     if (!files.length) throw new Error('No video frames were available for VOD analysis.');
-    const schema = {
-      type: 'object', required: ['summary', 'findings', 'limitations', 'confidence'],
-      properties: {
-        summary: { type: 'string' },
-        findings: { type: 'array', maxItems: 12, items: { type: 'object', required: ['timestamp', 'category', 'observation', 'evidence'], properties: {
-          timestamp: { type: 'string' }, round: { type: 'integer' }, category: { type: 'string' }, observation: { type: 'string' }, evidence: { type: 'string' }
-        } } },
-        limitations: { type: 'array', maxItems: 8, items: { type: 'string' } }, confidence: { type: 'string', enum: ['high', 'average', 'low'] }
-      }
-    };
+    const schema = vodSchema(12);
+    const batchSchema = vodSchema(4);
     const batches = [];
     const batchSize = 4;
     for (let start = 0; start < files.length; start += batchSize) {
@@ -357,11 +389,13 @@ class SenseiService {
       const batchFiles = files.slice(start, start + batchSize);
       const timestamps = batchFiles.map((_, index) => Number(frameTimestamps[start + index]) || (start + index) * frameIntervalSeconds);
       const labels = timestamps.map((seconds, index) => `Image ${index + 1} = ${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`).join(', ');
-      const prompt = `Review only these ${batchFiles.length} sequential sampled frames from one completed VALORANT first-person VOD. ${labels}. Use only visible evidence. Never infer hidden enemies, unheard communications, off-screen utility, exact intent, or events between samples. A webcam or overlay may obstruct evidence; list it as a limitation. Return concise timestamped observations about visible crosshair placement, exposure, peeking, positioning, utility, rotations, trading opportunities, or objective play. Return strict JSON.\nMATCH:${JSON.stringify(compactMatch(match))}`;
+      const prompt = `Review only these ${batchFiles.length} sequential sampled frames from one completed VALORANT first-person VOD. ${labels}. Use only visible evidence. Never infer hidden enemies, unheard communications, off-screen utility, exact intent, or events between samples. A webcam or overlay may obstruct evidence; list it as a limitation. Return no more than four concise timestamped findings about visible crosshair placement, exposure, peeking, positioning, utility, rotations, trading opportunities, or objective play. Keep the summary to two sentences. Return strict JSON only.\nMATCH:${JSON.stringify(compactMatch(match))}`;
+      onProgress({ phase: 'reviewing', current: start, total: files.length, message: `Reviewing frames ${start + 1}-${start + batchFiles.length}` });
       const report = await generateStructured({
-        endpoint: this.endpoint, model, prompt, schema,
+        endpoint: this.endpoint, model, repairModel, prompt, schema: batchSchema,
         images: batchFiles.map((file) => fs.readFileSync(file).toString('base64')),
-        timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1,
+        timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_200,
+        onRepair: () => onProgress({ phase: 'reviewing', current: start, total: files.length, message: `Repairing structured output for frames ${start + 1}-${start + batchFiles.length}` }),
         validate: (value) => validateVodReport(value, batchFiles.length, frameIntervalSeconds)
       });
       batches.push(report);
@@ -370,8 +404,9 @@ class SenseiService {
     onProgress({ phase: 'validating', current: files.length, total: files.length, message: 'Consolidating visual findings' });
     const consolidationPrompt = `Consolidate these sampled-frame observations into one conservative VALORANT VOD report. Use only supplied visual findings. Remove duplicates and contradictions. Do not claim continuous video review or invent events between frames. Keep the most actionable findings and preserve their timestamps. The statistical report is supporting context only. Return strict JSON.\nMATCH:${JSON.stringify(compactMatch(match))}\nSAVED STATS REPORT:${JSON.stringify(statisticalReport)}\nFRAME BATCH REPORTS:${JSON.stringify(batches)}`;
     return generateStructured({
-      endpoint: this.endpoint, model, prompt: consolidationPrompt, schema,
-      timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1,
+      endpoint: this.endpoint, model, repairModel, prompt: consolidationPrompt, schema,
+      timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 3_200,
+      onRepair: () => onProgress({ phase: 'validating', current: files.length, total: files.length, message: 'Repairing final report structure' }),
       validate: (value) => validateVodReport(value, files.length, frameIntervalSeconds)
     });
   }

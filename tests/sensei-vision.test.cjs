@@ -3,10 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { SenseiStore, normalizeEntry } = require('../src/main/sensei-store.cjs');
-const { buildContextPack, compactMatch, liteReport, parseStructuredJson, validateReport } = require('../src/main/services/sensei-service.cjs');
+const { SenseiService, buildContextPack, compactMatch, liteReport, parseStructuredJson, validateReport } = require('../src/main/services/sensei-service.cjs');
 const { SettingsStore } = require('../src/main/settings-store.cjs');
 
 function match(id, patch = {}) {
@@ -68,7 +69,8 @@ test('strict Sensei validation rejects a model report without three complete dri
 
 test('strict Sensei validation rejects repetitive drills and accepts harmless fenced JSON', () => {
   const report = liteReport(match('quality'), buildContextPack(match('quality'), []));
-  const parsed = parseStructuredJson(`Here is the report:\n\`\`\`json\n${JSON.stringify(report)}\n\`\`\``);
+  const source = JSON.stringify(report).replace(/}$/, ',}');
+  const parsed = parseStructuredJson(`<think>Draft object {not valid}</think>Here is the report:\n\`\`\`json\n${source}\n\`\`\``);
   assert.equal(validateReport(parsed).drills.length, 3);
   report.drills[1] = { ...report.drills[0] };
   assert.throws(() => validateReport(report), /three distinct drills/i);
@@ -123,8 +125,54 @@ test('VOD Vision batches images, disables model thinking, and exposes actionable
   const preload = fs.readFileSync(path.join(__dirname, '..', 'src/main/preload.cjs'), 'utf8');
   assert.match(service, /const batchSize = 4/);
   assert.match(service, /think: false/);
+  assert.match(service, /repairModel \|\| model/);
+  assert.match(service, /Reviewing frames/);
   assert.match(service, /Ollama returned HTTP/);
   assert.match(service, /scale=640:-2/);
   assert.match(preload, /onSenseiVodProgress/);
   assert.match(preload, /cancelSenseiVod/);
+});
+
+test('VOD Vision repairs invalid vision JSON with the text model without resending frames', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-vod-repair-'));
+  const frameFiles = Array.from({ length: 4 }, (_, index) => {
+    const file = path.join(directory, `frame-${index}.jpg`);
+    fs.writeFileSync(file, Buffer.from([0xff, 0xd8, index, 0xff, 0xd9]));
+    return file;
+  });
+  const payload = JSON.stringify({
+    summary: 'The sampled frames showed a repeatable positioning pattern.',
+    findings: [{ timestamp: '0:05', category: 'Positioning', observation: 'The player was visible away from cover.', evidence: 'The frame showed open space on both sides.' }],
+    limitations: ['Only sampled frames were reviewed.'], confidence: 'average'
+  });
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: requests.length === 1 ? 'Here are the visual findings, but this is not JSON.' : payload }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const events = [];
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const report = await service.analyzeVod({
+      match: match('vod-repair'), statisticalReport: liteReport(match('vod-repair'), buildContextPack(match('vod-repair'), [])),
+      frameFiles, frameTimestamps: [5, 10, 15, 20], model: 'vision-model', repairModel: 'text-model', onProgress: (event) => events.push(event)
+    });
+    assert.equal(report.framesReviewed, 4);
+    assert.equal(requests.length, 3);
+    assert.equal(requests[0].model, 'vision-model');
+    assert.equal(requests[0].images.length, 4);
+    assert.equal(requests[1].model, 'text-model');
+    assert.equal(requests[1].images, undefined);
+    assert.match(events.map((event) => event.message).join(' '), /Reviewing frames 1-4/);
+    assert.match(events.map((event) => event.message).join(' '), /Repairing structured output/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
