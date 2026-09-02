@@ -45,7 +45,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['lastMatch',true,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
     ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['matchPulse',false,3,66,44,11,16,100,'left','#ffffff'],
     ['matchScore',false,46,66,18,11,22,100,'center','#ffffff'], ['rrBeam',true,3,82,94,13,16,100,'left','#70dfff',true]
-  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) })),
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),showLabel:true,showDetail:true,opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}),...(id === 'currentRank' ? { showCurrentRR:false } : {}) })),
   reactive: false,
   inGameElements: [
     ['branding',false,3,5,24,18,24,100,'left','#ffffff'], ['playerName',false,3,27,25,12,22,100,'left','#c9bcff'],
@@ -55,7 +55,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['lastMatch',false,58,65,38,13,20,100,'right','#ffffff'], ['agent',false,3,65,20,27,20,100,'left','#ffffff'],
     ['map',false,25,69,20,16,22,100,'left','#ffffff'], ['matchPulse',false,3,39,94,12,16,100,'left','#ffffff'],
     ['matchScore',false,46,66,18,11,22,100,'center','#ffffff'], ['rrBeam',true,3,58,94,28,20,100,'left','#70dfff',true]
-  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) })),
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),showLabel:true,showDetail:true,opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}),...(id === 'currentRank' ? { showCurrentRR:false } : {}) })),
   postMatchElements: [
     ['branding',true,3,5,27,18,28,100,'left','#ffffff'], ['playerName',false,3,27,25,12,24,100,'left','#c9bcff'],
     ['currentRank',true,61,5,36,20,28,100,'left','#ffffff'], ['currentRR',true,79,27,18,10,20,100,'right','#c9bcff'],
@@ -64,7 +64,7 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['lastMatch',true,33,5,26,22,31,100,'center','#ffffff'], ['agent',false,3,62,20,27,20,100,'left','#ffffff'],
     ['map',false,25,65,20,16,22,100,'left','#ffffff'], ['matchPulse',false,3,62,44,11,16,100,'left','#ffffff'],
     ['matchScore',true,50,40,18,14,24,100,'center','#ffffff'], ['rrBeam',true,3,76,94,18,20,100,'left','#70dfff',true]
-  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}) }))
+  ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),showLabel:true,showDetail:true,opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}),...(id === 'currentRank' ? { showCurrentRR:false } : {}) }))
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const safeImage = (value) => {
@@ -828,8 +828,11 @@ function customEditorSigned(value, suffix = '') {
   return `${number > 0 ? '+' : number < 0 ? '−' : '±'}${Math.abs(number)}${suffix}`;
 }
 
-function customEditorCopy(label, value, detail = '') {
-  return `<span class="custom-editor-copy"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong>${detail ? `<em>${escapeHtml(detail)}</em>` : ''}</span>`;
+function customEditorCopy(label, value, detail = '', element = {}, auxiliary = '') {
+  const labelMarkup = element.showLabel === false ? '' : `<small>${escapeHtml(label)}</small>`;
+  const detailMarkup = detail && element.showDetail !== false ? `<em>${escapeHtml(detail)}</em>` : '';
+  const auxiliaryMarkup = auxiliary ? `<em class="custom-editor-aux-detail">${escapeHtml(auxiliary)}</em>` : '';
+  return `<span class="custom-editor-copy">${labelMarkup}<strong>${escapeHtml(value)}</strong>${detailMarkup}${auxiliaryMarkup}</span>`;
 }
 
 function customEditorIcon(url, fallback, extraClass = '') {
@@ -881,19 +884,19 @@ function customOverlayEditorPreview() {
 }
 
 function customOverlayEditorMarkup(id, preview, element) {
-  if (id === 'branding') return `<span class="custom-editor-eye"></span>${customEditorCopy('BYAKUGAN', 'SESSION VISION')}`;
-  if (id === 'playerName') return customEditorCopy('RIOT ID', preview.playerName);
-  if (id === 'currentRank') return `${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank)}`;
-  if (id === 'currentRR') return customEditorCopy('CURRENT RR', `${preview.rr} RR`);
-  if (id === 'peakRank') return `${customEditorIcon(preview.peakRankImage, initials(preview.peakRank))}${customEditorCopy('ALL-TIME PEAK', preview.peakRank, preview.peakContext)}`;
-  if (id === 'sessionWL') return customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`);
-  if (id === 'sessionKD') return customEditorCopy('SESSION K/D', preview.kd);
-  if (id === 'rrChange') return customEditorCopy('SESSION RR', customEditorSigned(preview.rrChange, ' RR'));
-  if (id === 'lastMatch') return customEditorCopy('LAST MATCH', preview.lastResult, customEditorSigned(preview.lastRR, ' RR'));
-  if (id === 'agent') return `${customEditorIcon(preview.agentImage, initials(preview.agent), 'custom-editor-agent-icon')}${customEditorCopy('AGENT', preview.agent)}`;
-  if (id === 'map') return customEditorCopy('CURRENT MAP', preview.map, preview.liveLabel);
-  if (id === 'matchScore') return customEditorCopy('FINAL SCORE', preview.matchScore);
-  if (id === 'matchPulse') return `<span class="custom-editor-pulse-label">MATCH PULSE</span><span class="custom-editor-pulse">${preview.roundPulse.map((round) => `<i class="${String(round).toLowerCase()}"></i>`).join('')}</span>`;
+  if (id === 'branding') return `<span class="custom-editor-eye"></span>${customEditorCopy('BYAKUGAN', 'SESSION VISION', '', element)}`;
+  if (id === 'playerName') return customEditorCopy('RIOT ID', preview.playerName, '', element);
+  if (id === 'currentRank') return `${customEditorIcon(preview.rankImage, initials(preview.currentRank))}${customEditorCopy('CURRENT RANK', preview.currentRank, '', element, element.showCurrentRR ? `${preview.rr} / 100 RR` : '')}`;
+  if (id === 'currentRR') return customEditorCopy('CURRENT RR', `${preview.rr} RR`, '', element);
+  if (id === 'peakRank') return `${customEditorIcon(preview.peakRankImage, initials(preview.peakRank))}${customEditorCopy('ALL-TIME PEAK', preview.peakRank, preview.peakContext, element)}`;
+  if (id === 'sessionWL') return customEditorCopy('SESSION W / L', `${preview.wins} W / ${preview.losses} L`, '', element);
+  if (id === 'sessionKD') return customEditorCopy('SESSION K/D', preview.kd, '', element);
+  if (id === 'rrChange') return customEditorCopy('SESSION RR', customEditorSigned(preview.rrChange, ' RR'), '', element);
+  if (id === 'lastMatch') return customEditorCopy('LAST MATCH', preview.lastResult, customEditorSigned(preview.lastRR, ' RR'), element);
+  if (id === 'agent') return `${customEditorIcon(preview.agentImage, initials(preview.agent), 'custom-editor-agent-icon')}${customEditorCopy('AGENT', preview.agent, '', element)}`;
+  if (id === 'map') return customEditorCopy('CURRENT MAP', preview.map, preview.liveLabel, element);
+  if (id === 'matchScore') return customEditorCopy('FINAL SCORE', preview.matchScore, '', element);
+  if (id === 'matchPulse') return `${element.showLabel === false ? '' : '<span class="custom-editor-pulse-label">MATCH PULSE</span>'}<span class="custom-editor-pulse">${preview.roundPulse.map((round) => `<i class="${String(round).toLowerCase()}"></i>`).join('')}</span>`;
   if (id === 'rrBeam') return customEditorBeam(preview, element.showMarker !== false);
   return '';
 }
@@ -928,6 +931,12 @@ function renderCustomInspector(config) {
   $('#customElementFontSize').value = String(element.fontSize);
   $('#customElementLabelFontSize').value = String(element.labelFontSize || Math.max(6, Math.round(element.fontSize * 0.38)));
   $('#customElementDetailFontSize').value = String(element.detailFontSize || Math.max(6, Math.round(element.fontSize * 0.42)));
+  $('#customElementShowLabel').checked = element.showLabel !== false;
+  $('#customElementShowDetail').checked = element.showDetail !== false;
+  $('#customElementShowCurrentRR').checked = element.showCurrentRR === true;
+  $('#customElementShowLabelControl').hidden = element.id === 'rrBeam';
+  $('#customElementShowDetailControl').hidden = !['peakRank', 'lastMatch', 'map'].includes(element.id);
+  $('#customElementShowCurrentRRControl').hidden = element.id !== 'currentRank';
   $('#customElementLabelFontSizeControl').hidden = element.id === 'rrBeam';
   $('#customElementDetailFontSizeControl').hidden = !['peakRank', 'lastMatch', 'map'].includes(element.id);
   $('#customElementOpacity').value = String(element.opacity);
@@ -1511,6 +1520,16 @@ function bindEvents() {
     state.settings.streamOverlayCustom = config;
     await persistCustomOverlay(config);
   });
+  for (const [id, property] of [
+    ['customElementShowLabel', 'showLabel'],
+    ['customElementShowDetail', 'showDetail'],
+    ['customElementShowCurrentRR', 'showCurrentRR']
+  ]) {
+    $(`#${id}`).addEventListener('change', async (event) => {
+      const config = updateSelectedCustomElement(property, event.target.checked);
+      if (config) await persistCustomOverlay(config);
+    });
+  }
   const customInspectorFields = {
     customElementX: 'x', customElementY: 'y', customElementWidth: 'width', customElementHeight: 'height',
     customElementFontSize: 'fontSize', customElementLabelFontSize: 'labelFontSize', customElementDetailFontSize: 'detailFontSize',

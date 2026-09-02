@@ -162,3 +162,24 @@ test('custom copy layers have independent sizing and the beam marker shows last-
   assert.match(overlayStyles, /custom-beam-marker\.negative[^}]*var\(--red\)/);
   assert.doesNotMatch(overlayScript, /custom-beam-marker', `\$\{Number\(player\.rr\)/);
 });
+
+test('custom labels, details, and embedded current RR are independently toggleable', () => {
+  const normalized = normalizeCustomOverlay({ elements: [
+    { id: 'currentRank', showLabel: false, showCurrentRR: true },
+    { id: 'peakRank', showLabel: false, showDetail: false }
+  ] });
+  const currentRank = normalized.elements.find((element) => element.id === 'currentRank');
+  const peakRank = normalized.elements.find((element) => element.id === 'peakRank');
+  assert.equal(currentRank.showLabel, false);
+  assert.equal(currentRank.showCurrentRR, true);
+  assert.equal(peakRank.showLabel, false);
+  assert.equal(peakRank.showDetail, false);
+  assert.equal(normalized.inGameElements.find((element) => element.id === 'currentRank').showCurrentRR, false);
+  assert.match(rendererHtml, /id="customElementShowLabel"/);
+  assert.match(rendererHtml, /id="customElementShowDetail"/);
+  assert.match(rendererHtml, /id="customElementShowCurrentRR"/);
+  assert.match(rendererScript, /element\.showLabel === false/);
+  assert.match(rendererScript, /element\.showDetail !== false/);
+  assert.match(rendererScript, /element\.showCurrentRR \? `\$\{preview\.rr\} \/ 100 RR`/);
+  assert.match(overlayScript, /element\.showCurrentRR \? `\$\{Number\(renderPlayer\.rr\) \|\| 0\} \/ 100 RR`/);
+});

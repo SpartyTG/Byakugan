@@ -98,7 +98,11 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const customInGame = custom && customOverlay.reactive
     && ['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase());
   const customStateElements = customInGame ? customOverlay.inGameElements : customOverlay.elements;
+  const customStateElement = (id) => customStateElements.find((element) => element.id === id);
   const customBeam = customStateElements.find((element) => element.id === 'rrBeam');
+  const customRank = customStateElement('currentRank');
+  const customPeak = customStateElement('peakRank');
+  const customLastMatch = customStateElement('lastMatch');
   const showBeamLastMatchRr = Boolean(custom && customBeam?.visible && customBeam.showMarker !== false);
   const showIdentity = custom ? customElementVisible(customOverlay, 'playerName', customInGame) : Boolean(settings.streamOverlayShowIdentity);
   const showWl = custom ? customElementVisible(customOverlay, 'sessionWL', customInGame) : settings.streamOverlayShowWl !== false;
@@ -106,12 +110,17 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const showAgent = custom ? customElementVisible(customOverlay, 'agent', customInGame) : settings.streamOverlayShowAgent !== false;
   const showMap = custom ? customElementVisible(customOverlay, 'map', customInGame) : settings.streamOverlayShowMap !== false;
   const showRR = custom
-    ? customElementVisible(customOverlay, 'currentRR', customInGame) || customElementVisible(customOverlay, 'rrBeam', customInGame)
+    ? customElementVisible(customOverlay, 'currentRR', customInGame)
+      || customElementVisible(customOverlay, 'rrBeam', customInGame)
+      || Boolean(customRank?.visible && customRank.showCurrentRR)
     : settings.streamOverlayShowRR !== false;
   const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank', customInGame) : settings.streamOverlayShowPeakRank !== false;
+  const showPeakDetail = custom ? Boolean(customPeak?.visible && customPeak.showDetail !== false) : showPeakRank;
+  const showLastMatch = custom ? Boolean(customLastMatch?.visible) : settings.streamOverlayShowRrChange !== false;
+  const showMatchScore = custom ? customElementVisible(customOverlay, 'matchScore', customInGame) : true;
   const showRrChange = custom
     ? customElementVisible(customOverlay, 'rrChange', customInGame)
-      || customElementVisible(customOverlay, 'lastMatch', customInGame)
+      || Boolean(customLastMatch?.visible && customLastMatch.showDetail !== false)
       || showBeamLastMatchRr
     : settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
@@ -131,16 +140,26 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? recentMatch : {};
   const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
   const recapElements = custom && customOverlay.reactive ? customOverlay.postMatchElements : [];
+  const recapElement = (id) => recapElements.find((element) => element.id === id);
   const recapVisible = (id) => recapElements.some((element) => element.id === id && element.visible);
-  const recapBeam = recapElements.find((element) => element.id === 'rrBeam');
+  const recapBeam = recapElement('rrBeam');
+  const recapRank = recapElement('currentRank');
+  const recapPeak = recapElement('peakRank');
+  const recapLastMatch = recapElement('lastMatch');
   const recapShowIdentity = custom ? recapVisible('playerName') : showIdentity;
   const recapShowCurrentRank = custom ? recapVisible('currentRank') : true;
   const recapShowWl = custom ? recapVisible('sessionWL') : showWl;
   const recapShowKd = custom ? recapVisible('sessionKD') : showKd;
-  const recapShowRR = custom ? recapVisible('currentRR') || recapVisible('rrBeam') : showRR;
+  const recapShowRR = custom
+    ? recapVisible('currentRR') || recapVisible('rrBeam') || Boolean(recapRank?.visible && recapRank.showCurrentRR)
+    : showRR;
   const recapShowPeak = custom ? recapVisible('peakRank') : showPeakRank;
+  const recapShowPeakDetail = custom ? Boolean(recapPeak?.visible && recapPeak.showDetail !== false) : recapShowPeak;
+  const recapShowLastMatch = custom ? Boolean(recapLastMatch?.visible) : showLastMatch;
   const recapShowChange = custom
-    ? recapVisible('rrChange') || recapVisible('lastMatch') || Boolean(recapBeam?.visible && recapBeam.showMarker !== false)
+    ? recapVisible('rrChange')
+      || Boolean(recapLastMatch?.visible && recapLastMatch.showDetail !== false)
+      || Boolean(recapBeam?.visible && recapBeam.showMarker !== false)
     : showRrChange;
   const recapShowAgent = custom ? recapVisible('agent') : showAgent;
   const recapShowMap = custom ? recapVisible('map') : showMap;
@@ -165,8 +184,8 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       rr: showRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0,
       peakRank: showPeakRank ? cleanText(profile.peakRank, 'Unrated', 40) : '',
       peakRankImage: showPeakRank ? mediaUrl(profile.peakRankImage) : '',
-      peakEpisode: showPeakRank ? cleanText(profile.peakEpisode, '', 32) : '',
-      peakAct: showPeakRank ? cleanText(profile.peakAct, '', 32) : ''
+      peakEpisode: showPeakDetail ? cleanText(profile.peakEpisode, '', 32) : '',
+      peakAct: showPeakDetail ? cleanText(profile.peakAct, '', 32) : ''
     },
     session: {
       games: showWl ? Number(session.games) || 0 : 0,
@@ -177,15 +196,15 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
       beamProgress: showRR ? rrBeamProgress(profile.rr) : 0,
       lastMatchId: cleanText(lastMatch.id, '', 100),
       lastMatchRR: showRrChange ? Number(lastMatch.rr) || 0 : 0,
-      lastMatchResult: showRrChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
-      lastMatchScore: cleanText(lastMatch.score, '—', 20),
+      lastMatchResult: showLastMatch ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
+      lastMatchScore: showMatchScore ? cleanText(lastMatch.score, '—', 20) : '—',
       startingRank: showRrChange ? cleanText(session.startingRank, 'Unrated', 40) : 'Unrated',
       currentRank: showRrChange ? cleanText(session.currentRank || profile.rank, 'Unrated', 40) : 'Unrated'
     },
     live: {
       state: cleanText(live.state, 'MENUS', 24).toUpperCase(),
       label: liveLabel(live.state),
-      score: cleanText(live.score, '', 20),
+      score: showMatchScore || matchPulse ? cleanText(live.score, '', 20) : '',
       roundPulse: matchPulse ? (live.roundPulse || []).map((round) => (
         ['WIN', 'LOSS'].includes(String(round).toUpperCase()) ? String(round).toUpperCase() : 'UNKNOWN'
       )).slice(-50) : [],
@@ -204,8 +223,8 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
         rr: recapShowRR && Number.isFinite(Number(profile.rr)) ? Number(profile.rr) : 0,
         peakRank: recapShowPeak ? cleanText(profile.peakRank, 'Unrated', 40) : '',
         peakRankImage: recapShowPeak ? mediaUrl(profile.peakRankImage) : '',
-        peakEpisode: recapShowPeak ? cleanText(profile.peakEpisode, '', 32) : '',
-        peakAct: recapShowPeak ? cleanText(profile.peakAct, '', 32) : ''
+        peakEpisode: recapShowPeakDetail ? cleanText(profile.peakEpisode, '', 32) : '',
+        peakAct: recapShowPeakDetail ? cleanText(profile.peakAct, '', 32) : ''
       },
       session: {
         wins: recapShowWl ? Number(session.wins) || 0 : 0,
@@ -214,7 +233,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
         rrChange: recapShowChange ? Number(session.rrChange) || 0 : 0,
         beamProgress: recapShowRR ? rrBeamProgress(profile.rr) : 0,
         lastMatchRR: recapShowChange ? Number(lastMatch.rr) || 0 : 0,
-        lastMatchResult: recapShowChange ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
+        lastMatchResult: recapShowLastMatch ? cleanText(lastMatch.result, 'NO MATCH', 16) : 'NO MATCH',
         lastMatchScore: recapShowScore ? cleanText(lastMatch.score, '—', 20) : '—'
       },
       live: {

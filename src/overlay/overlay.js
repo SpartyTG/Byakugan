@@ -129,10 +129,12 @@ function customNode(tag, className, value) {
   return node;
 }
 
-function customCopy(label, value, detail = '') {
+function customCopy(label, value, detail = '', element = {}, auxiliary = '') {
   const copy = customNode('span', 'custom-copy');
-  copy.append(customNode('small', 'custom-label', label), customNode('strong', 'custom-value', value));
-  if (detail) copy.append(customNode('em', 'custom-detail', detail));
+  if (element.showLabel !== false) copy.append(customNode('small', 'custom-label', label));
+  copy.append(customNode('strong', 'custom-value', value));
+  if (detail && element.showDetail !== false) copy.append(customNode('em', 'custom-detail', detail));
+  if (auxiliary) copy.append(customNode('em', 'custom-aux-detail', auxiliary));
   return copy;
 }
 
@@ -255,30 +257,30 @@ function renderCustomOverlay(data, player, session, live, appearance, beamFrom =
     item.style.setProperty('--custom-color', element.color);
 
     if (element.id === 'branding') {
-      item.append(customNode('span', 'custom-eye'), customCopy('BYAKUGAN', 'SESSION VISION'));
+      item.append(customNode('span', 'custom-eye'), customCopy('BYAKUGAN', 'SESSION VISION', '', element));
     } else if (element.id === 'playerName') {
-      item.append(customCopy('RIOT ID', renderPlayer.name || 'PLAYER'));
+      item.append(customCopy('RIOT ID', renderPlayer.name || 'PLAYER', '', element));
     } else if (element.id === 'currentRank') {
-      item.append(customImage(renderPlayer.rankImage, initials(renderPlayer.rank)), customCopy('CURRENT RANK', renderPlayer.rank || 'UNRATED'));
+      item.append(customImage(renderPlayer.rankImage, initials(renderPlayer.rank)), customCopy('CURRENT RANK', renderPlayer.rank || 'UNRATED', '', element, element.showCurrentRR ? `${Number(renderPlayer.rr) || 0} / 100 RR` : ''));
     } else if (element.id === 'currentRR') {
-      item.append(customCopy('CURRENT RR', `${Number(renderPlayer.rr) || 0} RR`));
+      item.append(customCopy('CURRENT RR', `${Number(renderPlayer.rr) || 0} RR`, '', element));
     } else if (element.id === 'peakRank') {
       const season = [renderPlayer.peakEpisode, renderPlayer.peakAct].filter(Boolean).join(' • ');
-      item.append(customImage(renderPlayer.peakRankImage, initials(renderPlayer.peakRank)), customCopy('ALL-TIME PEAK', renderPlayer.peakRank || 'UNRATED', season));
+      item.append(customImage(renderPlayer.peakRankImage, initials(renderPlayer.peakRank)), customCopy('ALL-TIME PEAK', renderPlayer.peakRank || 'UNRATED', season, element));
     } else if (element.id === 'sessionWL') {
-      item.append(customCopy('SESSION W / L', `${Number(renderSession.wins) || 0} W / ${Number(renderSession.losses) || 0} L`));
+      item.append(customCopy('SESSION W / L', `${Number(renderSession.wins) || 0} W / ${Number(renderSession.losses) || 0} L`, '', element));
     } else if (element.id === 'sessionKD') {
-      item.append(customCopy('SESSION K/D', Number(renderSession.kd || 0).toFixed(2)));
+      item.append(customCopy('SESSION K/D', Number(renderSession.kd || 0).toFixed(2), '', element));
     } else if (element.id === 'rrChange') {
-      item.append(customCopy('SESSION RR', signed(renderSession.rrChange, ' RR')));
+      item.append(customCopy('SESSION RR', signed(renderSession.rrChange, ' RR'), '', element));
     } else if (element.id === 'lastMatch') {
-      item.append(customCopy('LAST MATCH', renderSession.lastMatchResult || 'NO MATCH', signed(renderSession.lastMatchRR, ' RR')));
+      item.append(customCopy('LAST MATCH', renderSession.lastMatchResult || 'NO MATCH', signed(renderSession.lastMatchRR, ' RR'), element));
     } else if (element.id === 'agent') {
-      item.append(customImage(renderLive.agentImage, initials(renderLive.agent), 'custom-agent-image'), customCopy(renderLive.agentLabel || 'AGENT', renderLive.agent || 'WAITING…'));
+      item.append(customImage(renderLive.agentImage, initials(renderLive.agent), 'custom-agent-image'), customCopy(renderLive.agentLabel || 'AGENT', renderLive.agent || 'WAITING…', '', element));
     } else if (element.id === 'map') {
-      item.append(customCopy(recap ? 'LAST MAP' : 'CURRENT MAP', renderLive.map || '—', renderLive.label || 'IN MENUS'));
+      item.append(customCopy(recap ? 'LAST MAP' : 'CURRENT MAP', renderLive.map || '—', renderLive.label || 'IN MENUS', element));
     } else if (element.id === 'matchScore') {
-      item.append(customCopy('FINAL SCORE', renderSession.lastMatchScore || renderLive.score || '—'));
+      item.append(customCopy('FINAL SCORE', renderSession.lastMatchScore || renderLive.score || '—', '', element));
     } else if (element.id === 'matchPulse') {
       const pulse = customNode('span', 'custom-pulse');
       for (const [index, round] of (renderLive.roundPulse || []).entries()) {
@@ -287,7 +289,8 @@ function renderCustomOverlay(data, player, session, live, appearance, beamFrom =
         marker.setAttribute('aria-label', `Round ${index + 1}: ${normalized === 'WIN' ? 'won' : normalized === 'LOSS' ? 'lost' : 'not observed'}`);
         pulse.append(marker);
       }
-      item.append(customNode('small', 'custom-pulse-label', 'MATCH PULSE'), pulse);
+      if (element.showLabel !== false) item.append(customNode('small', 'custom-pulse-label', 'MATCH PULSE'));
+      item.append(pulse);
     } else if (element.id === 'rrBeam') {
       const fill = customNode('span', 'custom-beam-fill');
       const beam = customNode('img');

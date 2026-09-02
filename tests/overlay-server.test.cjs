@@ -259,6 +259,34 @@ test('custom beam marker alone receives last-match RR while a hidden marker does
   assert.equal(hidden.session.lastMatchRR, 0);
 });
 
+test('current-rank embedded RR authorizes RR without the standalone RR or beam', () => {
+  const payload = buildOverlayPayload(snapshot, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayCustom: {
+      elements: [
+        { id: 'currentRank', visible: true, showCurrentRR: true },
+        { id: 'currentRR', visible: false },
+        { id: 'rrBeam', visible: false }
+      ]
+    }
+  }));
+  assert.equal(payload.preferences.showRR, true);
+  assert.equal(payload.player.rr, snapshot.profile.rr);
+
+  const hidden = buildOverlayPayload(snapshot, settings({
+    streamOverlayLayout: 'custom',
+    streamOverlayCustom: {
+      elements: [
+        { id: 'currentRank', visible: true, showCurrentRR: false },
+        { id: 'currentRR', visible: false },
+        { id: 'rrBeam', visible: false }
+      ]
+    }
+  }));
+  assert.equal(hidden.preferences.showRR, false);
+  assert.equal(hidden.player.rr, 0);
+});
+
 test('RR energy beam follows current rank rating from empty to full', () => {
   assert.equal(rrBeamProgress(0), 0);
   assert.equal(rrBeamProgress(42), 42);

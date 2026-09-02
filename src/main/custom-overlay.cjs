@@ -89,12 +89,17 @@ function normalizeElement(candidate, fallback) {
     fontSize: numberWithin(source.fontSize, fallback.fontSize, 8, 96),
     labelFontSize: numberWithin(source.labelFontSize, defaultLabelFontSize, 6, 72),
     detailFontSize: numberWithin(source.detailFontSize, defaultDetailFontSize, 6, 72),
+    showLabel: typeof source.showLabel === 'boolean' ? source.showLabel : fallback.showLabel !== false,
+    showDetail: typeof source.showDetail === 'boolean' ? source.showDetail : fallback.showDetail !== false,
     opacity: numberWithin(source.opacity, fallback.opacity, 10, 100),
     align: ['left', 'center', 'right'].includes(source.align) ? source.align : fallback.align,
     color: safeColor(source.color, fallback.color)
   };
   if (fallback.id === 'rrBeam') {
     normalized.showMarker = typeof source.showMarker === 'boolean' ? source.showMarker : fallback.showMarker !== false;
+  }
+  if (fallback.id === 'currentRank') {
+    normalized.showCurrentRR = typeof source.showCurrentRR === 'boolean' ? source.showCurrentRR : fallback.showCurrentRR === true;
   }
   return normalized;
 }

@@ -52,7 +52,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.68
+## Included in version 0.8.0-beta.69
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -88,6 +88,8 @@ registered trademarks of Riot Games, Inc.
 - Repeatable drag and resize interactions without rebuilding the selected element mid-pointer gesture
 - Live text-size editing without the former preview-size cap
 - Independent main, label, and detail text-size controls for custom components, including session headings, branding labels, peak-rank season text, and last-match details
+- Independent **Show label** and **Show detail** controls for each applicable custom component on every Between Games, In Game, and Post Match canvas
+- Optional embedded current RR on each custom Current Rank component, displayed as `41 / 100 RR` and backed by the same privacy-filtered OBS payload as the standalone RR element
 - Rank-emblem layers that retain a visible fallback while loading the current and peak rank artwork
 - Per-element reset controls that preserve every other custom placement and the selected element's visibility
 - Optional three-state custom Reactive Vision mode: the original canvas becomes the independently editable **Between Games** overlay, with separate **In Game** and **Post Match** canvases beneath it; the editor grows vertically with all enabled canvas heights while OBS renders only the active state
@@ -207,7 +209,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.68-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.69-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -236,10 +238,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.68`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.69`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.68`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.69`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -247,8 +249,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.68
-git push origin v0.8.0-beta.68
+git tag v0.8.0-beta.69
+git push origin v0.8.0-beta.69
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
