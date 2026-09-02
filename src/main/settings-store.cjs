@@ -31,6 +31,7 @@ const DEFAULTS = Object.freeze({
   streamOverlayShowRrChange: true,
   streamOverlayAnimatedRrBeam: true,
   streamOverlaySmoothTransitions: true,
+  streamOverlayTransitionSound: false,
   streamOverlayMatchPulse: false,
   streamOverlayMatchPulseStyle: 'segments',
   streamOverlayPostMatchRecap: true,

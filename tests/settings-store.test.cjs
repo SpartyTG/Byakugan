@@ -19,7 +19,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
       streamOverlayShowWl: false, streamOverlayShowKd: false, streamOverlayShowAgent: false,
       streamOverlayShowMap: false, streamOverlayShowPeakRank: false,
       streamOverlayShowRrChange: false, streamOverlayAnimatedRrBeam: false,
-      streamOverlaySmoothTransitions: false, streamOverlayMatchPulse: true,
+      streamOverlaySmoothTransitions: false, streamOverlayTransitionSound: true, streamOverlayMatchPulse: true,
       streamOverlayMatchPulseStyle: 'dots', streamOverlayPostMatchRecap: false,
       streamOverlayPostMatchRecapSeconds: 10,
       streamOverlayBackgroundOpacity: 0, uiScale: 175, unknown: 'ignored'
@@ -40,6 +40,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(updated.streamOverlayShowRrChange, false);
     assert.equal(updated.streamOverlayAnimatedRrBeam, false);
     assert.equal(updated.streamOverlaySmoothTransitions, false);
+    assert.equal(updated.streamOverlayTransitionSound, true);
     assert.equal(updated.streamOverlayMatchPulse, true);
     assert.equal(updated.streamOverlayMatchPulseStyle, 'dots');
     assert.equal(updated.streamOverlayPostMatchRecap, false);
@@ -58,6 +59,7 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(restored.streamOverlayShowMap, false);
     assert.equal(restored.streamOverlayShowPeakRank, false);
     assert.equal(restored.streamOverlayAnimatedRrBeam, false);
+    assert.equal(restored.streamOverlayTransitionSound, true);
     assert.equal(restored.streamOverlayMatchPulse, true);
     assert.equal(restored.streamOverlayMatchPulseStyle, 'dots');
     assert.equal(restored.streamOverlayPostMatchRecapSeconds, 10);

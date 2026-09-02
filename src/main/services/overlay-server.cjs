@@ -125,6 +125,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     : settings.streamOverlayShowRrChange !== false;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const smoothTransitions = settings.streamOverlaySmoothTransitions !== false;
+  const transitionSound = settings.streamOverlayTransitionSound === true;
   const matchPulse = custom
     ? Boolean(settings.streamOverlayMatchPulse) && customOverlay.reactive && customElementVisible(customOverlay, 'matchPulse', true)
     : Boolean(settings.streamOverlayMatchPulse);
@@ -174,7 +175,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
     customOverlay,
     preferences: {
       showIdentity, showWl, showKd, showAgent, showMap, showRR, showPeakRank, showRrChange, animatedRrBeam,
-      smoothTransitions, matchPulse, matchPulseStyle, postMatchRecap, postMatchRecapSeconds
+      smoothTransitions, transitionSound, matchPulse, matchPulseStyle, postMatchRecap, postMatchRecapSeconds
     },
     appearance: { backgroundOpacity: overlayBackgroundOpacity(settings.streamOverlayBackgroundOpacity) },
     player: {

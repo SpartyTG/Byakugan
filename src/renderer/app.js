@@ -782,6 +782,7 @@ function syncSettingsForm() {
   $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
   $('#streamOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
   $('#streamOverlaySmoothTransitions').checked = settings.streamOverlaySmoothTransitions !== false;
+  $('#streamOverlayTransitionSound').checked = settings.streamOverlayTransitionSound === true;
   $('#streamOverlayMatchPulse').checked = Boolean(settings.streamOverlayMatchPulse);
   $('#streamOverlayMatchPulseStyle').value = settings.streamOverlayMatchPulseStyle || 'segments';
   $('#streamOverlayPostMatchRecap').checked = settings.streamOverlayPostMatchRecap !== false;
@@ -816,10 +817,12 @@ function renderOverlayDimensions(layout) {
 function syncTransitionPreviewControl(settings = state.settings || {}) {
   const button = $('#previewOverlayTransitions');
   if (!button) return;
+  const audioToggle = $('#streamOverlayTransitionSound');
   const layout = settings.streamOverlayLayout || 'horizontal';
   const reactiveLayout = layout === 'reactive' || (layout === 'custom' && Boolean(settings.streamOverlayCustom?.reactive));
   const transitionsEnabled = settings.streamOverlaySmoothTransitions !== false;
   button.disabled = !reactiveLayout || !transitionsEnabled;
+  if (audioToggle) audioToggle.disabled = !reactiveLayout || !transitionsEnabled;
   text('#transitionPreviewHelp', !reactiveLayout
     ? 'Enable Reactive Vision Dock or Reactive Vision Mode in the Custom Overlay Builder to preview its state changes.'
     : !transitionsEnabled
@@ -1590,6 +1593,7 @@ function bindEvents() {
   $('#streamOverlayShowRrChange').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRrChange: event.target.checked }, false));
   $('#streamOverlayAnimatedRrBeam').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayAnimatedRrBeam: event.target.checked }, false));
   $('#streamOverlaySmoothTransitions').addEventListener('change', (event) => saveSettingsPatch({ streamOverlaySmoothTransitions: event.target.checked }, false));
+  $('#streamOverlayTransitionSound').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayTransitionSound: event.target.checked }, false));
   $('#streamOverlayMatchPulse').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayMatchPulse: event.target.checked }, false));
   $('#streamOverlayMatchPulseStyle').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayMatchPulseStyle: event.target.value }, false));
   $('#streamOverlayPostMatchRecap').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayPostMatchRecap: event.target.checked }, false));
@@ -1707,7 +1711,7 @@ async function initialize() {
       streamOverlayShowWl: true, streamOverlayShowKd: true,
       streamOverlayShowAgent: true, streamOverlayShowMap: true,
       streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true,
-      streamOverlayAnimatedRrBeam: true, streamOverlaySmoothTransitions: true,
+      streamOverlayAnimatedRrBeam: true, streamOverlaySmoothTransitions: true, streamOverlayTransitionSound: false,
       streamOverlayMatchPulse: false, streamOverlayMatchPulseStyle: 'segments',
       streamOverlayPostMatchRecap: true, streamOverlayPostMatchRecapSeconds: 7,
       streamOverlayBackgroundOpacity: 70,

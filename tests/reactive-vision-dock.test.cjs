@@ -81,6 +81,19 @@ test('BYAKUGAN Shift preserves an outgoing frame and animates the incoming state
   assert.match(styles, /@keyframes byakugan-shift-scan/);
 });
 
+test('BYAKUGAN Shift has a longer eye hold and optional original audio cue', () => {
+  assert.match(script, /function playByakuganShiftSound/);
+  assert.match(script, /preferences\.transitionSound !== true/);
+  assert.match(script, /window\.AudioContext \|\| window\.webkitAudioContext/);
+  assert.match(script, /createOscillator/);
+  assert.match(script, /createBufferSource/);
+  assert.match(script, /playByakuganShiftSound\(latestOverlayData\?\.preferences\)/);
+  assert.match(script, /transitionPreviewMode \? 1_450 : 1_000/);
+  assert.match(styles, /animation:\s*byakugan-shift-eye 1\.03s/);
+  assert.match(styles, /76% \{ opacity:\s*1/);
+  assert.match(main, /autoplay-policy', 'no-user-gesture-required/);
+});
+
 test('Reactive Vision can safely preview the complete transition and RR beam sequence', () => {
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
   const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'preload.cjs'), 'utf8');
@@ -96,7 +109,7 @@ test('Reactive Vision can safely preview the complete transition and RR beam seq
   assert.match(script, /showTransitionPreviewState\('postmatch'/);
   assert.match(script, /Preview data only — OBS is unchanged/);
   assert.match(script, /const reduceMotion = !transitionPreviewMode && window\.matchMedia/);
-  assert.match(script, /transitionPreviewMode \? 1_100 : 720/);
+  assert.match(script, /transitionPreviewMode \? 1_450 : 1_000/);
   assert.match(styles, /\.transition-preview-badge/);
   assert.match(styles, /body:not\(\.transition-preview-mode\) \.byakugan-shift-effect/);
   assert.match(styles, /\.transition-preview-mode \.byakugan-shift-effect\.active/);

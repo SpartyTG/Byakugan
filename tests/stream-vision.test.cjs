@@ -32,6 +32,7 @@ test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', 
   assert.match(app, /reactive:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
   assert.match(app, /The dock animates inside this fixed canvas/);
   assert.match(html, /id="streamOverlaySmoothTransitions"/);
+  assert.match(html, /id="streamOverlayTransitionSound"/);
   assert.match(html, /id="previewOverlayTransitions"/);
   assert.match(app, /previewOverlay\(\{ animation: true \}\)/);
   assert.match(html, /id="streamOverlayMatchPulse"/);

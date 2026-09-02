@@ -32,6 +32,7 @@ function settings(patch = {}) {
     streamOverlayShowRrChange: true,
     streamOverlayAnimatedRrBeam: true,
     streamOverlaySmoothTransitions: true,
+    streamOverlayTransitionSound: false,
     streamOverlayMatchPulse: false,
     streamOverlayMatchPulseStyle: 'segments',
     streamOverlayPostMatchRecap: true,
@@ -61,6 +62,7 @@ test('overlay payload exposes only personal stream fields', () => {
   assert.equal(payload.session.beamProgress, 72);
   assert.equal(payload.preferences.animatedRrBeam, true);
   assert.equal(payload.preferences.smoothTransitions, true);
+  assert.equal(payload.preferences.transitionSound, false);
   assert.equal(payload.preferences.postMatchRecap, true);
   assert.equal(payload.session.lastMatchScore, snapshot.matches[0].score);
   assert.equal(payload.appearance.backgroundOpacity, 35);

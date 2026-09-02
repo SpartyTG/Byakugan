@@ -11,6 +11,7 @@ const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 

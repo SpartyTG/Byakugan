@@ -86,7 +86,76 @@ function activateShiftEffect(oldRect, newRect) {
   void byakuganShiftEffect.offsetWidth;
   byakuganShiftEffect.classList.add('active');
   clearTimeout(shiftEffectTimer);
-  shiftEffectTimer = setTimeout(() => byakuganShiftEffect.classList.remove('active'), transitionPreviewMode ? 1_180 : 760);
+  shiftEffectTimer = setTimeout(() => byakuganShiftEffect.classList.remove('active'), transitionPreviewMode ? 1_560 : 1_100);
+}
+
+function playByakuganShiftSound(preferences = {}) {
+  if (preferences.transitionSound !== true) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  let context;
+  try { context = new AudioContextClass(); } catch { return; }
+  const closeContext = () => context.close?.().catch?.(() => {});
+  const begin = () => {
+    try {
+      const now = context.currentTime;
+      const master = context.createGain();
+      master.gain.setValueAtTime(.0001, now);
+      master.gain.exponentialRampToValueAtTime(.13, now + .055);
+      master.gain.setValueAtTime(.13, now + .32);
+      master.gain.exponentialRampToValueAtTime(.0001, now + .82);
+      master.connect(context.destination);
+
+      const chakra = context.createOscillator();
+      const chakraGain = context.createGain();
+      chakra.type = 'sine';
+      chakra.frequency.setValueAtTime(145, now);
+      chakra.frequency.exponentialRampToValueAtTime(390, now + .58);
+      chakraGain.gain.setValueAtTime(.72, now);
+      chakraGain.gain.exponentialRampToValueAtTime(.0001, now + .74);
+      chakra.connect(chakraGain).connect(master);
+
+      const eye = context.createOscillator();
+      const eyeGain = context.createGain();
+      eye.type = 'triangle';
+      eye.frequency.setValueAtTime(620, now + .08);
+      eye.frequency.exponentialRampToValueAtTime(1_180, now + .52);
+      eyeGain.gain.setValueAtTime(.0001, now);
+      eyeGain.gain.exponentialRampToValueAtTime(.34, now + .15);
+      eyeGain.gain.exponentialRampToValueAtTime(.0001, now + .68);
+      eye.connect(eyeGain).connect(master);
+
+      const shimmerLength = Math.floor(context.sampleRate * .48);
+      const shimmerBuffer = context.createBuffer(1, shimmerLength, context.sampleRate);
+      const shimmerData = shimmerBuffer.getChannelData(0);
+      for (let index = 0; index < shimmerLength; index += 1) {
+        const envelope = 1 - index / shimmerLength;
+        shimmerData[index] = (Math.random() * 2 - 1) * envelope * envelope;
+      }
+      const shimmer = context.createBufferSource();
+      const shimmerFilter = context.createBiquadFilter();
+      const shimmerGain = context.createGain();
+      shimmer.buffer = shimmerBuffer;
+      shimmerFilter.type = 'bandpass';
+      shimmerFilter.Q.value = 4.2;
+      shimmerFilter.frequency.setValueAtTime(980, now + .1);
+      shimmerFilter.frequency.exponentialRampToValueAtTime(3_600, now + .56);
+      shimmerGain.gain.setValueAtTime(.0001, now);
+      shimmerGain.gain.exponentialRampToValueAtTime(.28, now + .12);
+      shimmerGain.gain.exponentialRampToValueAtTime(.0001, now + .62);
+      shimmer.connect(shimmerFilter).connect(shimmerGain).connect(master);
+
+      chakra.start(now);
+      eye.start(now);
+      shimmer.start(now + .08);
+      chakra.stop(now + .8);
+      eye.stop(now + .74);
+      shimmer.stop(now + .68);
+      setTimeout(closeContext, 1_100);
+    } catch { closeContext(); }
+  };
+  if (context.state === 'suspended') context.resume().then(begin).catch(closeContext);
+  else begin();
 }
 
 function runByakuganShift(captured) {
@@ -97,8 +166,9 @@ function runByakuganShift(captured) {
   activeShiftAnimation?.cancel?.();
   const newRect = overlay.getBoundingClientRect();
   activateShiftEffect(captured.rect, newRect);
-  const outgoingDuration = transitionPreviewMode ? 720 : 430;
-  const incomingDuration = transitionPreviewMode ? 1_100 : 720;
+  playByakuganShiftSound(latestOverlayData?.preferences);
+  const outgoingDuration = transitionPreviewMode ? 900 : 600;
+  const incomingDuration = transitionPreviewMode ? 1_450 : 1_000;
   const outgoing = captured.ghost.animate([
     { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0) brightness(1)' },
     { opacity: .86, offset: .34, transform: 'translateX(-7px) scale(.994)', filter: 'blur(1px) brightness(1.28)' },
