@@ -18,7 +18,12 @@ const state = {
   remoteStatus: null,
   updateStatus: null,
   senseiStatus: null,
-  senseiBusy: false
+  senseiBusy: false,
+  senseiEntry: null,
+  senseiVodProgress: null,
+  senseiVodStartedAt: 0,
+  senseiVodTimer: null,
+  senseiVodRequestActive: false
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -92,6 +97,39 @@ function setLoading(show, message = 'Loading…') {
 function formatState(value) {
   const states = { MENUS: 'IN MENUS', PREGAME: 'AGENT SELECT', INGAME: 'IN MATCH', CORE_GAME: 'IN MATCH' };
   return states[String(value || '').toUpperCase()] || String(value || 'Unknown').replaceAll('_', ' ');
+}
+
+function formatElapsed(milliseconds) {
+  const total = Math.max(0, Math.floor(Number(milliseconds || 0) / 1_000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function senseiProgressPercent(progress = {}) {
+  const ratio = Number(progress.total) > 0 ? Math.max(0, Math.min(1, Number(progress.current) / Number(progress.total))) : 0;
+  if (progress.phase === 'extracting') return Math.round(ratio * 35);
+  if (progress.phase === 'loading-model') return 38;
+  if (progress.phase === 'reviewing') return 40 + Math.round(ratio * 50);
+  if (progress.phase === 'validating') return 93;
+  if (progress.phase === 'saving') return 97;
+  if (progress.phase === 'complete') return 100;
+  return 4;
+}
+
+function updateSenseiVodElapsed() {
+  const element = $('#senseiVodElapsed');
+  if (element && state.senseiVodStartedAt) element.textContent = formatElapsed(Date.now() - state.senseiVodStartedAt);
+}
+
+function startSenseiVodTimer() {
+  clearInterval(state.senseiVodTimer);
+  state.senseiVodStartedAt ||= Date.now();
+  updateSenseiVodElapsed();
+  state.senseiVodTimer = setInterval(updateSenseiVodElapsed, 1_000);
+}
+
+function stopSenseiVodTimer() {
+  clearInterval(state.senseiVodTimer);
+  state.senseiVodTimer = null;
 }
 
 function initials(name) {
@@ -506,17 +544,25 @@ function senseiVodMarkup(entry) {
   const file = vod?.name ? `${vod.name} • ${formatBytes(vod.size)}` : 'No recording attached';
   const analyzed = vod?.report;
   const findings = (analyzed?.findings || []).map((finding) => `<div class="sensei-vod-finding"><time>${escapeHtml(finding.timestamp || '—')}</time><b>${escapeHtml(finding.category || 'Decision')}</b><span>${escapeHtml(finding.observation)}${finding.evidence ? `<br><small>${escapeHtml(finding.evidence)}</small>` : ''}</span></div>`).join('');
-  const actions = vod?.status === 'analyzing'
-    ? '<button class="ghost-button" disabled>Analyzing locally…</button>'
+  const analyzing = vod?.status === 'analyzing';
+  const missing = state.senseiStatus?.vodMissing || ['Local setup check has not finished'];
+  const ready = state.senseiStatus?.vodReady === true;
+  const reason = missing.join('; ');
+  const actions = analyzing
+    ? '<button class="ghost-button" disabled>Analysis running</button>'
     : vod?.path
-      ? `<button class="ghost-button" data-sensei-vod-import>Replace VOD</button><button class="primary-button" data-sensei-vod-analyze>${analyzed ? 'Regenerate VOD analysis' : 'Analyze VOD'}</button>${analyzed ? '<button class="ghost-button danger" data-sensei-vod-delete>I’ve read it — remove VOD</button>' : ''}`
+      ? `<button class="ghost-button" data-sensei-vod-import>Replace VOD</button><button class="primary-button" data-sensei-vod-analyze ${ready ? '' : 'disabled'} title="${escapeHtml(ready ? 'Analyze this recording locally' : reason)}">${analyzed ? 'Regenerate VOD analysis' : 'Analyze VOD'}</button>${analyzed ? '<button class="ghost-button danger" data-sensei-vod-delete>I’ve read it — remove VOD</button>' : ''}`
       : '<button class="primary-button" data-sensei-vod-import>Import clean VOD</button>';
-  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ''}</p></div><div class="sensei-panel-actions">${actions}</div></div>${vod?.error ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${escapeHtml(analyzed.framesReviewed || 0)} FRAMES</small><p>${escapeHtml(analyzed.summary)}</p></div><div class="sensei-vod-findings">${findings || '<div class="empty-state">No defensible visual findings were returned.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
+  const progress = state.senseiVodProgress || { phase: 'preparing', current: 0, total: 24, message: 'Preparing recording' };
+  const progressMarkup = analyzing ? `<div class="sensei-vod-progress"><div class="sensei-progress-head"><span><strong>VOD ANALYSIS IN PROGRESS</strong><small>${escapeHtml(progress.message || 'Preparing recording')}</small></span><time id="senseiVodElapsed">${formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()))}</time></div><div class="sensei-progress-track"><i style="width:${senseiProgressPercent(progress)}%"></i></div><div class="sensei-progress-foot"><span>${escapeHtml(progress.phase === 'reviewing' || progress.phase === 'extracting' ? `${progress.current || 0} / ${progress.total || 24} frames` : 'Processing locally • original VOD unchanged')}</span><button class="ghost-button danger" data-sensei-vod-cancel>Cancel analysis</button></div></div>` : '';
+  const readinessMarkup = vod?.path && !analyzing && !ready ? `<div class="sensei-readiness-blocked"><strong>VOD analysis is not ready</strong><span>${escapeHtml(reason)}. Open Settings and run Check local setup.</span></div>` : '';
+  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ''}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${escapeHtml(analyzed.framesReviewed || 0)} FRAMES</small><p>${escapeHtml(analyzed.summary)}</p></div><div class="sensei-vod-findings">${findings || '<div class="empty-state">No defensible visual findings were returned.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
 }
 
 function renderSenseiPanel(entry) {
   const panel = $('#senseiPanel');
   if (!panel) return;
+  if (entry) state.senseiEntry = entry;
   if (!state.settings?.senseiEnabled) {
     panel.innerHTML = `<div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><span class="sensei-status-chip">OPTIONAL</span></div><div class="sensei-empty"><strong>Sensei Vision is disabled</strong><span>Enable Sensei Lite or a local Sensei model in Settings. Nothing downloads or runs automatically.</span><button class="ghost-button" data-sensei-settings>Review setup</button></div>`;
     return;
@@ -544,7 +590,11 @@ function renderSenseiPanel(entry) {
 async function hydrateSenseiPanel(matchId) {
   try {
     const entry = await window.companion.getSenseiReport(matchId);
-    if (state.openMatchId === matchId) renderSenseiPanel(entry);
+    if (state.openMatchId === matchId) {
+      renderSenseiPanel(entry);
+      if (entry?.vod?.status === 'analyzing') { state.senseiBusy = true; startSenseiVodTimer(); }
+      if (state.settings?.senseiVodEnabled) refreshSenseiStatus();
+    }
   } catch (error) {
     if (state.openMatchId === matchId) renderSenseiPanel({ status: 'failed', error: error.message });
   }
@@ -553,7 +603,13 @@ async function hydrateSenseiPanel(matchId) {
 function openMatchAutopsy(matchId) {
   const match = findMatchById(matchId);
   if (!match) return;
-  if (state.openMatchId !== matchId) state.autopsyRound = 'ALL';
+  if (state.openMatchId !== matchId) {
+    state.autopsyRound = 'ALL';
+    state.senseiEntry = null;
+    state.senseiVodProgress = null;
+    state.senseiVodStartedAt = 0;
+    stopSenseiVodTimer();
+  }
   state.openMatchId = matchId;
   const [verdictTitle, verdictBody] = matchVerdict(match);
   const report = match.report || {};
@@ -578,6 +634,10 @@ function closeMatchAutopsy() {
   $('#matchModal').hidden = true;
   state.openMatchId = '';
   state.autopsyRound = 'ALL';
+  state.senseiEntry = null;
+  state.senseiVodProgress = null;
+  state.senseiVodStartedAt = 0;
+  stopSenseiVodTimer();
 }
 
 function exportMatchRecap() {
@@ -820,7 +880,18 @@ async function refreshSenseiStatus() {
     state.senseiStatus = status;
     const models = status.models || [];
     $('#senseiInstalledModels').innerHTML = models.map((model) => `<option value="${escapeHtml(model.name)}"></option>`).join('');
-    container.innerHTML = `<span><strong>LOCAL ENGINE</strong>${status.connected ? 'Ollama detected' : 'Ollama not running'}</span><span><strong>INSTALLED MODELS</strong>${escapeHtml(models.length)}</span><span><strong>SYSTEM MEMORY</strong>${escapeHtml(status.memoryGb)} GB • ${escapeHtml(status.cpuCores)} CPU threads</span><span><strong>VOD READINESS</strong>${status.ffmpegAvailable ? 'FFmpeg detected' : 'FFmpeg not detected'} • ${formatBytes(status.freeStorage)} free</span>`;
+    const card = (title, detail, condition, optional = false) => `<span class="sensei-check-card ${optional ? 'optional' : condition ? 'ready' : 'missing'}"><i>${optional ? '•' : condition ? '✓' : '!'}</i><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>`;
+    const textRequired = state.settings?.senseiTier === 'sensei';
+    const vodRequired = state.settings?.senseiVodEnabled === true;
+    container.innerHTML = [
+      card('OLLAMA', status.connected ? 'Running locally' : 'Not running', status.connected),
+      card('SENSEI TEXT MODEL', textRequired ? (status.textModel?.installed ? status.textModel.name : status.textModel?.name ? `${status.textModel.name} not installed` : 'No model selected') : 'Sensei Lite selected — not required', !textRequired || status.textModel?.installed, !textRequired),
+      card('VISION MODEL', vodRequired ? (status.visionModel?.installed ? `${status.visionModel.name}${status.visionModel.visionCapable ? ' • vision ready' : ' • no vision support'}` : status.visionModel?.name ? `${status.visionModel.name} not installed` : 'No model selected') : 'VOD Vision disabled — not required', !vodRequired || (status.visionModel?.installed && status.visionModel?.visionCapable), !vodRequired),
+      card('FFMPEG', status.ffmpegAvailable ? 'Detected in BYAKUGAN PATH' : 'Not detected — restart app after install', status.ffmpegAvailable),
+      card('FFPROBE', status.ffprobeAvailable ? 'Detected and ready' : 'Not detected — install complete FFmpeg package', status.ffprobeAvailable),
+      card('STORAGE', `${formatBytes(status.freeStorage)} free`, status.storageReady)
+    ].join('');
+    if (state.openMatchId && state.senseiEntry) renderSenseiPanel(state.senseiEntry);
   } catch (error) {
     container.innerHTML = `<span><strong>SETUP CHECK FAILED</strong>${escapeHtml(error.message || 'Local setup could not be checked.')}</span>`;
   }
@@ -1421,19 +1492,45 @@ async function importSenseiVod() {
 
 async function analyzeSenseiVod() {
   if (state.senseiBusy || !state.openMatchId) return;
+  if (!state.senseiStatus?.vodReady) await refreshSenseiStatus();
+  if (!state.senseiStatus?.vodReady) {
+    toast('VOD setup is incomplete', (state.senseiStatus?.vodMissing || ['Run Check local setup in Settings']).join('; '), 'error');
+    return;
+  }
   if (!window.confirm('Analyze this recording locally? VOD Vision can use substantial CPU/GPU and memory. Avoid starting it during a live stream unless the streaming PC has adequate headroom.')) return;
   state.senseiBusy = true;
-  const existing = await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
-  renderSenseiPanel(existing ? { ...existing, vod: { ...existing.vod, status: 'analyzing' } } : existing);
+  state.senseiVodRequestActive = true;
+  state.senseiVodStartedAt = Date.now();
+  state.senseiVodProgress = { phase: 'preparing', current: 0, total: 24, message: 'Preparing recording' };
+  const existing = state.senseiEntry || await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
+  if (existing) renderSenseiPanel({ ...existing, vod: { ...existing.vod, status: 'analyzing', error: '' } });
+  startSenseiVodTimer();
   try {
     const entry = await window.companion.analyzeSenseiVod(state.openMatchId);
+    state.senseiEntry = entry;
     renderSenseiPanel(entry);
     toast('VOD Vision ready', state.settings.senseiOfferVodCleanup ? 'Read the report, then use “I’ve read it — remove VOD” to reclaim storage.' : 'The visual findings were saved to this match.');
   } catch (error) {
     const entry = await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
     if (entry) renderSenseiPanel(entry);
-    toast('VOD analysis failed', error.message, 'error');
-  } finally { state.senseiBusy = false; }
+    toast(error?.message?.includes('canceled') ? 'VOD analysis canceled' : 'VOD analysis failed', error.message, 'error');
+  } finally {
+    state.senseiBusy = false;
+    state.senseiVodRequestActive = false;
+    state.senseiVodProgress = null;
+    state.senseiVodStartedAt = 0;
+    stopSenseiVodTimer();
+  }
+}
+
+async function cancelSenseiVod() {
+  if (!state.openMatchId || !state.senseiBusy) return;
+  const button = $('[data-sensei-vod-cancel]');
+  if (button) { button.disabled = true; button.textContent = 'Canceling safely…'; }
+  try {
+    const result = await window.companion.cancelSenseiVod(state.openMatchId);
+    if (!result?.ok) toast('Nothing to cancel', result?.message || 'The analysis already stopped.');
+  } catch (error) { toast('Could not cancel analysis', error.message, 'error'); }
 }
 
 async function deleteSenseiVod() {
@@ -1482,6 +1579,7 @@ function bindEvents() {
     if (runSensei) { runSenseiForOpenMatch(runSensei.dataset.regenerate === 'true'); return; }
     if (event.target.closest('[data-sensei-vod-import]')) { importSenseiVod(); return; }
     if (event.target.closest('[data-sensei-vod-analyze]')) { analyzeSenseiVod(); return; }
+    if (event.target.closest('[data-sensei-vod-cancel]')) { cancelSenseiVod(); return; }
     if (event.target.closest('[data-sensei-vod-delete]')) { deleteSenseiVod(); return; }
     const round = event.target.closest('[data-tactical-round]');
     if (round) {
@@ -1571,13 +1669,13 @@ function bindEvents() {
     toast(event.target.checked ? 'Sensei Vision enabled' : 'Sensei Vision disabled', event.target.checked ? 'Completed matches now offer manual post-match analysis.' : 'Saved reports remain stored and no analysis controls are active.');
     refreshSenseiStatus();
   });
-  $('#senseiTier').addEventListener('change', (event) => saveSettingsPatch({ senseiTier: event.target.value }, false));
-  $('#senseiModel').addEventListener('change', (event) => saveSettingsPatch({ senseiModel: event.target.value.trim() }, false));
+  $('#senseiTier').addEventListener('change', async (event) => { await saveSettingsPatch({ senseiTier: event.target.value }, false); refreshSenseiStatus(); });
+  $('#senseiModel').addEventListener('change', async (event) => { await saveSettingsPatch({ senseiModel: event.target.value.trim() }, false); refreshSenseiStatus(); });
   $('#senseiVodEnabled').addEventListener('change', async (event) => {
     await saveSettingsPatch({ senseiVodEnabled: event.target.checked }, false);
     refreshSenseiStatus();
   });
-  $('#senseiVodModel').addEventListener('change', (event) => saveSettingsPatch({ senseiVodModel: event.target.value.trim() }, false));
+  $('#senseiVodModel').addEventListener('change', async (event) => { await saveSettingsPatch({ senseiVodModel: event.target.value.trim() }, false); refreshSenseiStatus(); });
   $('#senseiOfferVodCleanup').addEventListener('change', (event) => saveSettingsPatch({ senseiOfferVodCleanup: event.target.checked }, false));
   $('#checkSenseiSystem').addEventListener('click', refreshSenseiStatus);
   $('#pcRole').addEventListener('change', async (event) => {
@@ -1866,6 +1964,22 @@ function bindEvents() {
         actStatsTotal: total
       });
       renderStats(state.snapshot.profile);
+    }
+  });
+  window.companion.onSenseiVodProgress(async (progress) => {
+    if (!progress || String(progress.matchId || '') !== String(state.openMatchId || '')) return;
+    state.senseiVodProgress = progress;
+    if (!state.senseiVodStartedAt) state.senseiVodStartedAt = Date.now();
+    if (!['complete', 'failed', 'canceled'].includes(progress.phase)) {
+      startSenseiVodTimer();
+      if (state.senseiEntry) renderSenseiPanel({ ...state.senseiEntry, vod: { ...state.senseiEntry.vod, status: 'analyzing', error: '' } });
+    } else if (!state.senseiVodRequestActive) {
+      state.senseiBusy = false;
+      state.senseiVodProgress = null;
+      state.senseiVodStartedAt = 0;
+      stopSenseiVodTimer();
+      const entry = await window.companion.getSenseiReport(progress.matchId).catch(() => null);
+      if (entry && String(progress.matchId) === String(state.openMatchId)) renderSenseiPanel(entry);
     }
   });
   window.companion.onWarning((message) => toast('Connector notice', message, 'error'));

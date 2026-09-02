@@ -10,7 +10,7 @@ const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = requir
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
-const { SenseiService, detectFfmpeg, extractVodFrames } = require('./services/sensei-service.cjs');
+const { SenseiService, detectFfmpeg, detectFfprobe, extractVodFrames } = require('./services/sensei-service.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -34,6 +34,7 @@ let tray = null;
 let trayBusy = false;
 let quitting = false;
 let lastTrayUpdateNotice = '';
+const senseiVodJobs = new Map();
 
 function senseiAccountId() {
   const profile = snapshot?.profile || {};
@@ -387,12 +388,29 @@ function registerIpc() {
     const current = settings.get();
     const health = await senseiService.health();
     const ffmpeg = detectFfmpeg();
+    const ffprobe = detectFfprobe(ffmpeg);
+    const [textModel, visionModel] = health.connected
+      ? await Promise.all([senseiService.modelInfo(current.senseiModel), senseiService.modelInfo(current.senseiVodModel)])
+      : [{ name: current.senseiModel, installed: false, capabilities: [], visionCapable: false }, { name: current.senseiVodModel, installed: false, capabilities: [], visionCapable: false }];
     let freeStorage = 0;
     try {
       const storage = fs.statfsSync(app.getPath('userData'));
       freeStorage = Number(storage.bavail) * Number(storage.bsize);
     } catch {}
-    return { ...health, ffmpegAvailable: Boolean(ffmpeg), freeStorage, enabled: current.senseiEnabled, tier: current.senseiTier, vodEnabled: current.senseiVodEnabled };
+    const storageReady = freeStorage >= 512 * 1024 * 1024;
+    const vodMissing = [
+      ...(!health.connected ? ['Ollama is not running'] : []),
+      ...(!current.senseiVodModel ? ['no Vision model is selected'] : visionModel.installed ? [] : ['the selected Vision model is not installed']),
+      ...(visionModel.installed && !visionModel.visionCapable ? ['the selected model does not advertise vision support'] : []),
+      ...(!ffmpeg ? ['FFmpeg was not detected'] : []),
+      ...(!ffprobe ? ['FFprobe was not detected'] : []),
+      ...(!storageReady ? ['less than 512 MB of free storage is available'] : [])
+    ];
+    return {
+      ...health, ffmpegAvailable: Boolean(ffmpeg), ffprobeAvailable: Boolean(ffprobe), freeStorage, storageReady,
+      textModel, visionModel, vodReady: vodMissing.length === 0, vodMissing,
+      enabled: current.senseiEnabled, tier: current.senseiTier, vodEnabled: current.senseiVodEnabled
+    };
   });
   ipcMain.handle('sensei:get', (_event, matchId) => senseiEntry(String(matchId || '')));
   ipcMain.handle('sensei:run', async (_event, request = {}) => {
@@ -440,7 +458,7 @@ function registerIpc() {
     const existing = senseiEntry(matchId) || {};
     return senseiStore.save(senseiAccountId(), matchId, { vod: { path: source, name: path.basename(source), size: info.size, importedAt: Date.now(), analyzedAt: 0, deletedAt: 0, status: 'ready', error: '', report: null } });
   });
-  ipcMain.handle('sensei:vod-analyze', async (_event, matchIdValue) => {
+  ipcMain.handle('sensei:vod-analyze', async (event, matchIdValue) => {
     const current = settings.get();
     if (!current.senseiEnabled || !current.senseiVodEnabled) throw new Error('Enable the optional VOD Vision add-on in Settings first.');
     const matchId = String(matchIdValue || '');
@@ -450,19 +468,55 @@ function registerIpc() {
     if (!existing.report) throw new Error('Run the statistical Sensei report before adding VOD analysis.');
     const ffmpeg = detectFfmpeg();
     if (!ffmpeg) throw new Error('VOD Vision needs FFmpeg for local frame extraction. Install FFmpeg or set BYAKUGAN_FFMPEG_PATH, then restart BYAKUGAN.');
+    if (!detectFfprobe(ffmpeg)) throw new Error('VOD Vision needs FFprobe. Install the complete FFmpeg package, fully quit BYAKUGAN, and reopen it.');
     if (!current.senseiVodModel) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
+    const health = await senseiService.health();
+    if (!health.connected) throw new Error('Ollama is not running. Start Ollama and retry.');
+    const visionModel = await senseiService.modelInfo(current.senseiVodModel);
+    if (!visionModel.installed) throw new Error(`The selected Vision model “${current.senseiVodModel}” is not installed in Ollama.`);
+    if (!visionModel.visionCapable) throw new Error(`The selected model “${current.senseiVodModel}” does not advertise vision support. Choose a vision-capable model.`);
+    const jobKey = `${senseiAccountId()}::${matchId}`;
+    if (senseiVodJobs.has(jobKey)) throw new Error('VOD analysis is already running for this match.');
+    const controller = new AbortController();
+    senseiVodJobs.set(jobKey, controller);
+    const progress = (payload) => {
+      if (!event.sender.isDestroyed()) event.sender.send('sensei:vod-progress', { matchId, at: Date.now(), ...payload });
+    };
     senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzing', error: '' } });
-    const temporary = fs.mkdtempSync(path.join(app.getPath('temp'), 'byakugan-sensei-'));
+    let temporary = '';
     try {
-      const extraction = await extractVodFrames({ ffmpeg, source: existing.vod.path, outputDirectory: temporary, frameCount: 24 });
-      const vodReport = await senseiService.analyzeVod({ match, statisticalReport: existing.report, frameFiles: extraction.files, frameIntervalSeconds: extraction.intervalSeconds, model: current.senseiVodModel });
-      return senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' } });
+      temporary = fs.mkdtempSync(path.join(app.getPath('temp'), 'byakugan-sensei-'));
+      progress({ phase: 'preparing', current: 0, total: 24, message: 'Preparing recording' });
+      const extraction = await extractVodFrames({
+        ffmpeg, source: existing.vod.path, outputDirectory: temporary, frameCount: 24, signal: controller.signal,
+        onProgress: progress
+      });
+      progress({ phase: 'loading-model', current: 0, total: extraction.files.length, message: `Loading ${current.senseiVodModel}` });
+      const vodReport = await senseiService.analyzeVod({
+        match, statisticalReport: existing.report, frameFiles: extraction.files, frameTimestamps: extraction.timestamps,
+        frameIntervalSeconds: extraction.intervalSeconds, model: current.senseiVodModel, signal: controller.signal, onProgress: progress
+      });
+      progress({ phase: 'saving', current: extraction.files.length, total: extraction.files.length, message: 'Saving report' });
+      const saved = senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' } });
+      progress({ phase: 'complete', current: extraction.files.length, total: extraction.files.length, message: 'VOD analysis complete' });
+      return saved;
     } catch (error) {
-      senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'failed', error: error.message || 'VOD analysis failed.' } });
+      const canceled = error?.code === 'SENSEI_CANCELED' || controller.signal.aborted;
+      const message = canceled ? 'VOD analysis was canceled. The original recording was not changed.' : error.message || 'VOD analysis failed.';
+      senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: canceled ? 'canceled' : 'failed', error: message } });
+      progress({ phase: canceled ? 'canceled' : 'failed', current: 0, total: 0, message });
       throw error;
     } finally {
-      try { fs.rmSync(temporary, { recursive: true, force: true }); } catch {}
+      senseiVodJobs.delete(jobKey);
+      if (temporary) try { fs.rmSync(temporary, { recursive: true, force: true }); } catch {}
     }
+  });
+  ipcMain.handle('sensei:vod-cancel', (_event, matchIdValue) => {
+    const matchId = String(matchIdValue || '');
+    const controller = senseiVodJobs.get(`${senseiAccountId()}::${matchId}`);
+    if (!controller) return { ok: false, message: 'No VOD analysis is running for this match.' };
+    controller.abort();
+    return { ok: true };
   });
   ipcMain.handle('sensei:vod-delete', async (_event, request = {}) => {
     const matchId = String(request.matchId || '');
@@ -748,6 +802,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true;
+  for (const controller of senseiVodJobs.values()) controller.abort();
+  senseiVodJobs.clear();
   clearPostMatchRefresh();
   clearRelayRefresh();
   service?.disconnect?.();

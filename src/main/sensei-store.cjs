@@ -33,7 +33,7 @@ function normalizeEntry(value = {}) {
       importedAt: Number(value.vod.importedAt) || 0,
       analyzedAt: Number(value.vod.analyzedAt) || 0,
       deletedAt: Number(value.vod.deletedAt) || 0,
-      status: ['ready', 'analyzing', 'analyzed', 'deleted', 'failed'].includes(value.vod.status) ? value.vod.status : 'ready',
+      status: ['ready', 'analyzing', 'analyzed', 'deleted', 'failed', 'canceled'].includes(value.vod.status) ? value.vod.status : 'ready',
       error: cleanText(value.vod.error, 1_000),
       report: value.vod.report && typeof value.vod.report === 'object' ? value.vod.report : null
     } : null

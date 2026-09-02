@@ -87,13 +87,19 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.77
+## Included in version 0.8.0-beta.78
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
 - **Sensei Lite** built into BYAKUGAN for evidence-based statistical coaching without a model download, cloud service, API key, subscription, or per-use fee
 - Optional full **Sensei** through a user-installed local Ollama text model, including recent-overall, same-agent, and same-map baseline comparisons plus match-scoped Ask Sensei follow-ups
 - Optional sampled **VOD Vision** through FFmpeg and a user-installed local vision-capable Ollama model, with clean OBS Source Record guidance, resource/readiness checks, temporary-frame cleanup, and explicit Recycle Bin removal that preserves the written report
+- Dedicated green/red readiness cards for Ollama, the selected text model, the selected vision model and its advertised vision capability, FFmpeg, FFprobe, and available temporary storage
+- Hard VOD-analysis gating that explains every missing prerequisite before confirmation, including the required full BYAKUGAN restart after changing the Windows PATH
+- Immediate staged VOD progress with elapsed time, frame extraction/review counts, report-validation and save phases, disabled conflicting controls, and a safe Cancel action that never removes the original recording
+- Direct timestamp seeking for 24 smaller temporary samples instead of decoding the complete recording from beginning to end, followed by four-frame vision batches and a structured consolidation pass to prevent oversized Ollama requests
+- Actionable Ollama failures that preserve the HTTP response detail and distinguish a stopped or memory-exhausted local service from invalid structured output
+- Sensei structured-output repair with disabled model thinking, safe JSON-wrapper removal, one constrained retry, precomputed match-versus-baseline deltas, two-to-three-sentence verdict enforcement, concise focus rules, and three distinct Range/custom/Deathmatch drills
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
 - Independently scrollable page and navigation regions that keep every control accessible at increased interface scales
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
@@ -259,7 +265,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.77-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.78-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -288,10 +294,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.77`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.78`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.77`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.78`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -299,8 +305,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.77
-git push origin v0.8.0-beta.77
+git tag v0.8.0-beta.78
+git push origin v0.8.0-beta.78
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   askSensei: (request) => ipcRenderer.invoke('sensei:ask', request),
   importSenseiVod: (matchId) => ipcRenderer.invoke('sensei:vod-import', matchId),
   analyzeSenseiVod: (matchId) => ipcRenderer.invoke('sensei:vod-analyze', matchId),
+  cancelSenseiVod: (matchId) => ipcRenderer.invoke('sensei:vod-cancel', matchId),
   deleteSenseiVod: (request) => ipcRenderer.invoke('sensei:vod-delete', request),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
@@ -44,6 +45,11 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
     const handler = (_event, progress) => callback(progress);
     ipcRenderer.on('riot:act-progress', handler);
     return () => ipcRenderer.removeListener('riot:act-progress', handler);
+  },
+  onSenseiVodProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('sensei:vod-progress', handler);
+    return () => ipcRenderer.removeListener('sensei:vod-progress', handler);
   },
   onWarning: (callback) => {
     const handler = (_event, message) => callback(message);
