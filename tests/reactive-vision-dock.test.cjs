@@ -9,8 +9,9 @@ const script = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'ove
 const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'overlay.css'), 'utf8');
 const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.cjs'), 'utf8');
 
-test('Reactive Vision Dock compacts for agent select and live games', () => {
-  assert.match(script, /\['PREGAME', 'INGAME', 'CORE_GAME'\]/);
+test('Reactive Vision Dock stays expanded through agent select and compacts at the active core game', () => {
+  assert.match(script, /\['INGAME', 'CORE_GAME'\]/);
+  assert.doesNotMatch(script, /\['PREGAME', 'INGAME', 'CORE_GAME'\]/);
   assert.match(script, /reactive-compact/);
   assert.match(styles, /\.layout-reactive\.reactive-compact\s*\{\s*height:\s*148px/);
   assert.match(styles, /\.layout-reactive\.reactive-compact\.hide-match-pulse\s*\{\s*height:\s*130px/);
@@ -43,7 +44,7 @@ test('Reactive Vision preview simultaneously shows between-games, in-game, and o
   assert.match(script, /preferences\.postMatchRecap === false/);
   assert.match(script, /cloneNode\(true\)/);
   assert.match(styles, /\.reactive-preview-comparison/);
-  assert.match(main, /reactive:\s*\[620,\s*overlaySettings\.streamOverlayPostMatchRecap === false \? 490 : 700\]/);
+  assert.match(main, /reactive:\s*animationPreview \? \[620, 300\] : \[620, overlaySettings\.streamOverlayPostMatchRecap === false \? 490 : 700\]/);
 });
 
 test('Reactive Vision Dock expands, waits for post-match data, then awakens', () => {
@@ -58,6 +59,43 @@ test('Reactive Vision Dock expands, waits for post-match data, then awakens', ()
 test('Reactive Vision Dock supports reduced motion', () => {
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
   assert.match(styles, /\.layout-reactive, \.layout-reactive \*/);
+});
+
+test('BYAKUGAN Shift preserves an outgoing frame and animates the incoming state', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
+  assert.match(html, /id="byakuganShiftEffect"/);
+  assert.match(script, /function captureVisionGhost/);
+  assert.match(script, /cloneNode\(true\)/);
+  assert.match(script, /function runByakuganShift/);
+  assert.match(script, /captured\.ghost\.animate/);
+  assert.match(script, /activeShiftAnimation = overlay\.animate/);
+  assert.match(script, /renderedVisionState !== anticipatedState/);
+  assert.match(script, /preferences\.smoothTransitions !== false/);
+  assert.match(script, /prefers-reduced-motion: reduce/);
+  assert.match(script, /if \(latestOverlayData\) render\(latestOverlayData\)/);
+  assert.match(script, /overlay\.classList\.remove\(\.\.\.OVERLAY_LAYOUT_CLASSES\)/);
+  assert.doesNotMatch(script, /overlay\.className = `overlay layout-/);
+  assert.match(styles, /BYAKUGAN Shift/);
+  assert.match(styles, /\.byakugan-shift-effect\.active/);
+  assert.match(styles, /@keyframes byakugan-shift-eye/);
+  assert.match(styles, /@keyframes byakugan-shift-scan/);
+});
+
+test('Reactive Vision can safely preview the complete transition and RR beam sequence', () => {
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'preload.cjs'), 'utf8');
+  assert.match(renderer, /function syncTransitionPreviewControl/);
+  assert.match(renderer, /previewOverlay\(\{ animation: true \}\)/);
+  assert.match(preload, /previewOverlay: \(options = \{\}\)/);
+  assert.match(main, /const animationPreview = options\?\.animation === true/);
+  assert.match(main, /previewUrl\.searchParams\.set\('animation', '1'\)/);
+  assert.match(script, /const transitionPreviewMode = previewMode && previewParameters\.get\('animation'\) === '1'/);
+  assert.match(script, /function startTransitionPreview/);
+  assert.match(script, /showTransitionPreviewState\('between'/);
+  assert.match(script, /showTransitionPreviewState\('ingame'/);
+  assert.match(script, /showTransitionPreviewState\('postmatch'/);
+  assert.match(script, /Preview data only — OBS is unchanged/);
+  assert.match(styles, /\.transition-preview-badge/);
 });
 
 test('Reactive Vision Match Pulse and post-match recap are animated, optional states', () => {

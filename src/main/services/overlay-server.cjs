@@ -96,7 +96,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const customOverlay = normalizeCustomOverlay(settings.streamOverlayCustom);
   const custom = layout === 'custom';
   const customInGame = custom && customOverlay.reactive
-    && ['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase());
+    && ['INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase());
   const customStateElements = customInGame ? customOverlay.inGameElements : customOverlay.elements;
   const customStateElement = (id) => customStateElements.find((element) => element.id === id);
   const customBeam = customStateElements.find((element) => element.id === 'rrBeam');
@@ -315,7 +315,7 @@ class OverlayServer {
       });
     } catch (error) {
       this.lastError = error?.code === 'EADDRINUSE'
-        ? `Port ${this.port} is already in use.`
+        ? `Port ${this.port} is already in use. Close every duplicate BYAKUGAN or BYAKUGAN Relay process in Windows Task Manager, then reopen BYAKUGAN. Resetting the OBS browser cache cannot release this port.`
         : cleanText(error?.message, 'The overlay server could not start.', 160);
       this.server?.close();
       this.server = null;

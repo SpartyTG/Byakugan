@@ -39,3 +39,10 @@ test('Relay Mode keeps hosting and update recovery available without a dashboard
   assert.match(main, /if \(relayModeEnabled\(\) && !quitting\)[\s\S]*return;/);
   assert.match(main, /scheduleRelayRefresh\(\)/);
 });
+
+test('BYAKUGAN and Relay Mode share one application instance', () => {
+  assert.match(main, /app\.requestSingleInstanceLock\(\)/);
+  assert.match(main, /app\.on\('second-instance'/);
+  assert.match(main, /if \(window\?\.isMinimized\(\)\) window\.restore\(\)/);
+  assert.match(main, /if \(!hasSingleInstanceLock\) return;/);
+});

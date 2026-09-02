@@ -787,6 +787,7 @@ function syncSettingsForm() {
   $('#streamOverlayPostMatchRecap').checked = settings.streamOverlayPostMatchRecap !== false;
   $('#streamOverlayPostMatchRecapSeconds').value = String(settings.streamOverlayPostMatchRecapSeconds || 7);
   $('#reactiveVisionOptions').hidden = !['reactive', 'custom'].includes(settings.streamOverlayLayout);
+  syncTransitionPreviewControl(settings);
   $('#customOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
   const backgroundOpacity = Number.isFinite(Number(settings.streamOverlayBackgroundOpacity)) ? Number(settings.streamOverlayBackgroundOpacity) : 70;
   $('#streamOverlayBackgroundOpacity').value = String(backgroundOpacity);
@@ -810,6 +811,20 @@ function renderOverlayDimensions(layout) {
     : layout === 'reactive'
     ? `Set Width to ${selected.width} and Height to ${selected.height} in OBS. The dock animates inside this fixed canvas.`
     : `Set Width to ${selected.width} and Height to ${selected.height} in OBS.`);
+}
+
+function syncTransitionPreviewControl(settings = state.settings || {}) {
+  const button = $('#previewOverlayTransitions');
+  if (!button) return;
+  const layout = settings.streamOverlayLayout || 'horizontal';
+  const reactiveLayout = layout === 'reactive' || (layout === 'custom' && Boolean(settings.streamOverlayCustom?.reactive));
+  const transitionsEnabled = settings.streamOverlaySmoothTransitions !== false;
+  button.disabled = !reactiveLayout || !transitionsEnabled;
+  text('#transitionPreviewHelp', !reactiveLayout
+    ? 'Enable Reactive Vision Dock or Reactive Vision Mode in the Custom Overlay Builder to preview its state changes.'
+    : !transitionsEnabled
+      ? 'Turn on BYAKUGAN Shift transitions to preview the animated sequence. OBS will remain instant while it is off.'
+      : 'Watch Between Games, In Game, Post Match, and RR beam movement without changing OBS or live match data.');
 }
 
 function cloneCustomOverlay(value = state.settings?.streamOverlayCustom || DEFAULT_CUSTOM_OVERLAY) {
@@ -1438,6 +1453,7 @@ function bindEvents() {
   $('#streamOverlayLayout').addEventListener('change', (event) => {
     renderOverlayDimensions(event.target.value);
     $('#reactiveVisionOptions').hidden = !['reactive', 'custom'].includes(event.target.value);
+    syncTransitionPreviewControl({ ...state.settings, streamOverlayLayout: event.target.value });
     saveSettingsPatch({ streamOverlayLayout: event.target.value }, false);
   });
   $('#customElementPalette').addEventListener('click', async (event) => {
@@ -1465,6 +1481,7 @@ function bindEvents() {
       config.reactive = reactiveToggle.checked;
       state.customOverlayCanvasState = 'between';
       state.settings.streamOverlayCustom = config;
+      syncTransitionPreviewControl(state.settings);
       await persistCustomOverlay(config);
       return;
     }
@@ -1597,10 +1614,18 @@ function bindEvents() {
   });
   $('#previewOverlay').addEventListener('click', async () => {
     try {
-      await window.companion.previewOverlay();
+      await window.companion.previewOverlay({ animation: false });
       toast('Overlay preview opened', 'This window uses the same live layout and data that OBS receives.');
     } catch (error) {
       toast('Preview unavailable', error.message, 'error');
+    }
+  });
+  $('#previewOverlayTransitions').addEventListener('click', async () => {
+    try {
+      await window.companion.previewOverlay({ animation: true });
+      toast('Animation preview started', 'The preview safely simulates Between Games, In Game, Post Match, and RR beam movement. Click again to replay it.');
+    } catch (error) {
+      toast('Animation preview unavailable', error.message, 'error');
     }
   });
   $('#reviewUpdateButton').addEventListener('click', openUpdateDialog);

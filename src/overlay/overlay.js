@@ -1,9 +1,13 @@
 'use strict';
 
 const overlay = document.querySelector('#overlay');
+const byakuganShiftEffect = document.querySelector('#byakuganShiftEffect');
 const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at(-1) || '');
-const previewMode = new URLSearchParams(location.search).get('preview') === '1';
+const previewParameters = new URLSearchParams(location.search);
+const previewMode = previewParameters.get('preview') === '1';
+const transitionPreviewMode = previewMode && previewParameters.get('animation') === '1';
 document.body.classList.toggle('preview-mode', previewMode);
+document.body.classList.toggle('transition-preview-mode', transitionPreviewMode);
 let staleTimer = null;
 let currentBeamProgress = 0;
 let previousLiveState = '';
@@ -14,13 +18,97 @@ let reactiveAwakenTimer = null;
 let reactiveRecapTimer = null;
 let reactiveRecapActive = false;
 let lastRoundPulseRevision = -1;
+let latestOverlayData = null;
+let renderedVisionState = '';
+let activeShiftAnimation = null;
+let shiftEffectTimer = null;
+let demoVisionState = '';
+let transitionPreviewSourceData = null;
+let transitionPreviewTimers = [];
+
+const OVERLAY_LAYOUT_CLASSES = ['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].map((layout) => `layout-${layout}`);
 
 function isReactiveCompactState(value) {
-  return ['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(value || '').toUpperCase());
+  return ['INGAME', 'CORE_GAME'].includes(String(value || '').toUpperCase());
 }
 
 function isCompletedMatchState(value) {
   return ['INGAME', 'CORE_GAME'].includes(String(value || '').toUpperCase());
+}
+
+function reactiveEnabled(data = {}) {
+  return data.layout === 'reactive' || (data.layout === 'custom' && data.customOverlay?.reactive);
+}
+
+function anticipatedVisionState(data = {}) {
+  if (!reactiveEnabled(data)) return '';
+  if (transitionPreviewMode && demoVisionState) return demoVisionState;
+  if (isReactiveCompactState(data.live?.state)) return 'ingame';
+  if (reactiveRecapActive) return 'postmatch';
+  const session = data.session || {};
+  const matchKey = [session.lastMatchId || '', session.lastMatchResult || '', Number(session.lastMatchRR) || 0].join(':');
+  if (data.preferences?.postMatchRecap !== false && reactivePostMatchPending && matchKey && lastMatchKey && matchKey !== lastMatchKey) return 'postmatch';
+  return 'between';
+}
+
+function activeVisionState(data = {}) {
+  if (!reactiveEnabled(data)) return '';
+  if (transitionPreviewMode && demoVisionState) return demoVisionState;
+  if (reactiveRecapActive) return 'postmatch';
+  return isReactiveCompactState(data.live?.state) ? 'ingame' : 'between';
+}
+
+function captureVisionGhost() {
+  const rect = overlay.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const ghost = overlay.cloneNode(true);
+  ghost.removeAttribute('id');
+  ghost.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+  ghost.classList.add('byakugan-shift-ghost');
+  Object.assign(ghost.style, {
+    position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`,
+    height: `${rect.height}px`, margin: '0', zIndex: '2147483000', pointerEvents: 'none'
+  });
+  document.body.append(ghost);
+  return { ghost, rect };
+}
+
+function activateShiftEffect(oldRect, newRect) {
+  if (!byakuganShiftEffect) return;
+  const left = Math.min(oldRect.left, newRect.left);
+  const top = Math.min(oldRect.top, newRect.top);
+  const right = Math.max(oldRect.right, newRect.right);
+  const bottom = Math.max(oldRect.bottom, newRect.bottom);
+  Object.assign(byakuganShiftEffect.style, {
+    left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px`
+  });
+  byakuganShiftEffect.classList.remove('active');
+  void byakuganShiftEffect.offsetWidth;
+  byakuganShiftEffect.classList.add('active');
+  clearTimeout(shiftEffectTimer);
+  shiftEffectTimer = setTimeout(() => byakuganShiftEffect.classList.remove('active'), 760);
+}
+
+function runByakuganShift(captured) {
+  if (!captured) return;
+  document.querySelectorAll('.byakugan-shift-ghost').forEach((ghost) => {
+    if (ghost !== captured.ghost) ghost.remove();
+  });
+  activeShiftAnimation?.cancel?.();
+  const newRect = overlay.getBoundingClientRect();
+  activateShiftEffect(captured.rect, newRect);
+  const outgoing = captured.ghost.animate([
+    { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0) brightness(1)' },
+    { opacity: .86, offset: .34, transform: 'translateX(-7px) scale(.994)', filter: 'blur(1px) brightness(1.28)' },
+    { opacity: 0, transform: 'translateX(-34px) scale(.975)', filter: 'blur(6px) brightness(.72)' }
+  ], { duration: 430, easing: 'cubic-bezier(.5,0,.7,.2)', fill: 'forwards' });
+  activeShiftAnimation = overlay.animate([
+    { opacity: 0, transform: 'translateX(38px) scale(.975)', filter: 'blur(7px) brightness(1.5)' },
+    { opacity: 0, offset: .2, transform: 'translateX(30px) scale(.98)', filter: 'blur(6px) brightness(1.4)' },
+    { opacity: 1, transform: 'translateX(0) scale(1)', filter: 'blur(0) brightness(1)' }
+  ], { duration: 720, easing: 'cubic-bezier(.16,.86,.24,1)', fill: 'both' });
+  outgoing.finished.catch(() => {}).finally(() => captured.ghost.remove());
+  activeShiftAnimation.finished.catch(() => {}).finally(() => { activeShiftAnimation = null; });
 }
 
 function awakenReactiveDock() {
@@ -32,6 +120,15 @@ function awakenReactiveDock() {
 function updateReactiveState(layout, liveState, session, preferences = {}, customReactive = false) {
   const reactive = layout === 'reactive' || (layout === 'custom' && customReactive);
   const compact = isReactiveCompactState(liveState);
+  if (transitionPreviewMode && reactive && demoVisionState) {
+    reactiveRecapActive = demoVisionState === 'postmatch';
+    overlay.classList.toggle('reactive-compact', demoVisionState === 'ingame');
+    overlay.classList.toggle('reactive-expanded', demoVisionState === 'between');
+    overlay.classList.toggle('reactive-recap-active', demoVisionState === 'postmatch');
+    overlay.classList.remove('reactive-postmatch-pending', 'reactive-awakening');
+    previousLiveState = liveState;
+    return;
+  }
   const matchJustEnded = isCompletedMatchState(previousLiveState) && !isCompletedMatchState(liveState);
   const matchKey = [session.lastMatchId || '', session.lastMatchResult || '', Number(session.lastMatchRR) || 0].join(':');
   const recapEnabled = preferences.postMatchRecap !== false;
@@ -67,8 +164,7 @@ function updateReactiveState(layout, liveState, session, preferences = {}, custo
         clearTimeout(reactiveRecapTimer);
         reactiveRecapTimer = setTimeout(() => {
           reactiveRecapActive = false;
-          overlay.classList.remove('reactive-recap-active');
-          overlay.classList.add('reactive-expanded');
+          if (latestOverlayData) render(latestOverlayData);
           awakenReactiveDock();
         }, Math.max(3, Math.min(15, Number(preferences.postMatchRecapSeconds) || 7)) * 1000);
       } else {
@@ -159,7 +255,7 @@ function rgbaFromHex(value, opacity) {
 
 function renderReactivePreviewComparison(layout, preferences = {}) {
   let comparison = document.querySelector('.reactive-preview-comparison');
-  if (!previewMode || layout !== 'reactive') {
+  if (!previewMode || transitionPreviewMode || layout !== 'reactive') {
     if (comparison) {
       document.body.insertBefore(overlay, comparison);
       comparison.remove();
@@ -311,7 +407,7 @@ function renderCustomOverlay(data, player, session, live, appearance, beamFrom =
   }
 }
 
-function render(data) {
+function renderFrame(data) {
   const player = data.player || {};
   const session = data.session || {};
   const live = data.live || {};
@@ -319,7 +415,8 @@ function render(data) {
   const appearance = data.appearance || {};
 
   const layout = data.layout || 'horizontal';
-  overlay.className = `overlay layout-${layout}`;
+  overlay.classList.remove(...OVERLAY_LAYOUT_CLASSES);
+  overlay.classList.add('overlay', `layout-${layout}`);
   document.body.classList.toggle('custom-layout', layout === 'custom');
   overlay.classList.toggle('hide-identity', !preferences.showIdentity);
   overlay.classList.toggle('hide-wl', preferences.showWl === false);
@@ -405,6 +502,95 @@ function render(data) {
   renderReactivePreviewComparison(layout, preferences);
 }
 
+function render(data) {
+  latestOverlayData = data;
+  const preferences = data.preferences || {};
+  const anticipatedState = anticipatedVisionState(data);
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const shouldShift = (!previewMode || transitionPreviewMode) && preferences.smoothTransitions !== false && !reduceMotion
+    && Boolean(renderedVisionState && anticipatedState && renderedVisionState !== anticipatedState);
+  const captured = shouldShift ? captureVisionGhost() : null;
+  renderFrame(data);
+  const actualState = activeVisionState(data);
+  if (captured && actualState !== renderedVisionState) runByakuganShift(captured);
+  else captured?.ghost.remove();
+  renderedVisionState = actualState;
+}
+
+function clonePreviewData(data) {
+  return JSON.parse(JSON.stringify(data || {}));
+}
+
+function transitionPreviewData(stateName, useCompletedRating = false) {
+  const data = clonePreviewData(transitionPreviewSourceData);
+  const currentRating = Math.max(0, Math.min(100, Number(data.player?.rr ?? data.session?.beamProgress) || 0));
+  const recordedChange = Number(data.session?.lastMatchRR) || 0;
+  const demoChange = recordedChange || 18;
+  const completedRating = currentRating === 0 && recordedChange === 0 ? 18 : currentRating;
+  const startingRating = Math.max(0, Math.min(100, completedRating - demoChange));
+  const displayedRating = useCompletedRating ? completedRating : startingRating;
+  data.live = { ...(data.live || {}), state: stateName === 'ingame' ? 'CORE_GAME' : 'MENUS' };
+  data.player = { ...(data.player || {}), rr: displayedRating };
+  data.session = {
+    ...(data.session || {}), beamProgress: displayedRating, lastMatchRR: demoChange,
+    lastMatchResult: demoChange < 0 ? 'DEFEAT' : 'VICTORY'
+  };
+  if (data.recap) {
+    data.recap.player = { ...(data.recap.player || data.player), rr: displayedRating };
+    data.recap.session = {
+      ...(data.recap.session || data.session), beamProgress: displayedRating, lastMatchRR: demoChange,
+      lastMatchResult: demoChange < 0 ? 'DEFEAT' : 'VICTORY'
+    };
+    data.recap.live = { ...(data.recap.live || data.live), state: 'MENUS' };
+  }
+  return data;
+}
+
+function updateTransitionPreviewBadge(stateName, detail) {
+  let badge = document.querySelector('#transitionPreviewBadge');
+  if (!badge) {
+    badge = customNode('aside', 'transition-preview-badge');
+    badge.id = 'transitionPreviewBadge';
+    badge.append(customNode('small', '', 'ANIMATION PREVIEW'), customNode('strong'), customNode('span'));
+    document.body.append(badge);
+  }
+  badge.querySelector('strong').textContent = {
+    between: 'BETWEEN GAMES', ingame: 'IN GAME', postmatch: 'POST MATCH'
+  }[stateName] || 'READY';
+  badge.querySelector('span').textContent = detail || 'Preview data only — OBS is unchanged';
+}
+
+function showTransitionPreviewState(stateName, useCompletedRating = false, detail = '') {
+  demoVisionState = stateName;
+  reactiveRecapActive = stateName === 'postmatch';
+  updateTransitionPreviewBadge(stateName, detail);
+  render(transitionPreviewData(stateName, useCompletedRating));
+}
+
+function startTransitionPreview(data) {
+  transitionPreviewSourceData = clonePreviewData(data);
+  transitionPreviewTimers.forEach(clearTimeout);
+  transitionPreviewTimers = [];
+  renderedVisionState = '';
+  showTransitionPreviewState('between', false, 'Starting state and RR before the simulated match');
+  transitionPreviewTimers.push(setTimeout(() => {
+    showTransitionPreviewState('ingame', false, 'BYAKUGAN Shift into the first buy phase');
+  }, 1_800));
+  const recapEnabled = data.preferences?.postMatchRecap !== false;
+  if (recapEnabled) {
+    transitionPreviewTimers.push(setTimeout(() => {
+      showTransitionPreviewState('postmatch', true, 'Result reveal and RR beam movement');
+    }, 4_600));
+    transitionPreviewTimers.push(setTimeout(() => {
+      showTransitionPreviewState('between', true, 'Return to the updated Between Games dock');
+    }, 7_800));
+  } else {
+    transitionPreviewTimers.push(setTimeout(() => {
+      showTransitionPreviewState('between', true, 'Return to Between Games with the updated RR');
+    }, 4_800));
+  }
+}
+
 function setOffline() {
   overlay.classList.add('is-offline');
   document.querySelector('#connectionDot').title = 'Reconnecting to BYAKUGAN';
@@ -412,12 +598,16 @@ function setOffline() {
 
 fetch(`/snapshot?token=${encodeURIComponent(token)}`, { cache: 'no-store' })
   .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unauthorized overlay URL')))
-  .then(render)
+  .then((data) => transitionPreviewMode ? startTransitionPreview(data) : render(data))
   .catch(setOffline);
 
 const events = new EventSource(`/events?token=${encodeURIComponent(token)}`);
 events.addEventListener('session', (event) => {
-  try { render(JSON.parse(event.data)); } catch { setOffline(); }
+  try {
+    const data = JSON.parse(event.data);
+    if (transitionPreviewMode) transitionPreviewSourceData = clonePreviewData(data);
+    else render(data);
+  } catch { setOffline(); }
 });
 events.addEventListener('ping', markAlive);
 events.addEventListener('error', setOffline);

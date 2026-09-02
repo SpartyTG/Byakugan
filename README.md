@@ -52,7 +52,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.69
+## Included in version 0.8.0-beta.72
 
 - Original desktop dashboard and navigation
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
@@ -77,6 +77,8 @@ registered trademarks of Riot Games, Inc.
 - Fast full-act discovery with older RR enrichment removed from the critical stats-loading path
 - Distinct Refresh Data and Reconnect Riot actions: soft snapshot refresh versus full lockfile, authentication, and connection reset
 - Dedicated **Live Stream Vision** workspace for OBS and dual-PC production controls
+- Application-wide single-instance protection shared by the dashboard and Gaming PC Relay Mode, preventing duplicate hidden overlay servers from competing for port `43871`
+- Actionable occupied-port recovery guidance that distinguishes a duplicate BYAKUGAN process from an OBS browser-cache problem
 - Revised **Reactive Vision Dock** expanded state with BYAKUGAN branding and session W/L plus K/D on the left, current and all-time peak ranks stacked on the right, and duplicate fallback-rank artwork suppressed
 - Larger **Reactive Vision Dock** in-match bar with a taller frame, enlarged current rank and emblem, clearer RR marker, and stream-legible session W/L plus K/D at webcam width
 - Separate **Custom Overlay Builder** with a freeform high-resolution canvas, exact OBS Width and Height controls, drag placement, corner resizing, field visibility, text sizing, element opacity, alignment, text colors, canvas color, automatic saving, live preview, and one-click layout reset
@@ -101,7 +103,10 @@ registered trademarks of Riot Games, Inc.
 - Reactive Vision preview comparison that simultaneously renders the live-data **Between Games** and **In Game** docks in one taller preview window
 - Toggleable **Match Pulse** for Reactive Vision that appends an observed win/loss segment or dot after each live round, displays the current score, and leaves rounds completed before BYAKUGAN began observing as neutral rather than guessing their outcome
 - Toggleable timed **Post Match Recap** with final result, score, RR gain/loss, current RR, session W/L and K/D, plus an independently editable custom Post Match canvas
-- Smooth Reactive Vision state transitions between Between Games, In Game, and Post Match, with an optional instant-motion fallback
+- **BYAKUGAN Shift** transitions that preserve the outgoing overlay while it slides and softens, flash a violet eye with a teal chakra scan, and reveal the incoming Between Games, In Game, or Post Match canvas from the opposite direction
+- Reduced-motion and instant-transition fallbacks that bypass the BYAKUGAN Shift without changing any overlay data or layout
+- A dedicated **Preview transitions & beam** test sequence that safely simulates Between Games, In Game, Post Match, and RR gain/loss movement without changing live session history or the active OBS Browser Source
+- Animation-preview controls that are available only for Reactive Vision layouts and automatically disable when BYAKUGAN Shift transitions are turned off
 - Smoother RR beam extension and retraction that eases from the previously displayed rating to the new 0–100 RR position instead of snapping
 - Rebalanced Reactive Vision in-game dock with a larger RR beam and marker, larger session W/L and K/D, and slightly reduced rank-name text for clearer visual hierarchy at webcam width
 - Reorganized Reactive Vision between-games dock with last-match result, RR movement, W/L, and K/D grouped in one enlarged summary; current RR placed beside Current Rank so the all-time peak row sits fully above the footer branding; substantially larger Session Performance labels and values; and unclipped in-game rank text that uses the available space instead of rendering an ellipsis
@@ -135,7 +140,7 @@ registered trademarks of Riot Games, Inc.
 - Evidence-based BYAKUGAN Insights with explicit sample sizes
 - Personal challenges, current-session tracking, and post-match summaries
 - OBS Browser Source overlay with Awakened Rank, horizontal, compact, and vertical stream layouts
-- Separate **Reactive Vision Dock** layout that stays fully awakened in menus, compresses during Agent Select and live matches, and expands inside a fixed transparent canvas when the match ends
+- Separate **Reactive Vision Dock** layout that stays fully awakened through menus, queue, Agent Select, and loading, then compresses only when Riot reports the active core game at the first buy phase
 - Post-match Reactive Vision sequence with a result-syncing state, completed-match detection, RR/result awakening pulse, and a 45-second safe fallback when Riot history is delayed
 - Compact Reactive Vision state with current rank, RR beam, session W/L, and K/D while peak rank and last-match details collapse out of gameplay
 - Reduced-motion support for Reactive Vision without changing the original Awakened Rank Card option
@@ -209,7 +214,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.69-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.72-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -238,10 +243,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.69`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.72`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.69`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.72`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -249,8 +254,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.69
-git push origin v0.8.0-beta.69
+git tag v0.8.0-beta.72
+git push origin v0.8.0-beta.72
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

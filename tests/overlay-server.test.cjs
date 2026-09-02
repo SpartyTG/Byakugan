@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const http = require('node:http');
 const test = require('node:test');
 const { snapshot } = require('./fixtures/mock-data.cjs');
 const {
@@ -164,7 +165,7 @@ test('custom overlay derives privacy fields from its own element visibility', ()
 });
 
 test('custom Reactive Vision exposes fields from the canvas matching live state', () => {
-  const payload = buildOverlayPayload(snapshot, settings({
+  const payload = buildOverlayPayload({ ...snapshot, live: { ...snapshot.live, state: 'INGAME' } }, settings({
     streamOverlayLayout: 'custom',
     streamOverlayCustom: {
       reactive: true,
@@ -189,14 +190,14 @@ test('custom Reactive Vision exposes fields from the canvas matching live state'
   assert.equal(payload.session.lastMatchRR, snapshot.matches[0].rr);
   assert.equal(payload.session.games, 3);
 
-  const menuPayload = buildOverlayPayload({ ...snapshot, live: { ...snapshot.live, state: 'MENUS' } }, settings({
+  const pregamePayload = buildOverlayPayload(snapshot, settings({
     streamOverlayLayout: 'custom',
     streamOverlayCustom: payload.customOverlay
   }));
-  assert.equal(menuPayload.preferences.showWl, false);
-  assert.equal(menuPayload.preferences.showKd, false);
-  assert.equal(menuPayload.preferences.showRR, false);
-  assert.equal(menuPayload.preferences.showPeakRank, true);
+  assert.equal(pregamePayload.preferences.showWl, false);
+  assert.equal(pregamePayload.preferences.showKd, false);
+  assert.equal(pregamePayload.preferences.showRR, false);
+  assert.equal(pregamePayload.preferences.showPeakRank, true);
 });
 
 test('custom post-match recap receives only fields enabled on its own canvas', () => {
@@ -401,6 +402,32 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     assert.equal(JSON.stringify(payload).includes('PixelPilot'), false);
   } finally {
     await server.stop();
+  }
+});
+
+test('occupied overlay port reports duplicate-process recovery instead of OBS cache advice', async () => {
+  const blocker = http.createServer((_request, response) => response.end('occupied'));
+  await new Promise((resolve, reject) => {
+    blocker.once('error', reject);
+    blocker.listen(0, LOOPBACK_HOST, resolve);
+  });
+  const port = blocker.address().port;
+  const server = new OverlayServer({
+    getSnapshot: () => snapshot,
+    getSettings: () => settings(),
+    assetDirectory: path.join(__dirname, '..', 'src', 'overlay'),
+    port
+  });
+
+  try {
+    await assert.rejects(
+      () => server.start(),
+      new RegExp(`Port ${port} is already in use[\\s\\S]*duplicate BYAKUGAN[\\s\\S]*OBS browser cache`, 'i')
+    );
+    assert.equal(server.status().running, false);
+  } finally {
+    await server.stop();
+    await new Promise((resolve) => blocker.close(resolve));
   }
 });
 

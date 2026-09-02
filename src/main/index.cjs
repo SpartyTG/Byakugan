@@ -11,6 +11,9 @@ const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
+
 let mainWindow = null;
 let settings = null;
 let service = null;
@@ -420,16 +423,16 @@ function registerIpc() {
     clipboard.writeText(status.remoteUrl);
     return status;
   });
-  ipcMain.handle('overlay:preview', async () => {
-    if (overlayPreviewWindow && !overlayPreviewWindow.isDestroyed()) {
-      overlayPreviewWindow.focus();
-      return { ok: true };
-    }
+  ipcMain.handle('overlay:preview', async (_event, options = {}) => {
+    const animationPreview = options?.animation === true;
     await overlayServer.start();
     overlayServer.publish();
     const overlaySettings = settings.get();
     const layout = overlaySettings.streamOverlayLayout || 'horizontal';
     const customCanvas = overlaySettings.streamOverlayCustom || { width: 960, height: 360, inGameWidth: 960, inGameHeight: 360, postMatchWidth: 960, postMatchHeight: 360 };
+    const reactiveLayout = layout === 'reactive' || (layout === 'custom' && Boolean(customCanvas.reactive));
+    if (animationPreview && !reactiveLayout) throw new Error('Choose Reactive Vision Dock or enable Reactive Vision Mode in the Custom Overlay Builder first.');
+    if (animationPreview && overlaySettings.streamOverlaySmoothTransitions === false) throw new Error('Turn on BYAKUGAN Shift transitions before starting the animation preview.');
     const customPreviewWidth = customCanvas.reactive
       ? Math.max(Number(customCanvas.width) || 960, Number(customCanvas.inGameWidth) || 960, Number(customCanvas.postMatchWidth) || 960)
       : Number(customCanvas.width) || 960;
@@ -437,20 +440,29 @@ function registerIpc() {
       ? Math.max(Number(customCanvas.height) || 360, Number(customCanvas.inGameHeight) || 360, Number(customCanvas.postMatchHeight) || 360)
       : Number(customCanvas.height) || 360;
     const sizes = {
-      rank: [590, 270], reactive: [620, overlaySettings.streamOverlayPostMatchRecap === false ? 490 : 700],
+      rank: [590, 270], reactive: animationPreview ? [620, 300] : [620, overlaySettings.streamOverlayPostMatchRecap === false ? 490 : 700],
       custom: [Math.min(1400, Math.max(520, customPreviewWidth + 80)), Math.min(900, Math.max(300, customPreviewHeight + 100))],
       horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
     };
     const [width, height] = sizes[layout] || sizes.horizontal;
+    const previewUrl = new URL(overlayServer.status().url);
+    previewUrl.searchParams.set('preview', '1');
+    if (animationPreview) previewUrl.searchParams.set('animation', '1');
+    if (overlayPreviewWindow && !overlayPreviewWindow.isDestroyed()) {
+      overlayPreviewWindow.setTitle(animationPreview ? 'BYAKUGAN — Animation Preview' : 'BYAKUGAN — OBS Overlay Preview');
+      overlayPreviewWindow.setSize(width, height, true);
+      await overlayPreviewWindow.loadURL(previewUrl.href);
+      overlayPreviewWindow.show();
+      overlayPreviewWindow.focus();
+      return { ok: true, animation: animationPreview };
+    }
     overlayPreviewWindow = new BrowserWindow({
       width, height, minWidth: 460, minHeight: 260, resizable: true,
       show: false, autoHideMenuBar: true, backgroundColor: '#10121c',
-      title: 'BYAKUGAN — OBS Overlay Preview',
+      title: animationPreview ? 'BYAKUGAN — Animation Preview' : 'BYAKUGAN — OBS Overlay Preview',
       parent: mainWindow || undefined,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true }
     });
-    const previewUrl = new URL(overlayServer.status().url);
-    previewUrl.searchParams.set('preview', '1');
     await overlayPreviewWindow.loadURL(previewUrl.href);
     overlayPreviewWindow.show();
     overlayPreviewWindow.on('closed', () => {
@@ -458,7 +470,7 @@ function registerIpc() {
       const current = settings.get();
       if (!current.streamOverlayEnabled && !(current.pcRole === 'gaming' && current.remoteViewerEnabled)) overlayServer.stop();
     });
-    return { ok: true };
+    return { ok: true, animation: animationPreview };
   });
 
   ipcMain.handle('update:status', () => updateService?.status() || { state: 'unavailable', message: 'Update service unavailable.' });
@@ -542,6 +554,16 @@ function openMainWindow() {
   return createWindow({ showOnReady: true });
 }
 
+if (hasSingleInstanceLock) {
+  app.on('second-instance', () => {
+    if (!app.isReady()) return;
+    const window = openMainWindow();
+    if (window?.isMinimized()) window.restore();
+    window?.show();
+    window?.focus();
+  });
+}
+
 async function startRelayMode() {
   await createTray();
   await syncOverlay();
@@ -559,6 +581,7 @@ async function startRelayMode() {
 }
 
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
   settings = new SettingsStore(app.getPath('userData'));
   if (settings.get().gamingRelayMode && (settings.get().pcRole !== 'gaming' || !settings.get().remoteViewerEnabled)) {
     settings.update({ pcRole: 'gaming', remoteViewerEnabled: true });
