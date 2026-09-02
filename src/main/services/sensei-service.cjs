@@ -7,6 +7,10 @@ const { execFile, execFileSync } = require('node:child_process');
 
 const SCORE_VALUES = new Set(['high', 'average', 'low']);
 const SCORE_KEYS = ['impact', 'aim', 'entry', 'utility', 'econ'];
+const FULL_VOD_ANALYSIS_VERSION = 2;
+const FULL_VOD_CHUNK_SECONDS = 4;
+const FULL_VOD_FRAME_RATE = 4;
+const FULL_VOD_FRAME_WIDTH = 768;
 
 function number(value, digits = 1) {
   const parsed = Number(value);
@@ -386,6 +390,122 @@ function consolidateVodReports(reports, frameCount, frameIntervalSeconds) {
   }, frameCount, frameIntervalSeconds);
 }
 
+function vodTime(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function fullVodSegmentSchema() {
+  return {
+    type: 'object', required: ['sceneType', 'activity', 'summary', 'findings', 'limitations'],
+    properties: {
+      sceneType: { type: 'string', enum: ['gameplay', 'menu', 'loading', 'round-transition', 'spectating', 'unknown'] },
+      activity: { type: 'string', enum: ['none', 'setup', 'rotation', 'combat', 'objective', 'death', 'spectating'] },
+      summary: { type: 'string' },
+      findings: { type: 'array', maxItems: 2, items: { type: 'object', required: ['timestamp', 'category', 'outcome', 'observation', 'evidence', 'coaching', 'confidence'], properties: {
+        timestamp: { type: 'string' }, round: { type: 'integer' }, category: { type: 'string' },
+        outcome: { type: 'string', enum: ['positive', 'negative', 'neutral'] }, observation: { type: 'string' },
+        evidence: { type: 'string' }, coaching: { type: 'string' }, confidence: { type: 'string', enum: ['high', 'average', 'low'] }
+      } } },
+      limitations: { type: 'array', maxItems: 4, items: { type: 'string' } }
+    }
+  };
+}
+
+function isUsefulVodFinding(finding = {}) {
+  const observation = String(finding.observation || '').trim();
+  const evidence = String(finding.evidence || '').trim();
+  const coaching = String(finding.coaching || '').trim();
+  const category = String(finding.category || '').trim().toLowerCase();
+  if (observation.length < 24 || evidence.length < 16 || coaching.length < 16) return false;
+  if (['health', 'weapon', 'interface', 'webcam', 'overlay', 'hud'].includes(category)) return false;
+  const combined = `${observation} ${evidence} ${coaching}`.toLowerCase();
+  const filler = [
+    /webcam (?:is |was )?(?:visible|present|shown|obstruct)/,
+    /(?:health|health bar) (?:is |was )?(?:visible|shown|at \d+)/,
+    /(?:holding|held|using) (?:a |the )?(?:green |purple |blue |red )?(?:weapon|gun|knife)/,
+    /crosshair (?:is |was )?(?:visible|centered|at the center)/,
+    /(?:buy phase|won|lost|spike defused) (?:screen|text|overlay) (?:is |was )?visible/,
+    /first[- ]person (?:view|perspective) (?:is |was )?visible/
+  ];
+  return !filler.some((pattern) => pattern.test(combined));
+}
+
+function validateFullVodSegment(parsed, { startSeconds = 0, endSeconds = 0, frameCount = 0 } = {}) {
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.findings) || !Array.isArray(parsed.limitations)) {
+    throw new Error('The vision model returned an incomplete full-match segment.');
+  }
+  const allowedScenes = new Set(['gameplay', 'menu', 'loading', 'round-transition', 'spectating', 'unknown']);
+  const allowedActivities = new Set(['none', 'setup', 'rotation', 'combat', 'objective', 'death', 'spectating']);
+  const findings = parsed.findings.slice(0, 2).map((finding) => {
+    const timestampText = String(finding?.timestamp || '').trim();
+    const parts = timestampText.match(/^(\d+):([0-5]?\d)$/);
+    const suppliedSeconds = parts ? Number(parts[1]) * 60 + Number(parts[2]) : startSeconds;
+    const seconds = Math.max(startSeconds, Math.min(endSeconds || suppliedSeconds, suppliedSeconds));
+    return {
+      timestamp: vodTime(seconds), endTimestamp: vodTime(endSeconds), seconds,
+      round: Number.isFinite(Number(finding?.round)) ? Number(finding.round) : null,
+      category: String(finding?.category || 'Decision').trim().slice(0, 80),
+      outcome: ['positive', 'negative', 'neutral'].includes(finding?.outcome) ? finding.outcome : 'neutral',
+      observation: String(finding?.observation || '').trim().slice(0, 700),
+      evidence: String(finding?.evidence || '').trim().slice(0, 500),
+      coaching: String(finding?.coaching || '').trim().slice(0, 700),
+      confidence: ['high', 'average', 'low'].includes(finding?.confidence) ? finding.confidence : 'low'
+    };
+  }).filter(isUsefulVodFinding);
+  return {
+    sceneType: allowedScenes.has(parsed.sceneType) ? parsed.sceneType : 'unknown',
+    activity: allowedActivities.has(parsed.activity) ? parsed.activity : 'none',
+    summary: String(parsed.summary || '').trim().slice(0, 700),
+    findings,
+    limitations: parsed.limitations.slice(0, 4).map((item) => String(item).trim().slice(0, 400)).filter(Boolean),
+    framesReviewed: Math.max(0, Number(frameCount) || 0)
+  };
+}
+
+function deduplicateFullVodFindings(findings = []) {
+  const kept = [];
+  for (const finding of findings.slice().sort((left, right) => Number(left.seconds) - Number(right.seconds))) {
+    if (!isUsefulVodFinding(finding)) continue;
+    const signature = `${finding.category} ${finding.observation}`.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').slice(0, 180);
+    const duplicate = kept.some((entry) => entry.signature === signature && Math.abs(entry.seconds - Number(finding.seconds)) < 20);
+    if (!duplicate) kept.push({ ...finding, signature, seconds: Number(finding.seconds) || 0 });
+  }
+  return kept.map(({ signature, ...finding }) => finding).slice(0, 1_000);
+}
+
+function finalizeFullVodReport(checkpoint = {}) {
+  const findings = deduplicateFullVodFindings(checkpoint.findings || []);
+  const negative = findings.filter((finding) => finding.outcome === 'negative');
+  const categoryCounts = new Map();
+  for (const finding of negative) categoryCounts.set(finding.category, (categoryCounts.get(finding.category) || 0) + 1);
+  const patterns = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([category, occurrences]) => {
+    const examples = negative.filter((finding) => finding.category === category).slice(0, 2);
+    return { category, occurrences, coaching: examples.map((finding) => finding.coaching).filter(Boolean).join(' ') };
+  });
+  const durationSeconds = Math.max(0, Number(checkpoint.durationSeconds) || 0);
+  const totalSegments = Math.max(0, Number(checkpoint.totalSegments) || 0);
+  const completedSegments = Math.max(0, Number(checkpoint.completedSegments) || 0);
+  const invalidSegments = Math.max(0, Number(checkpoint.invalidSegments) || 0);
+  const coverage = totalSegments ? Math.round((completedSegments / totalSegments) * 100) : 0;
+  const summary = findings.length
+    ? `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames. ${findings.length} coachable moment${findings.length === 1 ? '' : 's'} remained after removing HUD descriptions and unsupported observations.`
+    : `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames. The local model did not return a defensible coachable moment, so BYAKUGAN did not manufacture advice.`;
+  return {
+    analysisVersion: FULL_VOD_ANALYSIS_VERSION,
+    mode: 'full-match', summary, findings, patterns,
+    confidence: invalidSegments > Math.max(2, totalSegments * .08) || !findings.length ? 'low' : 'average',
+    coverage: { durationSeconds, totalSegments, completedSegments, percent: coverage, frameRate: checkpoint.frameRate || FULL_VOD_FRAME_RATE },
+    framesReviewed: Math.max(0, Number(checkpoint.framesReviewed) || 0),
+    limitations: [...new Set([
+      ...(checkpoint.limitations || []),
+      `Ordered visual frames were reviewed at ${checkpoint.frameRate || FULL_VOD_FRAME_RATE} FPS; actions shorter than the sampling interval may be missed.`,
+      'Audio and communications were not analyzed.',
+      ...(invalidSegments ? [`${invalidSegments} segment${invalidSegments === 1 ? '' : 's'} could not be converted into validated structured observations.`] : [])
+    ])].slice(0, 12)
+  };
+}
+
 class SenseiService {
   constructor({ endpoint = 'http://127.0.0.1:11434' } = {}) {
     this.endpoint = endpoint.replace(/\/$/, '');
@@ -479,6 +599,90 @@ class SenseiService {
     onProgress({ phase: 'validating', current: files.length, total: files.length, message: 'Validating and consolidating visual findings' });
     return consolidateVodReports(batches, files.length, frameIntervalSeconds);
   }
+
+  async analyzeFullVod({
+    match, statisticalReport, source, ffmpeg, outputDirectory, checkpoint = null,
+    model = '', repairModel = '', signal = null, onProgress = () => {}, onCheckpoint = () => {}
+  }) {
+    if (!model) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
+    const durationSeconds = await probeVodDuration(ffmpeg, source, { signal });
+    const chunkSeconds = FULL_VOD_CHUNK_SECONDS;
+    const frameRate = FULL_VOD_FRAME_RATE;
+    const totalSegments = Math.max(1, Math.ceil(durationSeconds / chunkSeconds));
+    const canResume = checkpoint?.version === FULL_VOD_ANALYSIS_VERSION
+      && Number(checkpoint.totalSegments) === totalSegments
+      && Math.abs(Number(checkpoint.durationSeconds) - durationSeconds) < 2;
+    const progress = canResume ? {
+      ...checkpoint,
+      findings: Array.isArray(checkpoint.findings) ? checkpoint.findings : [],
+      limitations: Array.isArray(checkpoint.limitations) ? checkpoint.limitations : []
+    } : {
+      version: FULL_VOD_ANALYSIS_VERSION, durationSeconds, chunkSeconds, frameRate, totalSegments,
+      completedSegments: 0, framesReviewed: 0, gameplaySegments: 0, actionSegments: 0, invalidSegments: 0,
+      startedAt: Date.now(), updatedAt: Date.now(), findings: [], limitations: []
+    };
+    const analysisStartedAt = Date.now();
+    const resumedAt = Math.max(0, Number(progress.completedSegments) || 0);
+    for (let index = resumedAt; index < totalSegments; index += 1) {
+      if (signal?.aborted) throw canceledError();
+      const startSeconds = index * chunkSeconds;
+      const segmentDuration = Math.max(.1, Math.min(chunkSeconds, durationSeconds - startSeconds));
+      const endSeconds = Math.min(durationSeconds, startSeconds + segmentDuration);
+      const segmentDirectory = path.join(outputDirectory, `segment-${String(index + 1).padStart(5, '0')}`);
+      let extraction;
+      try {
+        onProgress({ phase: 'full-analysis', stage: 'extracting', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, message: `Extracting ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
+        extraction = await extractVodSegmentFrames({ ffmpeg, source, outputDirectory: segmentDirectory, startSeconds, durationSeconds: segmentDuration, frameRate, signal });
+        onProgress({ phase: 'full-analysis', stage: 'reviewing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, message: `Reviewing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
+        let report = null;
+        try {
+          const timestamps = extraction.files.map((_, frameIndex) => startSeconds + (frameIndex / frameRate));
+          const labels = timestamps.map((seconds, frameIndex) => `Image ${frameIndex + 1}=${vodTime(seconds)}`).join(', ');
+          const prompt = `You are reviewing ONE continuous ${segmentDuration.toFixed(1)}-second section from a complete VALORANT VOD. Images are chronological at ${frameRate} frames per second: ${labels}.
+
+Decide whether this section contains a defensible tactical event. Compare changes across the ordered images; do not describe isolated screenshots. A useful finding must identify a visible player decision, its visible consequence, concrete evidence across frames, and a specific adjustment or repeatable strength. Return at most two findings.
+
+NEVER create findings merely because the crosshair is centered, health/weapon/HUD is visible, a webcam or overlay exists, a Buy Phase/Won/Lost screen appears, or the player is standing/walking without a visible tactical consequence. Put obstructions in limitations. If there is no coachable evidence, return an empty findings array. Do not infer audio, communications, hidden enemies, intent, or activity between supplied frames. Return strict JSON only.
+
+MATCH CARD:${JSON.stringify(compactMatch(match))}
+SAVED STATISTICAL REPORT:${JSON.stringify({ verdict: statisticalReport?.verdict, strengths: statisticalReport?.strengths, weaknesses: statisticalReport?.weaknesses, focusRule: statisticalReport?.focusRule })}`;
+          report = await generateStructured({
+            endpoint: this.endpoint, model, repairModel, prompt, schema: fullVodSegmentSchema(),
+            images: extraction.files.map((file) => fs.readFileSync(file).toString('base64')),
+            timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_000,
+            onRepair: () => onProgress({ phase: 'full-analysis', stage: 'repairing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, message: `Repairing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` }),
+            validate: (value) => validateFullVodSegment(value, { startSeconds, endSeconds, frameCount: extraction.files.length })
+          });
+        } catch (error) {
+          if (error?.code === 'SENSEI_CANCELED' || /^Ollama returned HTTP/.test(error?.message || '') || /lost contact with Ollama|local model timed out/i.test(error?.message || '')) throw error;
+          progress.invalidSegments += 1;
+          progress.limitations.push(`The segment at ${vodTime(startSeconds)} could not be normalized and was omitted.`);
+          report = { sceneType: 'unknown', activity: 'none', findings: [], limitations: [], framesReviewed: extraction.files.length };
+        }
+        progress.completedSegments = index + 1;
+        progress.framesReviewed += extraction.files.length;
+        if (['gameplay', 'spectating'].includes(report.sceneType)) progress.gameplaySegments += 1;
+        if (!['none', 'setup', 'spectating'].includes(report.activity) || report.findings.length) progress.actionSegments += 1;
+        progress.findings.push(...report.findings);
+        progress.findings = deduplicateFullVodFindings(progress.findings);
+        progress.limitations = [...new Set([...progress.limitations, ...report.limitations])].slice(0, 20);
+        progress.updatedAt = Date.now();
+        await onCheckpoint({ ...progress });
+        const completedThisRun = progress.completedSegments - resumedAt;
+        const averageMs = completedThisRun ? (Date.now() - analysisStartedAt) / completedThisRun : 0;
+        const etaSeconds = Math.round((totalSegments - progress.completedSegments) * averageMs / 1_000);
+        onProgress({
+          phase: 'full-analysis', stage: 'complete-segment', current: progress.completedSegments, total: totalSegments,
+          mediaSeconds: endSeconds, durationSeconds, etaSeconds, resumed: resumedAt > 0,
+          message: `Reviewed ${vodTime(endSeconds)} of ${vodTime(durationSeconds)}`
+        });
+      } finally {
+        try { fs.rmSync(segmentDirectory, { recursive: true, force: true }); } catch {}
+      }
+    }
+    onProgress({ phase: 'validating', current: totalSegments, total: totalSegments, mediaSeconds: durationSeconds, durationSeconds, message: 'Building the full-match tactical report' });
+    return finalizeFullVodReport(progress);
+  }
 }
 
 function executableWorks(command) {
@@ -543,7 +747,30 @@ async function extractVodFrames({ ffmpeg, source, outputDirectory, frameCount = 
   return { files, duration, intervalSeconds, timestamps };
 }
 
+async function extractVodSegmentFrames({
+  ffmpeg, source, outputDirectory, startSeconds = 0, durationSeconds = FULL_VOD_CHUNK_SECONDS,
+  frameRate = FULL_VOD_FRAME_RATE, signal = null
+}) {
+  if (signal?.aborted) throw canceledError();
+  fs.mkdirSync(outputDirectory, { recursive: true });
+  const pattern = path.join(outputDirectory, 'frame-%03d.jpg');
+  const args = [
+    '-hide_banner', '-loglevel', 'error', '-ss', Number(startSeconds).toFixed(3), '-i', source,
+    '-t', Number(durationSeconds).toFixed(3), '-vf', `fps=${frameRate},scale=${FULL_VOD_FRAME_WIDTH}:-2`,
+    '-q:v', '5', '-start_number', '1', '-y', pattern
+  ];
+  await extractFrame(ffmpeg, args, signal);
+  const files = fs.readdirSync(outputDirectory)
+    .filter((name) => /^frame-\d+\.jpg$/i.test(name))
+    .sort()
+    .map((name) => path.join(outputDirectory, name));
+  if (!files.length) throw new Error(`No readable video frames were found near ${vodTime(startSeconds)}.`);
+  return { files, startSeconds, durationSeconds, frameRate };
+}
+
 module.exports = {
-  SenseiService, buildContextPack, compactMatch, detectFfmpeg, detectFfprobe, extractVodFrames, probeVodDuration,
-  headshotPercent, liteReport, parseStructuredJson, strictSchema, summarizeMatches, validateReport, validateVodReport
+  FULL_VOD_ANALYSIS_VERSION, FULL_VOD_CHUNK_SECONDS, FULL_VOD_FRAME_RATE,
+  SenseiService, buildContextPack, compactMatch, detectFfmpeg, detectFfprobe, extractVodFrames, extractVodSegmentFrames, finalizeFullVodReport,
+  headshotPercent, isUsefulVodFinding, liteReport, parseStructuredJson, probeVodDuration, strictSchema, summarizeMatches,
+  validateFullVodSegment, validateReport, validateVodReport, vodTime
 };

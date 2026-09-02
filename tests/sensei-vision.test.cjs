@@ -7,7 +7,10 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { SenseiStore, normalizeEntry } = require('../src/main/sensei-store.cjs');
-const { SenseiService, buildContextPack, compactMatch, liteReport, parseStructuredJson, validateReport } = require('../src/main/services/sensei-service.cjs');
+const {
+  SenseiService, buildContextPack, compactMatch, finalizeFullVodReport, isUsefulVodFinding,
+  liteReport, parseStructuredJson, validateFullVodSegment, validateReport
+} = require('../src/main/services/sensei-service.cjs');
 const { SettingsStore } = require('../src/main/settings-store.cjs');
 
 function match(id, patch = {}) {
@@ -109,11 +112,13 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(main, /shell\.trashItem\(source\)/);
   assert.match(main, /ipcMain\.handle\('sensei:vod-cancel'/);
   assert.match(main, /sensei:vod-progress/);
+  assert.match(main, /powerSaveBlocker\.start\('prevent-app-suspension'\)/);
   assert.match(main, /visionCapable/);
   assert.match(renderer, /Run Sensei Vision/);
   assert.match(renderer, /I’ve read it — remove VOD/);
-  assert.match(renderer, /VOD ANALYSIS IN PROGRESS/);
-  assert.match(renderer, /Cancel analysis/);
+  assert.match(renderer, /FULL-MATCH ANALYSIS IN PROGRESS/);
+  assert.match(renderer, /Pause safely/);
+  assert.match(renderer, /Resume full analysis/);
   assert.match(html, /Enable Sensei Vision/);
   assert.match(html, /No paid API and no live coaching/);
   assert.match(html, /Source Record plugin/);
@@ -211,4 +216,63 @@ test('VOD Vision locally normalizes usable malformed output after model repair f
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('full-match VOD validation rejects HUD filler and keeps actionable temporal coaching', () => {
+  const segment = validateFullVodSegment({
+    sceneType: 'gameplay', activity: 'combat', summary: 'One fight occurred.', limitations: [],
+    findings: [
+      {
+        timestamp: '10:04', category: 'crosshair', outcome: 'neutral', confidence: 'low',
+        observation: 'The crosshair is centered on the screen while the player is holding a weapon.',
+        evidence: 'The crosshair and health bar are visible in every supplied image.',
+        coaching: 'Keep the crosshair centered while playing the game.'
+      },
+      {
+        timestamp: '10:06', category: 'Positioning', outcome: 'negative', confidence: 'average',
+        observation: 'The player widened into a second angle before clearing the close-left corner.',
+        evidence: 'Across images 8–12, the left corner remained uncleared while the player moved into the open and then took damage.',
+        coaching: 'Clear the close-left corner from cover before widening far enough to expose the second angle.'
+      }
+    ]
+  }, { startSeconds: 600, endSeconds: 608, frameCount: 16 });
+  assert.equal(segment.findings.length, 1);
+  assert.equal(segment.findings[0].timestamp, '10:06');
+  assert.match(segment.findings[0].coaching, /clear the close-left/i);
+  assert.equal(isUsefulVodFinding(segment.findings[0]), true);
+});
+
+test('full-match report proves complete chronological coverage and groups repeated problems', () => {
+  const finding = {
+    timestamp: '1:02', endTimestamp: '1:08', seconds: 62, round: 2, category: 'Positioning', outcome: 'negative',
+    observation: 'The player re-peeked the same exposed lane immediately after taking damage.',
+    evidence: 'Ordered frames show damage, a retreat behind cover, and an immediate return to the unchanged lane.',
+    coaching: 'After taking damage, break contact and re-peek from a different elevation or wait for teammate pressure.', confidence: 'average'
+  };
+  const report = finalizeFullVodReport({
+    version: 2, durationSeconds: 1_800, frameRate: 4, totalSegments: 450, completedSegments: 450,
+    framesReviewed: 7_200, invalidSegments: 0, findings: [finding, { ...finding, timestamp: '4:02', seconds: 242 }], limitations: []
+  });
+  assert.equal(report.mode, 'full-match');
+  assert.equal(report.coverage.percent, 100);
+  assert.equal(report.framesReviewed, 7_200);
+  assert.equal(report.findings.length, 2);
+  assert.equal(report.patterns[0].occurrences, 2);
+  assert.match(report.summary, /beginning to end/i);
+});
+
+test('full-match VOD checkpoints survive interruption and become resumable on startup', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-vod-checkpoint-'));
+  try {
+    const store = new SenseiStore(directory);
+    store.save('player', 'match', { vod: {
+      path: 'C:\\recordings\\match.mkv', name: 'match.mkv', size: 100, status: 'analyzing',
+      checkpoint: { version: 2, durationSeconds: 1_800, chunkSeconds: 4, frameRate: 4, totalSegments: 450, completedSegments: 47, framesReviewed: 752, findings: [] }
+    } });
+    assert.equal(store.recoverInterruptedVodAnalyses(), true);
+    const recovered = store.get('player', 'match');
+    assert.equal(recovered.vod.status, 'failed');
+    assert.equal(recovered.vod.checkpoint.completedSegments, 47);
+    assert.match(recovered.vod.error, /resume/i);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });

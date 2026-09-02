@@ -42,11 +42,13 @@ invoke the coach again.
   statistics debrief. No API key, cloud request, subscription, or per-use fee
   is required; the model temporarily consumes local CPU/GPU and memory only
   while the user asks it to run.
-- **VOD Vision** is a separate opt-in add-on. A user may attach a clean MP4,
-  MKV, MOV, or WebM recording to a saved match report. FFmpeg extracts up to 24
-  temporary samples across the recording and a user-selected local vision model
-  reviews only those visible samples. BYAKUGAN does not claim that this is a
-  frame-by-frame review or that it observed anything absent from those samples.
+- **VOD Vision · Full Match** is a separate opt-in add-on. A user may attach a
+  clean MP4, MKV, MOV, or WebM recording to a saved match report. BYAKUGAN
+  processes every consecutive four-second section from beginning to end at four
+  ordered frames per second. A user-selected local vision model reviews each
+  temporal sequence, and BYAKUGAN removes generic HUD descriptions before they
+  can enter the tactical report. Completed sections are checkpointed so an
+  interrupted or deliberately paused overnight analysis can resume later.
 
 Every report contains a match verdict, a five-part scorecard, up to three
 strengths and weaknesses, exactly three runnable drills, one next-match focus
@@ -87,17 +89,20 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.80
+## Included in version 0.8.0-beta.81
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
 - **Sensei Lite** built into BYAKUGAN for evidence-based statistical coaching without a model download, cloud service, API key, subscription, or per-use fee
 - Optional full **Sensei** through a user-installed local Ollama text model, including recent-overall, same-agent, and same-map baseline comparisons plus match-scoped Ask Sensei follow-ups
-- Optional sampled **VOD Vision** through FFmpeg and a user-installed local vision-capable Ollama model, with clean OBS Source Record guidance, resource/readiness checks, temporary-frame cleanup, and explicit Recycle Bin removal that preserves the written report
+- Optional **VOD Vision · Full Match** through FFmpeg and a user-installed local vision-capable Ollama model, with clean OBS Source Record guidance, resource/readiness checks, temporary-frame cleanup, and explicit Recycle Bin removal that preserves the written report
 - Dedicated green/red readiness cards for Ollama, the selected text model, the selected vision model and its advertised vision capability, FFmpeg, FFprobe, and available temporary storage
 - Hard VOD-analysis gating that explains every missing prerequisite before confirmation, including the required full BYAKUGAN restart after changing the Windows PATH
-- Immediate staged VOD progress with elapsed time, frame extraction/review counts, report-validation and save phases, disabled conflicting controls, and a safe Cancel action that never removes the original recording
-- Direct timestamp seeking for 24 smaller temporary samples instead of decoding the complete recording from beginning to end, followed by four-frame vision batches and a structured consolidation pass to prevent oversized Ollama requests
+- Continuous start-to-finish review in consecutive four-second sections at four ordered frames per second, producing roughly 7,200 chronologically ordered frames for a 30-minute match instead of the former 24-screenshot scan
+- Immediate overnight-analysis progress with elapsed time, video timestamp, completed section count, rolling estimated time remaining, and a safe Pause action that never removes the original recording
+- Per-section persistence and automatic interrupted-job recovery so completed work can resume after a pause, model failure, application close, or PC restart
+- A Windows app-suspension blocker during analysis so an unattended overnight job can continue while the display turns off normally
+- Tactical findings that require a visible decision, visible consequence, multi-frame evidence, and a specific adjustment or repeatable strength; generic webcam, HUD, weapon, health, and centered-crosshair descriptions are rejected
 - Actionable Ollama failures that preserve the HTTP response detail and distinguish a stopped or memory-exhausted local service from invalid structured output
 - Sensei structured-output repair with disabled model thinking, safe JSON-wrapper removal, one constrained retry, precomputed match-versus-baseline deltas, two-to-three-sentence verdict enforcement, concise focus rules, and three distinct Range/custom/Deathmatch drills
 - Vision-response compatibility for models that emit thinking tags, explanatory prefixes, fenced JSON, double-encoded objects, or trailing commas
@@ -271,7 +276,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.80-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.81-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -300,10 +305,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.80`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.81`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.80`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.81`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -311,8 +316,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.80
-git push origin v0.8.0-beta.80
+git tag v0.8.0-beta.81
+git push origin v0.8.0-beta.81
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

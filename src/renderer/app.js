@@ -104,8 +104,17 @@ function formatElapsed(milliseconds) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
+function formatEta(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (!total) return 'Estimating remaining time…';
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.ceil((total % 3600) / 60);
+  return hours ? `Approximately ${hours}h ${minutes}m remaining` : `Approximately ${Math.max(1, minutes)}m remaining`;
+}
+
 function senseiProgressPercent(progress = {}) {
   const ratio = Number(progress.total) > 0 ? Math.max(0, Math.min(1, Number(progress.current) / Number(progress.total))) : 0;
+  if (progress.phase === 'full-analysis') return Math.max(1, Math.round(ratio * 96));
   if (progress.phase === 'extracting') return Math.round(ratio * 35);
   if (progress.phase === 'loading-model') return 38;
   if (progress.phase === 'reviewing') return 40 + Math.round(ratio * 50);
@@ -543,20 +552,27 @@ function senseiVodMarkup(entry) {
   if (!state.settings?.senseiVodEnabled) return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision add-on</h3><p>Enable this optional local feature in Settings to import a clean gameplay recording.</p></div><button class="ghost-button" data-sensei-settings>Settings</button></div></div>`;
   const file = vod?.name ? `${vod.name} • ${formatBytes(vod.size)}` : 'No recording attached';
   const analyzed = vod?.report;
-  const findings = (analyzed?.findings || []).map((finding) => `<div class="sensei-vod-finding"><time>${escapeHtml(finding.timestamp || '—')}</time><b>${escapeHtml(finding.category || 'Decision')}</b><span>${escapeHtml(finding.observation)}${finding.evidence ? `<br><small>${escapeHtml(finding.evidence)}</small>` : ''}</span></div>`).join('');
+  const findings = (analyzed?.findings || []).map((finding) => `<div class="sensei-vod-finding ${escapeHtml(finding.outcome || 'neutral')}"><time>${escapeHtml(finding.timestamp || '—')}${finding.round ? `<small>ROUND ${escapeHtml(finding.round)}</small>` : ''}</time><b>${escapeHtml(finding.category || 'Decision')}</b><span><strong>${escapeHtml(finding.observation)}</strong>${finding.evidence ? `<small><em>EVIDENCE</em>${escapeHtml(finding.evidence)}</small>` : ''}${finding.coaching ? `<small class="sensei-vod-coaching"><em>${finding.outcome === 'positive' ? 'KEEP' : 'ADJUSTMENT'}</em>${escapeHtml(finding.coaching)}</small>` : ''}</span></div>`).join('');
+  const patterns = (analyzed?.patterns || []).map((pattern) => `<article><strong>${escapeHtml(pattern.category)}</strong><small>${escapeHtml(pattern.occurrences)} repeated moment${Number(pattern.occurrences) === 1 ? '' : 's'}</small><p>${escapeHtml(pattern.coaching)}</p></article>`).join('');
   const analyzing = vod?.status === 'analyzing';
+  const resumable = Number(vod?.checkpoint?.completedSegments) > 0 && Number(vod?.checkpoint?.completedSegments) < Number(vod?.checkpoint?.totalSegments);
   const missing = state.senseiStatus?.vodMissing || ['Local setup check has not finished'];
   const ready = state.senseiStatus?.vodReady === true;
   const reason = missing.join('; ');
   const actions = analyzing
     ? '<button class="ghost-button" disabled>Analysis running</button>'
     : vod?.path
-      ? `<button class="ghost-button" data-sensei-vod-import>Replace VOD</button><button class="primary-button" data-sensei-vod-analyze ${ready ? '' : 'disabled'} title="${escapeHtml(ready ? 'Analyze this recording locally' : reason)}">${analyzed ? 'Regenerate VOD analysis' : 'Analyze VOD'}</button>${analyzed ? '<button class="ghost-button danger" data-sensei-vod-delete>I’ve read it — remove VOD</button>' : ''}`
+      ? `<button class="ghost-button" data-sensei-vod-import>Replace VOD</button><button class="primary-button" data-sensei-vod-analyze ${ready ? '' : 'disabled'} title="${escapeHtml(ready ? 'Analyze this recording locally' : reason)}">${resumable ? 'Resume full analysis' : analyzed ? 'Regenerate full analysis' : 'Run full-match analysis'}</button>${analyzed ? '<button class="ghost-button danger" data-sensei-vod-delete>I’ve read it — remove VOD</button>' : ''}`
       : '<button class="primary-button" data-sensei-vod-import>Import clean VOD</button>';
-  const progress = state.senseiVodProgress || { phase: 'preparing', current: 0, total: 24, message: 'Preparing recording' };
-  const progressMarkup = analyzing ? `<div class="sensei-vod-progress"><div class="sensei-progress-head"><span><strong>VOD ANALYSIS IN PROGRESS</strong><small>${escapeHtml(progress.message || 'Preparing recording')}</small></span><time id="senseiVodElapsed">${formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()))}</time></div><div class="sensei-progress-track"><i style="width:${senseiProgressPercent(progress)}%"></i></div><div class="sensei-progress-foot"><span>${escapeHtml(progress.phase === 'reviewing' || progress.phase === 'extracting' ? `${progress.current || 0} / ${progress.total || 24} frames` : 'Processing locally • original VOD unchanged')}</span><button class="ghost-button danger" data-sensei-vod-cancel>Cancel analysis</button></div></div>` : '';
+  const progress = state.senseiVodProgress || { phase: 'preparing', current: vod?.checkpoint?.completedSegments || 0, total: vod?.checkpoint?.totalSegments || 0, message: 'Preparing recording' };
+  const progressDetail = progress.phase === 'full-analysis'
+    ? `${progress.current || 0} of ${progress.total || '—'} chronological segments • ${formatEta(progress.etaSeconds)}`
+    : 'Preparing local full-match pipeline • original VOD unchanged';
+  const progressMarkup = analyzing ? `<div class="sensei-vod-progress"><div class="sensei-progress-head"><span><strong>FULL-MATCH ANALYSIS IN PROGRESS</strong><small>${escapeHtml(progress.message || 'Preparing recording')}</small></span><time id="senseiVodElapsed">${formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()))}</time></div><div class="sensei-progress-track"><i style="width:${senseiProgressPercent(progress)}%"></i></div><div class="sensei-progress-foot"><span>${escapeHtml(progressDetail)}</span><button class="ghost-button danger" data-sensei-vod-cancel>Pause safely</button></div></div>` : '';
   const readinessMarkup = vod?.path && !analyzing && !ready ? `<div class="sensei-readiness-blocked"><strong>VOD analysis is not ready</strong><span>${escapeHtml(reason)}. Open Settings and run Check local setup.</span></div>` : '';
-  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ''}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${escapeHtml(analyzed.framesReviewed || 0)} FRAMES</small><p>${escapeHtml(analyzed.summary)}</p></div><div class="sensei-vod-findings">${findings || '<div class="empty-state">No defensible visual findings were returned.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
+  const coverage = analyzed?.coverage;
+  const coverageLabel = coverage ? `${escapeHtml(coverage.percent)}% COVERAGE • ${escapeHtml(coverage.completedSegments)} / ${escapeHtml(coverage.totalSegments)} SEGMENTS • ${escapeHtml(analyzed.framesReviewed || 0)} ORDERED FRAMES` : `${escapeHtml(analyzed?.framesReviewed || 0)} FRAMES`;
+  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · Full Match</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p></div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
 }
 
 function renderSenseiPanel(entry) {
@@ -1497,11 +1513,15 @@ async function analyzeSenseiVod() {
     toast('VOD setup is incomplete', (state.senseiStatus?.vodMissing || ['Run Check local setup in Settings']).join('; '), 'error');
     return;
   }
-  if (!window.confirm('Analyze this recording locally? VOD Vision can use substantial CPU/GPU and memory. Avoid starting it during a live stream unless the streaming PC has adequate headroom.')) return;
+  const checkpoint = state.senseiEntry?.vod?.checkpoint;
+  const resumeText = Number(checkpoint?.completedSegments) > 0
+    ? `Resume after segment ${checkpoint.completedSegments} of ${checkpoint.totalSegments}? Completed work will be retained.`
+    : 'Review this recording continuously from beginning to end?';
+  if (!window.confirm(`${resumeText}\n\nFull-match analysis may run for several hours and can use substantial CPU/GPU and memory. It is intended for an extended break or overnight use. Avoid running it during a live stream unless the streaming PC has adequate headroom.`)) return;
   state.senseiBusy = true;
   state.senseiVodRequestActive = true;
   state.senseiVodStartedAt = Date.now();
-  state.senseiVodProgress = { phase: 'preparing', current: 0, total: 24, message: 'Preparing recording' };
+  state.senseiVodProgress = { phase: 'preparing', current: checkpoint?.completedSegments || 0, total: checkpoint?.totalSegments || 0, message: checkpoint ? 'Preparing saved checkpoint' : 'Preparing full-match analysis' };
   const existing = state.senseiEntry || await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
   if (existing) renderSenseiPanel({ ...existing, vod: { ...existing.vod, status: 'analyzing', error: '' } });
   startSenseiVodTimer();
@@ -1509,11 +1529,12 @@ async function analyzeSenseiVod() {
     const entry = await window.companion.analyzeSenseiVod(state.openMatchId);
     state.senseiEntry = entry;
     renderSenseiPanel(entry);
-    toast('VOD Vision ready', state.settings.senseiOfferVodCleanup ? 'Read the report, then use “I’ve read it — remove VOD” to reclaim storage.' : 'The visual findings were saved to this match.');
+    toast('Full-match analysis ready', state.settings.senseiOfferVodCleanup ? 'Read the report, then use “I’ve read it — remove VOD” to reclaim storage.' : 'The complete chronological review was saved to this match.');
   } catch (error) {
     const entry = await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
     if (entry) renderSenseiPanel(entry);
-    toast(error?.message?.includes('canceled') ? 'VOD analysis canceled' : 'VOD analysis failed', error.message, 'error');
+    const paused = /canceled|paused/i.test(error?.message || '');
+    toast(paused ? 'Full-match analysis paused' : 'VOD analysis failed', paused ? 'Completed sections were checkpointed. Use Resume full analysis whenever you are ready.' : error.message, paused ? '' : 'error');
   } finally {
     state.senseiBusy = false;
     state.senseiVodRequestActive = false;
@@ -1526,7 +1547,7 @@ async function analyzeSenseiVod() {
 async function cancelSenseiVod() {
   if (!state.openMatchId || !state.senseiBusy) return;
   const button = $('[data-sensei-vod-cancel]');
-  if (button) { button.disabled = true; button.textContent = 'Canceling safely…'; }
+  if (button) { button.disabled = true; button.textContent = 'Pausing safely…'; }
   try {
     const result = await window.companion.cancelSenseiVod(state.openMatchId);
     if (!result?.ok) toast('Nothing to cancel', result?.message || 'The analysis already stopped.');

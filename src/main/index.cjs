@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, shell, Tray } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } = require('electron');
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
@@ -10,7 +10,7 @@ const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = requir
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
-const { SenseiService, detectFfmpeg, detectFfprobe, extractVodFrames } = require('./services/sensei-service.cjs');
+const { SenseiService, detectFfmpeg, detectFfprobe } = require('./services/sensei-service.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -479,38 +479,47 @@ function registerIpc() {
     if (senseiVodJobs.has(jobKey)) throw new Error('VOD analysis is already running for this match.');
     const controller = new AbortController();
     senseiVodJobs.set(jobKey, controller);
+    let powerBlockerId = null;
+    try { powerBlockerId = powerSaveBlocker.start('prevent-app-suspension'); } catch {}
     const progress = (payload) => {
       if (!event.sender.isDestroyed()) event.sender.send('sensei:vod-progress', { matchId, at: Date.now(), ...payload });
     };
-    senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzing', error: '' } });
+    let vodState = { ...existing.vod, status: 'analyzing', error: '' };
+    senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
     let temporary = '';
     try {
       temporary = fs.mkdtempSync(path.join(app.getPath('temp'), 'byakugan-sensei-'));
-      progress({ phase: 'preparing', current: 0, total: 24, message: 'Preparing recording' });
-      const extraction = await extractVodFrames({
-        ffmpeg, source: existing.vod.path, outputDirectory: temporary, frameCount: 24, signal: controller.signal,
-        onProgress: progress
-      });
-      progress({ phase: 'loading-model', current: 0, total: extraction.files.length, message: `Loading ${current.senseiVodModel}` });
+      const resumedSegments = Number(existing.vod.checkpoint?.completedSegments) || 0;
+      const expectedSegments = Number(existing.vod.checkpoint?.totalSegments) || 0;
+      progress({ phase: 'preparing', current: resumedSegments, total: expectedSegments, message: resumedSegments ? `Preparing to resume after segment ${resumedSegments}` : 'Preparing full-match analysis' });
+      progress({ phase: 'loading-model', current: resumedSegments, total: expectedSegments, message: `Loading ${current.senseiVodModel}` });
       const repairModel = health.models.some((entry) => String(entry.name).toLowerCase() === String(current.senseiModel || '').toLowerCase())
         ? current.senseiModel
         : current.senseiVodModel;
-      const vodReport = await senseiService.analyzeVod({
-        match, statisticalReport: existing.report, frameFiles: extraction.files, frameTimestamps: extraction.timestamps,
-        frameIntervalSeconds: extraction.intervalSeconds, model: current.senseiVodModel, repairModel, signal: controller.signal, onProgress: progress
+      const vodReport = await senseiService.analyzeFullVod({
+        match, statisticalReport: existing.report, source: existing.vod.path, ffmpeg, outputDirectory: temporary,
+        checkpoint: existing.vod.checkpoint, model: current.senseiVodModel, repairModel, signal: controller.signal, onProgress: progress,
+        onCheckpoint: (checkpoint) => {
+          vodState = { ...vodState, checkpoint, status: 'analyzing', error: '' };
+          senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
+        }
       });
-      progress({ phase: 'saving', current: extraction.files.length, total: extraction.files.length, message: 'Saving report' });
-      const saved = senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' } });
-      progress({ phase: 'complete', current: extraction.files.length, total: extraction.files.length, message: 'VOD analysis complete' });
+      const totalSegments = Number(vodReport.coverage?.totalSegments) || 0;
+      progress({ phase: 'saving', current: totalSegments, total: totalSegments, message: 'Saving full-match report' });
+      vodState = { ...vodState, checkpoint: null, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' };
+      const saved = senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
+      progress({ phase: 'complete', current: totalSegments, total: totalSegments, message: 'Full-match analysis complete' });
       return saved;
     } catch (error) {
       const canceled = error?.code === 'SENSEI_CANCELED' || controller.signal.aborted;
-      const message = canceled ? 'VOD analysis was canceled. The original recording was not changed.' : error.message || 'VOD analysis failed.';
-      senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: canceled ? 'canceled' : 'failed', error: message } });
+      const message = canceled ? 'Full-match analysis paused safely. Resume it later from the saved checkpoint.' : error.message || 'VOD analysis failed.';
+      const latestVod = senseiEntry(matchId)?.vod || vodState;
+      senseiStore.save(senseiAccountId(), matchId, { vod: { ...latestVod, status: canceled ? 'canceled' : 'failed', error: message } });
       progress({ phase: canceled ? 'canceled' : 'failed', current: 0, total: 0, message });
       throw error;
     } finally {
       senseiVodJobs.delete(jobKey);
+      if (Number.isInteger(powerBlockerId) && powerSaveBlocker.isStarted(powerBlockerId)) powerSaveBlocker.stop(powerBlockerId);
       if (temporary) try { fs.rmSync(temporary, { recursive: true, force: true }); } catch {}
     }
   });
@@ -750,6 +759,7 @@ app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
   settings = new SettingsStore(app.getPath('userData'));
   senseiStore = new SenseiStore(app.getPath('userData'));
+  senseiStore.recoverInterruptedVodAnalyses();
   senseiService = new SenseiService();
   if (settings.get().gamingRelayMode && (settings.get().pcRole !== 'gaming' || !settings.get().remoteViewerEnabled)) {
     settings.update({ pcRole: 'gaming', remoteViewerEnabled: true });
