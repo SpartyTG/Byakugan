@@ -581,6 +581,11 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
   const kills = Number(stats.Kills ?? stats.kills ?? 0);
   const deaths = Number(stats.Deaths ?? stats.deaths ?? 0);
   const assists = Number(stats.Assists ?? stats.assists ?? 0);
+  const roundCount = Math.max(1, (detail?.RoundResults || detail?.roundResults || []).length);
+  const scoreValue = Number(stats.Score ?? stats.score);
+  const plantsValue = Number(stats.Plants ?? stats.plants);
+  const defusesValue = Number(stats.Defuses ?? stats.defuses);
+  const econValue = Number(stats.EconomyRating ?? stats.economyRating);
   const characterId = player.CharacterID || player.characterId;
   const mapId = info.MapID || info.mapId;
   const gamePodId = info.GamePodID || info.gamePodId || info.GamePodId || info.gamePod;
@@ -597,11 +602,13 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
   let headshots = 0;
   let bodyshots = 0;
   let legshots = 0;
+  let totalDamage = 0;
   for (const round of detail?.RoundResults || detail?.roundResults || []) {
     const roundPlayer = (round.PlayerStats || round.playerStats || []).find((entry) =>
       (entry.Subject || entry.subject) === puuid
     );
     for (const damage of roundPlayer?.Damage || roundPlayer?.damage || []) {
+      totalDamage += Number(damage.Damage ?? damage.damage ?? 0);
       headshots += Number(damage.Headshots ?? damage.headshots ?? 0);
       bodyshots += Number(damage.Bodyshots ?? damage.bodyshots ?? 0);
       legshots += Number(damage.Legshots ?? damage.legshots ?? 0);
@@ -642,6 +649,11 @@ function normalizeMatchDetail(detail, puuid, metadata, historyRow = {}, ratingUp
     score: `${ownTeam.RoundsWon ?? ownTeam.roundsWon ?? 0} – ${enemyTeam.RoundsWon ?? enemyTeam.roundsWon ?? 0}`,
     kills, deaths, assists,
     kd: deaths ? Number((kills / deaths).toFixed(2)) : kills,
+    acs: Number.isFinite(scoreValue) ? Math.round(scoreValue / roundCount) : null,
+    adr: totalDamage ? Number((totalDamage / roundCount).toFixed(1)) : null,
+    plants: Number.isFinite(plantsValue) ? plantsValue : null,
+    defuses: Number.isFinite(defusesValue) ? defusesValue : null,
+    econRating: Number.isFinite(econValue) ? econValue : null,
     rr,
     rrAfter: Number(ratingUpdate?.RankedRatingAfterUpdate ?? ratingUpdate?.rankedRatingAfterUpdate ?? 0),
     tierAfter: Number(ratingUpdate?.TierAfterUpdate ?? ratingUpdate?.tierAfterUpdate ?? competitiveTier),
@@ -1165,17 +1177,22 @@ class RiotClientService extends EventEmitter {
     return `https://shared.${this.region.shard}.a.pvp.net${endpoint}`;
   }
 
-  async safeRemote(endpoint, service = 'pd') {
+  async safeRemote(endpoint, service = 'pd', options = {}) {
     try {
       const url = service === 'glz' ? this.glzUrl(endpoint) : this.pdUrl(endpoint);
       return (await this.remoteRequest(url)).data;
     } catch (error) {
-      this.diagnostics.push({
-        service,
-        endpoint: endpoint.replace(/[a-f0-9-]{30,}/gi, '{id}'),
-        status: error.status || 0,
-        message: error.message
-      });
+      const ignoredStatuses = Array.isArray(options.ignoredStatuses)
+        ? options.ignoredStatuses.map(Number)
+        : [];
+      if (!ignoredStatuses.includes(Number(error.status || 0))) {
+        this.diagnostics.push({
+          service,
+          endpoint: endpoint.replace(/[a-f0-9-]{30,}/gi, '{id}'),
+          status: error.status || 0,
+          message: error.message
+        });
+      }
       return null;
     }
   }
@@ -1857,7 +1874,7 @@ class RiotClientService extends EventEmitter {
     const [xp, mmr, loadout, history, ratingUpdates, friends, activeSeasonId] = await Promise.all([
       this.safeRemote(`/account-xp/v1/players/${puuid}`),
       this.safeRemote(`/mmr/v1/players/${puuid}`),
-      this.safeRemote(`/personalization/v2/players/${puuid}/playerloadout`),
+      this.safeRemote(`/personalization/v2/players/${puuid}/playerloadout`, 'pd', { ignoredStatuses: [404] }),
       this.safeRemote(`/match-history/v1/history/${puuid}?startIndex=0&endIndex=10`),
       this.safeRemote(`/mmr/v1/players/${puuid}/competitiveupdates?startIndex=0&endIndex=20&queue=competitive`),
       this.fetchFriends(),
@@ -1969,7 +1986,7 @@ class RiotClientService extends EventEmitter {
     const [xp, mmr, loadout, history, updates] = await Promise.all([
       this.safeRemote(`/account-xp/v1/players/${subject}`),
       this.safeRemote(`/mmr/v1/players/${subject}`),
-      this.safeRemote(`/personalization/v2/players/${subject}/playerloadout`),
+      this.safeRemote(`/personalization/v2/players/${subject}/playerloadout`, 'pd', { ignoredStatuses: [404] }),
       this.safeRemote(`/match-history/v1/history/${subject}?startIndex=0&endIndex=50&queue=competitive`),
       this.safeRemote(`/mmr/v1/players/${subject}/competitiveupdates?startIndex=0&endIndex=50&queue=competitive`)
     ]);

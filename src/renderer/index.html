@@ -413,6 +413,27 @@
             </div>
           </article>
 
+          <article class="glass settings-card sensei-settings-card">
+            <div class="settings-heading"><span class="setting-icon">眼</span><div><h2>Sensei Vision</h2><p>Optional, user-initiated post-match coaching processed on this computer.</p></div><span class="sensei-state-chip" id="senseiSettingsChip">DISABLED</span></div>
+            <div class="sensei-safety-note"><strong>No paid API and no live coaching</strong><span>Nothing downloads or analyzes automatically. Sensei never reads or modifies VALORANT files and should run on the streaming PC in a dual-PC setup.</span></div>
+            <label class="toggle-row"><span><strong>Enable Sensei Vision</strong><small>Add the manual Sensei controls to completed matches.</small></span><input type="checkbox" id="senseiEnabled"><i></i></label>
+            <label class="range-row"><span><strong>Coaching tier</strong><small>Lite uses BYAKUGAN's built-in offline statistics engine. Sensei uses a local Ollama model for deeper coaching.</small></span><select id="senseiTier"><option value="lite">Sensei Lite — lowest usage</option><option value="sensei">Sensei — local model</option></select></label>
+            <label class="sensei-model-row" id="senseiModelRow"><span><strong>Sensei model</strong><small>Enter or select an installed Ollama text model. BYAKUGAN never downloads one without your action.</small></span><input type="text" id="senseiModel" list="senseiInstalledModels" placeholder="Example: qwen2.5:7b" maxlength="120"></label>
+            <div class="sensei-divider"></div>
+            <label class="toggle-row"><span><strong>Enable VOD Vision add-on</strong><small>Allow completed matches to import a clean MP4, MKV, MOV, or WebM recording for local visual review.</small></span><input type="checkbox" id="senseiVodEnabled"><i></i></label>
+            <label class="sensei-model-row" id="senseiVodModelRow"><span><strong>Vision model</strong><small>Select an installed vision-capable Ollama model. VOD Vision also requires FFmpeg.</small></span><input type="text" id="senseiVodModel" list="senseiInstalledModels" placeholder="Vision-capable Ollama model" maxlength="120"></label>
+            <label class="toggle-row"><span><strong>Offer VOD cleanup after reading</strong><small>After a completed visual report, offer to move the original recording to the Windows Recycle Bin. The saved report remains.</small></span><input type="checkbox" id="senseiOfferVodCleanup"><i></i></label>
+            <datalist id="senseiInstalledModels"></datalist>
+            <div class="sensei-system-status" id="senseiSystemStatus"><span>Open Settings to check local model and FFmpeg readiness.</span></div>
+            <button type="button" class="ghost-button" id="checkSenseiSystem">Check local setup</button>
+            <details class="sensei-guide"><summary>Setup and usage guide</summary><div>
+              <h3>Sensei Lite</h3><ol><li>Enable Sensei Vision.</li><li>Choose Sensei Lite.</li><li>Open a completed match and select Run Sensei Vision.</li><li>Read the saved report or ask a short follow-up.</li></ol>
+              <h3>Full Sensei</h3><ol><li>Install <a href="https://ollama.com/download" target="_blank" rel="noreferrer">Ollama</a>.</li><li>Use Ollama to download a compatible text model.</li><li>Choose Sensei and enter that installed model's exact name.</li><li>Run it manually from a completed match. No usage fee is charged.</li></ol>
+              <h3>Clean VOD Vision</h3><ol><li>Install the <a href="https://obsproject.com/forum/resources/source-record.1285/" target="_blank" rel="noreferrer">OBS Source Record plugin</a> on the streaming PC.</li><li>Record the capture-card gameplay source without webcam, alerts, or overlays.</li><li>Install FFmpeg or set the BYAKUGAN_FFMPEG_PATH environment variable.</li><li>Install a vision-capable Ollama model and enter its name above.</li><li>Open the match, import its recording, then select Analyze VOD. BYAKUGAN reviews sampled frames across the full recording; it does not pretend to inspect unseen moments.</li></ol>
+              <h3>Usage impact</h3><p>Lite adds negligible load and no VOD storage. Full Sensei temporarily uses local CPU/GPU and memory while generating. VOD Vision adds a second recording encode, uses the recording's disk space, extracts up to 24 temporary frames, and runs the vision model. Temporary frames are removed after every attempt. The setup check shows installed model sizes, system memory, available storage, and FFmpeg readiness before analysis.</p>
+            </div></details>
+          </article>
+
           <article class="glass settings-card about-card">
             <div class="brand-mark large"><span></span></div>
             <h2>BYAKUGAN</h2>

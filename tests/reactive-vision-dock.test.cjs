@@ -81,19 +81,15 @@ test('BYAKUGAN Shift preserves an outgoing frame and animates the incoming state
   assert.match(styles, /@keyframes byakugan-shift-scan/);
 });
 
-test('BYAKUGAN Shift has a longer eye hold and optional original audio cue', () => {
+test('BYAKUGAN Shift has a longer eye hold and optional bundled cinematic audio cue', () => {
   assert.match(script, /function playByakuganShiftSound/);
   assert.match(script, /preferences\.transitionSound !== true/);
-  assert.match(script, /window\.AudioContext \|\| window\.webkitAudioContext/);
-  assert.match(script, /createOscillator/);
-  assert.match(script, /createBufferSource/);
-  assert.match(script, /createDynamicsCompressor/);
-  assert.match(script, /const reverseSwell/);
-  assert.match(script, /const ocularSnap/);
-  assert.match(script, /const subImpact/);
-  assert.match(script, /const shadowRumble/);
-  assert.doesNotMatch(script, /eye\.type = 'triangle'/);
-  assert.doesNotMatch(script, /frequency\.exponentialRampToValueAtTime\(1_180/);
+  assert.match(script, /function prepareByakuganShiftSound/);
+  assert.match(script, /new Audio\('\/byakugan-eye-activation\.mp3'\)/);
+  assert.match(script, /byakuganShiftAudio\.preload = 'auto'/);
+  assert.match(script, /audio\.currentTime = 0/);
+  assert.match(script, /audio\.play\(\)/);
+  assert.doesNotMatch(script, /window\.AudioContext/);
   assert.match(script, /playByakuganShiftSound\(latestOverlayData\?\.preferences\)/);
   assert.match(script, /transitionPreviewMode \? 1_450 : 1_000/);
   assert.match(styles, /animation:\s*byakugan-shift-eye 1\.03s/);

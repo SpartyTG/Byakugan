@@ -383,6 +383,7 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-security-policy'), /connect-src 'self'/);
     assert.match(page.headers.get('content-security-policy'), /img-src 'self'/);
+    assert.match(page.headers.get('content-security-policy'), /media-src 'self'/);
     const pageHtml = await page.text();
     assert.match(pageHtml, /BYAKUGAN Session Overlay/);
     assert.match(pageHtml, /rank-last-match-record[\s\S]*rr-track[\s\S]*rank-session-record/);
@@ -393,6 +394,11 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     assert.equal(beam.status, 200);
     assert.equal(beam.headers.get('content-type'), 'image/gif');
     assert.equal(Buffer.from(await beam.arrayBuffer()).subarray(0, 6).toString('ascii'), 'GIF89a');
+
+    const activationSound = await fetch(`http://127.0.0.1:${status.port}/byakugan-eye-activation.mp3`);
+    assert.equal(activationSound.status, 200);
+    assert.equal(activationSound.headers.get('content-type'), 'audio/mpeg');
+    assert.equal(Buffer.from(await activationSound.arrayBuffer()).subarray(0, 3).toString('ascii'), 'ID3');
 
     const denied = await fetch(`http://127.0.0.1:${status.port}/snapshot?token=wrong`);
     assert.equal(denied.status, 404);

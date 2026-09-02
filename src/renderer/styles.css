@@ -968,3 +968,44 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
   .tactical-event-list { max-height: 260px; }
   .igl-signal-grid { grid-template-columns: 1fr; }
 }
+
+/* Sensei Vision is deliberately isolated from the existing dashboard tokens. */
+.sensei-settings-card { grid-column: 1 / -1; }
+.sensei-settings-card .settings-heading { align-items: center; }
+.sensei-settings-card .settings-heading > div { flex: 1; }
+.sensei-state-chip, .sensei-status-chip { display: inline-flex; align-items: center; justify-content: center; min-height: 25px; padding: 0 10px; border: 1px solid rgba(159,141,255,.28); border-radius: 999px; background: rgba(123,103,246,.1); color: var(--violet-light); font-size: 8px; font-weight: 900; letter-spacing: .12em; }
+.sensei-state-chip.ready, .sensei-status-chip.ready { border-color: rgba(35,212,184,.3); background: rgba(35,212,184,.1); color: var(--teal); }
+.sensei-status-chip.failed { border-color: rgba(238,92,120,.3); background: rgba(238,92,120,.1); color: var(--red); }
+.sensei-safety-note { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; padding: 13px 15px; border: 1px solid rgba(35,212,184,.17); border-radius: 12px; background: rgba(35,212,184,.045); }
+.sensei-safety-note strong { color: var(--teal); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.sensei-safety-note span { color: var(--muted); font-size: 10px; line-height: 1.55; }
+.sensei-model-row { display: grid; grid-template-columns: minmax(220px,1fr) minmax(240px,.65fr); align-items: center; gap: 18px; min-height: 62px; border-bottom: 1px solid var(--border); }
+.sensei-model-row span strong, .sensei-model-row span small { display: block; }
+.sensei-model-row span strong { font-size: 11px; }
+.sensei-model-row span small { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.sensei-model-row input { min-width: 0; height: 38px; padding: 0 11px; border: 1px solid var(--border-strong); border-radius: 9px; background: #0a0d17; color: var(--text); }
+.sensei-divider { height: 1px; margin: 14px 0; background: linear-gradient(90deg, transparent, rgba(159,141,255,.3), transparent); }
+.sensei-system-status { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 14px 0 10px; }
+.sensei-system-status span { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.sensei-system-status strong { display: block; margin-bottom: 3px; color: var(--text); font-size: 10px; }
+.sensei-guide { margin-top: 13px; border: 1px solid var(--border); border-radius: 12px; background: rgba(5,7,13,.38); }
+.sensei-guide summary { padding: 13px 15px; cursor: pointer; color: var(--violet-light); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.sensei-guide > div { padding: 0 18px 17px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.sensei-guide h3 { margin: 16px 0 5px; color: var(--text); font-size: 11px; }.sensei-guide ol { margin: 5px 0 0; padding-left: 18px; }.sensei-guide a { color: var(--teal); }
+.sensei-panel { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.sensei-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.sensei-panel-head h2 { margin: 4px 0 0; font-size: 21px; }.sensei-panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.sensei-empty { margin-top: 14px; padding: 20px; border: 1px dashed rgba(159,141,255,.25); border-radius: 14px; background: linear-gradient(125deg,rgba(123,103,246,.06),rgba(35,212,184,.025)); }.sensei-empty strong, .sensei-empty span { display: block; }.sensei-empty strong { font-size: 13px; }.sensei-empty span { max-width: 760px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.sensei-error { margin-top: 13px; padding: 12px 14px; border: 1px solid rgba(238,92,120,.25); border-radius: 10px; background: rgba(238,92,120,.07); color: #ff9daf; font-size: 10px; }
+.sensei-report { margin-top: 15px; display: grid; gap: 12px; }.sensei-verdict { padding: 18px; border: 1px solid rgba(159,141,255,.2); border-radius: 14px; background: radial-gradient(circle at 0 0,rgba(123,103,246,.13),transparent 42%),rgba(8,10,19,.62); }.sensei-verdict small { color: var(--violet-light); font-size: 8px; font-weight: 850; letter-spacing: .15em; }.sensei-verdict p { margin: 8px 0 0; font-size: 13px; line-height: 1.55; }
+.sensei-scorecard { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; }.sensei-scorecard span { padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.02); }.sensei-scorecard small, .sensei-scorecard strong { display: block; }.sensei-scorecard small { color: var(--muted); font-size: 7px; letter-spacing: .11em; }.sensei-scorecard strong { margin-top: 4px; font-size: 11px; text-transform: uppercase; }.sensei-scorecard .high strong { color: var(--teal); }.sensei-scorecard .low strong { color: var(--red); }.sensei-scorecard .average strong { color: var(--amber); }
+.sensei-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.sensei-section-card { padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: rgba(9,11,20,.62); }.sensei-section-card h3 { margin: 0 0 9px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }.sensei-section-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 10px; line-height: 1.55; }.sensei-section-card li + li { margin-top: 7px; }
+.sensei-drills { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }.sensei-drill { padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: rgba(9,11,20,.62); }.sensei-drill h3 { margin: 0 0 8px; font-size: 12px; }.sensei-drill p { margin: 5px 0; color: var(--muted); font-size: 9px; line-height: 1.5; }.sensei-drill strong { color: var(--teal); }
+.sensei-focus { padding: 15px 17px; border-left: 3px solid var(--teal); border-radius: 4px 12px 12px 4px; background: rgba(35,212,184,.065); }.sensei-focus small { display: block; color: var(--teal); font-size: 8px; font-weight: 850; letter-spacing: .13em; }.sensei-focus strong { display: block; margin-top: 5px; font-size: 13px; }.sensei-citations { color: var(--muted); font-size: 8px; line-height: 1.55; }
+.sensei-vod-card, .sensei-chat { padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: rgba(9,11,20,.62); }.sensei-vod-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.sensei-vod-head h3 { margin: 0; font-size: 12px; }.sensei-vod-head p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }.sensei-vod-findings { margin-top: 12px; display: grid; gap: 7px; }.sensei-vod-finding { display: grid; grid-template-columns: 55px 110px 1fr; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 9px; font-size: 9px; }.sensei-vod-finding time { color: var(--teal); font-weight: 800; }.sensei-vod-finding b { color: var(--violet-light); }.sensei-vod-finding span { color: var(--muted); line-height: 1.45; }
+.sensei-chat-log { max-height: 230px; overflow-y: auto; display: grid; gap: 7px; margin-bottom: 10px; }.sensei-chat-message { padding: 9px 11px; border-radius: 9px; background: rgba(255,255,255,.025); color: var(--muted); font-size: 9px; line-height: 1.5; }.sensei-chat-message.assistant { border-left: 2px solid var(--violet-light); }.sensei-chat-message.user { border-left: 2px solid var(--teal); }.sensei-chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }.sensei-chat-form input { min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 9px; background: #090c15; color: var(--text); }
+@media (max-width: 920px) {
+  .sensei-model-row { grid-template-columns: 1fr; padding: 10px 0; gap: 8px; }
+  .sensei-system-status, .sensei-scorecard { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .sensei-columns, .sensei-drills { grid-template-columns: 1fr; }
+  .sensei-vod-finding { grid-template-columns: 55px 1fr; }.sensei-vod-finding span { grid-column: 1 / -1; }
+}

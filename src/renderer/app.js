@@ -16,7 +16,9 @@ const state = {
   customOverlayCanvasState: 'between',
   overlayStatus: null,
   remoteStatus: null,
-  updateStatus: null
+  updateStatus: null,
+  senseiStatus: null,
+  senseiBusy: false
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -490,6 +492,64 @@ function iglReviewMarkup(match, selectedRound) {
   return `<section class="igl-review"><div class="panel-heading"><div><p class="eyebrow">IGL REVIEW</p><h2>${escapeHtml(review.title)}</h2></div><span class="feature-chip">POST-MATCH ONLY</span></div><p class="igl-summary">${escapeHtml(review.summary)}</p>${focus}<div class="igl-signal-grid">${strengths}${priorities}</div><p class="igl-disclaimer">IGL Review explains patterns supported by completed-match events. It does not read communications, intent, utility placement, or live opponent strategy.</p></section>`;
 }
 
+function senseiPanelShell() {
+  return `<section class="sensei-panel" id="senseiPanel"><div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><span class="sensei-status-chip">LOADING</span></div><div class="sensei-empty"><strong>Loading saved analysis…</strong><span>Saved reports open without starting a new analysis.</span></div></section>`;
+}
+
+function senseiList(items) {
+  return `<ul>${(items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
+
+function senseiVodMarkup(entry) {
+  const vod = entry?.vod;
+  if (!state.settings?.senseiVodEnabled) return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision add-on</h3><p>Enable this optional local feature in Settings to import a clean gameplay recording.</p></div><button class="ghost-button" data-sensei-settings>Settings</button></div></div>`;
+  const file = vod?.name ? `${vod.name} • ${formatBytes(vod.size)}` : 'No recording attached';
+  const analyzed = vod?.report;
+  const findings = (analyzed?.findings || []).map((finding) => `<div class="sensei-vod-finding"><time>${escapeHtml(finding.timestamp || '—')}</time><b>${escapeHtml(finding.category || 'Decision')}</b><span>${escapeHtml(finding.observation)}${finding.evidence ? `<br><small>${escapeHtml(finding.evidence)}</small>` : ''}</span></div>`).join('');
+  const actions = vod?.status === 'analyzing'
+    ? '<button class="ghost-button" disabled>Analyzing locally…</button>'
+    : vod?.path
+      ? `<button class="ghost-button" data-sensei-vod-import>Replace VOD</button><button class="primary-button" data-sensei-vod-analyze>${analyzed ? 'Regenerate VOD analysis' : 'Analyze VOD'}</button>${analyzed ? '<button class="ghost-button danger" data-sensei-vod-delete>I’ve read it — remove VOD</button>' : ''}`
+      : '<button class="primary-button" data-sensei-vod-import>Import clean VOD</button>';
+  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ''}</p></div><div class="sensei-panel-actions">${actions}</div></div>${vod?.error ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${escapeHtml(analyzed.framesReviewed || 0)} FRAMES</small><p>${escapeHtml(analyzed.summary)}</p></div><div class="sensei-vod-findings">${findings || '<div class="empty-state">No defensible visual findings were returned.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
+}
+
+function renderSenseiPanel(entry) {
+  const panel = $('#senseiPanel');
+  if (!panel) return;
+  if (!state.settings?.senseiEnabled) {
+    panel.innerHTML = `<div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><span class="sensei-status-chip">OPTIONAL</span></div><div class="sensei-empty"><strong>Sensei Vision is disabled</strong><span>Enable Sensei Lite or a local Sensei model in Settings. Nothing downloads or runs automatically.</span><button class="ghost-button" data-sensei-settings>Review setup</button></div>`;
+    return;
+  }
+  const status = entry?.status || 'not-analyzed';
+  const label = status === 'not-analyzed' ? 'NOT ANALYZED' : status === 'analyzing' ? 'ANALYZING…' : status === 'ready' ? 'READY' : 'FAILED';
+  const actions = status === 'analyzing'
+    ? '<button class="primary-button" disabled>Analyzing locally…</button>'
+    : status === 'ready'
+      ? '<button class="ghost-button" data-sensei-run data-regenerate="true">Regenerate</button>'
+      : '<button class="primary-button" data-sensei-run>Run Sensei Vision</button>';
+  let body = '';
+  if (status === 'not-analyzed') body = `<div class="sensei-empty"><strong>Analyze this completed match when you’re ready</strong><span>${state.settings.senseiTier === 'lite' ? 'Sensei Lite uses the built-in offline statistics engine with negligible load.' : 'Full Sensei uses your selected local Ollama model. It does not run during live play.'}</span></div>`;
+  if (status === 'failed') body = `<div class="sensei-error">${escapeHtml(entry?.error || 'The local analysis failed. Review Settings and try again.')}</div>`;
+  if (status === 'ready' && entry.report) {
+    const report = entry.report;
+    const scorecard = Object.entries(report.scorecard || {}).map(([key, value]) => `<span class="${escapeHtml(value)}"><small>${escapeHtml(key)}</small><strong>${escapeHtml(value)}</strong></span>`).join('');
+    const drills = (report.drills || []).map((drill) => `<article class="sensei-drill"><h3>${escapeHtml(drill.name)}</h3><p><strong>Run it:</strong> ${escapeHtml(drill.setup)}</p><p><strong>Done:</strong> ${escapeHtml(drill.success)}</p></article>`).join('');
+    const chat = (entry.chat || []).map((message) => `<div class="sensei-chat-message ${escapeHtml(message.role)}"><strong>${message.role === 'assistant' ? 'SENSEI' : 'YOU'}</strong><br>${escapeHtml(message.text)}</div>`).join('');
+    body = `<div class="sensei-report"><div class="sensei-verdict"><small>MATCH VERDICT • ${escapeHtml(entry.tier === 'sensei' ? 'FULL SENSEI' : 'SENSEI LITE')}</small><p>${escapeHtml(report.verdict)}</p></div><div class="sensei-scorecard">${scorecard}</div><div class="sensei-columns"><article class="sensei-section-card"><h3>Strengths</h3>${senseiList(report.strengths)}</article><article class="sensei-section-card"><h3>Weaknesses</h3>${senseiList(report.weaknesses)}</article></div><div class="sensei-drills">${drills}</div><div class="sensei-focus"><small>NEXT-MATCH FOCUS</small><strong>${escapeHtml(report.focusRule)}</strong></div><div class="sensei-citations">Evidence: ${(report.citations || []).map(escapeHtml).join(' • ')}</div>${senseiVodMarkup(entry)}<div class="sensei-chat"><div class="sensei-vod-head"><div><h3>Ask Sensei</h3><p>Short follow-up using this saved match report only.</p></div></div><div class="sensei-chat-log">${chat || '<div class="sensei-chat-message assistant">Ask about a weakness, drill, or next-match focus. This does not rerun the analysis.</div>'}</div><form class="sensei-chat-form" data-sensei-chat><input name="question" maxlength="1000" placeholder="Ask about this match…" required><button class="ghost-button">Ask</button></form></div></div>`;
+  }
+  panel.innerHTML = `<div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><div class="sensei-panel-actions"><span class="sensei-status-chip ${status}">${label}</span>${actions}</div></div>${body}`;
+}
+
+async function hydrateSenseiPanel(matchId) {
+  try {
+    const entry = await window.companion.getSenseiReport(matchId);
+    if (state.openMatchId === matchId) renderSenseiPanel(entry);
+  } catch (error) {
+    if (state.openMatchId === matchId) renderSenseiPanel({ status: 'failed', error: error.message });
+  }
+}
+
 function openMatchAutopsy(matchId) {
   const match = findMatchById(matchId);
   if (!match) return;
@@ -509,8 +569,9 @@ function openMatchAutopsy(matchId) {
   const rosterMarkup = roster.length ? `<div class="postmatch-roster"><section><div class="postmatch-team-title"><span>YOUR TEAM</span><small>${escapeHtml(allies.length)} PLAYERS</small></div>${allies.map(historicalPlayerRow).join('')}</section><section><div class="postmatch-team-title enemy"><span>OPPONENTS</span><small>${escapeHtml(enemies.length)} PLAYERS</small></div>${enemies.map(historicalPlayerRow).join('')}</section></div>` : '<div class="empty-state">Riot did not return the roster for this match.</div>';
   const tacticalMarkup = tacticalMapMarkup(match, state.autopsyRound);
   const coachingMarkup = iglReviewMarkup(match, state.autopsyRound);
-  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">Select a round to focus the review</span></div><div class="round-timeline">${rounds.map((round) => `<button type="button" data-tactical-round="${escapeHtml(round.round)}" class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''} ${state.autopsyRound === String(round.round) ? 'active' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></button>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div>${tacticalMarkup}${coachingMarkup}<div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
+  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">Select a round to focus the review</span></div><div class="round-timeline">${rounds.map((round) => `<button type="button" data-tactical-round="${escapeHtml(round.round)}" class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''} ${state.autopsyRound === String(round.round) ? 'active' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></button>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div>${tacticalMarkup}${coachingMarkup}${senseiPanelShell()}<div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
   $('#matchModal').hidden = false;
+  hydrateSenseiPanel(matchId);
 }
 
 function closeMatchAutopsy() {
@@ -656,7 +717,7 @@ function renderDiagnostics() {
   const target = $('#diagnosticList');
   if (!target) return;
   if (!diagnostics.length) {
-    target.innerHTML = '<div class="diagnostic-ok">✓ All requested data sources responded.</div>';
+    target.innerHTML = '<div class="diagnostic-ok">✓ All required data sources are healthy.</div>';
     return;
   }
   target.innerHTML = diagnostics.map((item) => `<div class="diagnostic-row"><span>${escapeHtml(item.service.toUpperCase())}</span><strong>${escapeHtml(item.status || 'ERR')}</strong><small>${escapeHtml(item.endpoint)}</small></div>`).join('');
@@ -747,6 +808,22 @@ function navigate(view) {
   text('#pageTitle', viewMeta[view][1]);
   $('.main').scrollTo({ top: 0, behavior: 'smooth' });
   if (view === 'stream' && state.settings?.streamOverlayLayout === 'custom') requestAnimationFrame(renderCustomOverlayBuilder);
+  if (view === 'settings') refreshSenseiStatus();
+}
+
+async function refreshSenseiStatus() {
+  const container = $('#senseiSystemStatus');
+  if (!container) return;
+  container.innerHTML = '<span>Checking local setup…</span>';
+  try {
+    const status = await window.companion.getSenseiStatus();
+    state.senseiStatus = status;
+    const models = status.models || [];
+    $('#senseiInstalledModels').innerHTML = models.map((model) => `<option value="${escapeHtml(model.name)}"></option>`).join('');
+    container.innerHTML = `<span><strong>LOCAL ENGINE</strong>${status.connected ? 'Ollama detected' : 'Ollama not running'}</span><span><strong>INSTALLED MODELS</strong>${escapeHtml(models.length)}</span><span><strong>SYSTEM MEMORY</strong>${escapeHtml(status.memoryGb)} GB • ${escapeHtml(status.cpuCores)} CPU threads</span><span><strong>VOD READINESS</strong>${status.ffmpegAvailable ? 'FFmpeg detected' : 'FFmpeg not detected'} • ${formatBytes(status.freeStorage)} free</span>`;
+  } catch (error) {
+    container.innerHTML = `<span><strong>SETUP CHECK FAILED</strong>${escapeHtml(error.message || 'Local setup could not be checked.')}</span>`;
+  }
 }
 
 function syncSettingsForm() {
@@ -757,6 +834,22 @@ function syncSettingsForm() {
   $('#compactMatches').checked = Boolean(settings.compactMatches);
   $('#uiScale').value = String(settings.uiScale || 100);
   $('#refreshSeconds').value = String(settings.refreshSeconds || 30);
+  $('#senseiEnabled').checked = Boolean(settings.senseiEnabled);
+  $('#senseiTier').value = settings.senseiTier || 'lite';
+  $('#senseiModel').value = settings.senseiModel || '';
+  $('#senseiVodEnabled').checked = Boolean(settings.senseiVodEnabled);
+  $('#senseiVodModel').value = settings.senseiVodModel || '';
+  $('#senseiOfferVodCleanup').checked = Boolean(settings.senseiOfferVodCleanup);
+  $('#senseiTier').disabled = !settings.senseiEnabled;
+  $('#senseiModel').disabled = !settings.senseiEnabled || settings.senseiTier !== 'sensei';
+  $('#senseiVodEnabled').disabled = !settings.senseiEnabled;
+  $('#senseiVodModel').disabled = !settings.senseiEnabled || !settings.senseiVodEnabled;
+  $('#senseiOfferVodCleanup').disabled = !settings.senseiEnabled || !settings.senseiVodEnabled;
+  $('#senseiModelRow').hidden = settings.senseiTier !== 'sensei';
+  $('#senseiVodModelRow').hidden = !settings.senseiVodEnabled;
+  const senseiChip = $('#senseiSettingsChip');
+  senseiChip.textContent = settings.senseiEnabled ? (settings.senseiTier === 'sensei' ? 'SENSEI' : 'LITE READY') : 'DISABLED';
+  senseiChip.classList.toggle('ready', Boolean(settings.senseiEnabled));
   $('#pcRole').value = settings.pcRole || 'gaming';
   $('#gamingRelayMode').checked = Boolean(settings.gamingRelayMode);
   $('#remoteViewerEnabled').checked = Boolean(settings.remoteViewerEnabled);
@@ -1300,6 +1393,63 @@ async function saveSettingsPatch(patch, feedback = true) {
   if (feedback) toast('Settings saved', 'Your preferences were updated.');
 }
 
+async function runSenseiForOpenMatch(regenerate = false) {
+  if (state.senseiBusy || !state.openMatchId) return;
+  if (regenerate && !window.confirm('Regenerate Sensei Vision for this match? The saved report and its Ask Sensei thread will be replaced.')) return;
+  state.senseiBusy = true;
+  renderSenseiPanel({ status: 'analyzing' });
+  try {
+    const entry = await window.companion.runSensei({ matchId: state.openMatchId, regenerate });
+    renderSenseiPanel(entry);
+    toast('Sensei Vision ready', 'The report was saved to this completed match.');
+  } catch (error) {
+    const entry = await window.companion.getSenseiReport(state.openMatchId).catch(() => ({ status: 'failed', error: error.message }));
+    renderSenseiPanel(entry);
+    toast('Sensei analysis failed', error.message || 'Review Sensei Settings and try again.', 'error');
+  } finally { state.senseiBusy = false; }
+}
+
+async function importSenseiVod() {
+  if (state.senseiBusy || !state.openMatchId) return;
+  try {
+    const entry = await window.companion.importSenseiVod(state.openMatchId);
+    if (entry?.canceled) return;
+    renderSenseiPanel(entry);
+    toast('VOD attached', 'Confirm this recording matches the selected match, then run VOD analysis.');
+  } catch (error) { toast('VOD import failed', error.message, 'error'); }
+}
+
+async function analyzeSenseiVod() {
+  if (state.senseiBusy || !state.openMatchId) return;
+  if (!window.confirm('Analyze this recording locally? VOD Vision can use substantial CPU/GPU and memory. Avoid starting it during a live stream unless the streaming PC has adequate headroom.')) return;
+  state.senseiBusy = true;
+  const existing = await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
+  renderSenseiPanel(existing ? { ...existing, vod: { ...existing.vod, status: 'analyzing' } } : existing);
+  try {
+    const entry = await window.companion.analyzeSenseiVod(state.openMatchId);
+    renderSenseiPanel(entry);
+    toast('VOD Vision ready', state.settings.senseiOfferVodCleanup ? 'Read the report, then use “I’ve read it — remove VOD” to reclaim storage.' : 'The visual findings were saved to this match.');
+  } catch (error) {
+    const entry = await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
+    if (entry) renderSenseiPanel(entry);
+    toast('VOD analysis failed', error.message, 'error');
+  } finally { state.senseiBusy = false; }
+}
+
+async function deleteSenseiVod() {
+  if (state.senseiBusy || !state.openMatchId) return;
+  const entry = await window.companion.getSenseiReport(state.openMatchId);
+  const vod = entry?.vod;
+  if (!vod?.path) return;
+  const confirmed = window.confirm(`You confirmed that you have read the saved VOD report. Move this original recording to the Windows Recycle Bin?\n\n${vod.path}\n${formatBytes(vod.size)}\n\nThe written report remains available, but visual analysis cannot be regenerated without reimporting a video.`);
+  if (!confirmed) return;
+  try {
+    const next = await window.companion.deleteSenseiVod({ matchId: state.openMatchId, confirmed: true });
+    renderSenseiPanel(next);
+    toast('VOD moved to Recycle Bin', 'The complete saved Sensei report remains attached to this match.');
+  } catch (error) { toast('VOD could not be removed', error.message, 'error'); }
+}
+
 function bindEvents() {
   $$('.nav-item').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.view)));
   $$('[data-jump]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.jump)));
@@ -1327,6 +1477,12 @@ function bindEvents() {
   $('#shareMatch').addEventListener('click', exportMatchRecap);
   $('#matchModal').addEventListener('click', (event) => { if (event.target === $('#matchModal')) closeMatchAutopsy(); });
   $('#matchAutopsyContent').addEventListener('click', (event) => {
+    if (event.target.closest('[data-sensei-settings]')) { closeMatchAutopsy(); navigate('settings'); return; }
+    const runSensei = event.target.closest('[data-sensei-run]');
+    if (runSensei) { runSenseiForOpenMatch(runSensei.dataset.regenerate === 'true'); return; }
+    if (event.target.closest('[data-sensei-vod-import]')) { importSenseiVod(); return; }
+    if (event.target.closest('[data-sensei-vod-analyze]')) { analyzeSenseiVod(); return; }
+    if (event.target.closest('[data-sensei-vod-delete]')) { deleteSenseiVod(); return; }
     const round = event.target.closest('[data-tactical-round]');
     if (round) {
       state.autopsyRound = String(round.dataset.tacticalRound || 'ALL');
@@ -1345,6 +1501,21 @@ function bindEvents() {
   $('#matchAutopsyContent').addEventListener('mouseout', (event) => hideTacticalTooltip(event.target, event.relatedTarget));
   $('#matchAutopsyContent').addEventListener('focusin', (event) => showTacticalTooltip(event.target));
   $('#matchAutopsyContent').addEventListener('focusout', (event) => hideTacticalTooltip(event.target, event.relatedTarget));
+  $('#matchAutopsyContent').addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-sensei-chat]');
+    if (!form) return;
+    event.preventDefault();
+    const input = form.elements.question;
+    const question = input.value.trim();
+    if (!question || state.senseiBusy) return;
+    state.senseiBusy = true;
+    input.disabled = true;
+    try {
+      const entry = await window.companion.askSensei({ matchId: state.openMatchId, question });
+      renderSenseiPanel(entry);
+    } catch (error) { toast('Ask Sensei failed', error.message, 'error'); }
+    finally { state.senseiBusy = false; }
+  });
   $('#allyRoster').addEventListener('click', (event) => {
     const row = event.target.closest('[data-player-id]');
     if (row) openPlayerProfile(row.dataset.playerId);
@@ -1395,6 +1566,20 @@ function bindEvents() {
     toast('Interface scale updated', `BYAKUGAN is now displayed at ${uiScale}%.`);
   });
   $('#refreshSeconds').addEventListener('change', (event) => saveSettingsPatch({ refreshSeconds: Number(event.target.value) }, false));
+  $('#senseiEnabled').addEventListener('change', async (event) => {
+    await saveSettingsPatch({ senseiEnabled: event.target.checked }, false);
+    toast(event.target.checked ? 'Sensei Vision enabled' : 'Sensei Vision disabled', event.target.checked ? 'Completed matches now offer manual post-match analysis.' : 'Saved reports remain stored and no analysis controls are active.');
+    refreshSenseiStatus();
+  });
+  $('#senseiTier').addEventListener('change', (event) => saveSettingsPatch({ senseiTier: event.target.value }, false));
+  $('#senseiModel').addEventListener('change', (event) => saveSettingsPatch({ senseiModel: event.target.value.trim() }, false));
+  $('#senseiVodEnabled').addEventListener('change', async (event) => {
+    await saveSettingsPatch({ senseiVodEnabled: event.target.checked }, false);
+    refreshSenseiStatus();
+  });
+  $('#senseiVodModel').addEventListener('change', (event) => saveSettingsPatch({ senseiVodModel: event.target.value.trim() }, false));
+  $('#senseiOfferVodCleanup').addEventListener('change', (event) => saveSettingsPatch({ senseiOfferVodCleanup: event.target.checked }, false));
+  $('#checkSenseiSystem').addEventListener('click', refreshSenseiStatus);
   $('#pcRole').addEventListener('change', async (event) => {
     const role = event.target.value;
     await saveSettingsPatch({ pcRole: role }, false);

@@ -28,6 +28,41 @@ players and streamers. Its analysis features focus on reflection and coaching
 after gameplay, while its streaming tools make personal performance data easy
 to present without interrupting the game.
 
+## Sensei Vision
+
+Sensei Vision is an optional, user-initiated post-match coaching workspace. It
+never runs during a match, on page load, or across match history in bulk. A
+completed match can be analyzed independently, and the resulting structured
+report is saved locally under that player and match so reopening it does not
+invoke the coach again.
+
+- **Sensei Lite** is BYAKUGAN's built-in offline statistics coach. It has no
+  model download, no per-use fee, and negligible resource impact.
+- **Sensei** uses a model the user has installed in local Ollama for a deeper
+  statistics debrief. No API key, cloud request, subscription, or per-use fee
+  is required; the model temporarily consumes local CPU/GPU and memory only
+  while the user asks it to run.
+- **VOD Vision** is a separate opt-in add-on. A user may attach a clean MP4,
+  MKV, MOV, or WebM recording to a saved match report. FFmpeg extracts up to 24
+  temporary samples across the recording and a user-selected local vision model
+  reviews only those visible samples. BYAKUGAN does not claim that this is a
+  frame-by-frame review or that it observed anything absent from those samples.
+
+Every report contains a match verdict, a five-part scorecard, up to three
+strengths and weaknesses, exactly three runnable drills, one next-match focus
+rule, and short statistical citations. Missing data is omitted rather than
+invented. Failures remain visible and recoverable instead of producing a fake
+report. The optional Ask Sensei field uses the saved report and same match
+context; it does not start a new analysis.
+
+For streamers, the recommended VOD workflow is OBS Source Record on the
+streaming PC, recording only the capture-card gameplay source so the minimap is
+not covered by webcam or overlay elements. Imported recordings remain in their
+original location. After reading a visual report, the user may explicitly
+confirm moving that exact recording to the Windows Recycle Bin; the written
+report remains available. Temporary extracted images are removed after every
+analysis attempt. Nothing is automatically deleted.
+
 ## Creator, inspiration, and development disclosure
 
 BYAKUGAN's creative direction, product design, original feature concepts,
@@ -52,12 +87,17 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.75
+## Included in version 0.8.0-beta.77
 
 - Original desktop dashboard and navigation
+- Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
+- **Sensei Lite** built into BYAKUGAN for evidence-based statistical coaching without a model download, cloud service, API key, subscription, or per-use fee
+- Optional full **Sensei** through a user-installed local Ollama text model, including recent-overall, same-agent, and same-map baseline comparisons plus match-scoped Ask Sensei follow-ups
+- Optional sampled **VOD Vision** through FFmpeg and a user-installed local vision-capable Ollama model, with clean OBS Source Record guidance, resource/readiness checks, temporary-frame cleanup, and explicit Recycle Bin removal that preserves the written report
 - App-wide interface scaling at 100%, 125%, 150%, 175%, or 200%, applied immediately and persisted per computer without changing OBS Browser Source dimensions
 - Independently scrollable page and navigation regions that keep every control accessible at increased interface scales
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
+- Connector health now treats Riot's optional player-loadout `404` as unavailable cosmetic data instead of a failed core connection; authentication, match, rank, and relay failures remain visible
 - Riot Client lockfile discovery and validation
 - Local Riot authentication and entitlement-token retrieval
 - Player identity, region, friends, and decoded multi-title Riot presence retrieval
@@ -109,8 +149,8 @@ registered trademarks of Riot Games, Inc.
 - Animation-preview controls that are available only for Reactive Vision layouts and automatically disable when BYAKUGAN Shift transitions are turned off
 - Deterministic animation-preview playback that honors the explicit preview request even when Windows reduced-motion is enabled, with a slightly slower test-only sequence so every shift and beam movement is visible; normal OBS behavior still respects accessibility preferences
 - Slower **BYAKUGAN Shift** timing with a longer eye-activation hold, while keeping the full state change close to one second during normal OBS use
-- Optional **Transition audio cue**, disabled by default, that synthesizes an original dark reverse swell, sub-bass impact, supernatural eye snap, and decaying shadow rumble directly in the overlay without external or copyrighted audio assets
-- Non-melodic cinematic sound design that avoids the cheerful rising intervals and bouncy game-power-up character of the earlier cue
+- Optional **Transition audio cue**, disabled by default, using BYAKUGAN's bundled original cinematic eye-activation sound consistently in the preview and OBS
+- Layered inward suction, eye snap, metallic rise, sub-bass impact, and supernatural resonance without copying or packaging audio from another property
 - Preview-window autoplay support for the optional cue; OBS users can enable browser-source audio control to route the cue through the OBS mixer
 - Smoother RR beam extension and retraction that eases from the previously displayed rating to the new 0–100 RR position instead of snapping
 - Rebalanced Reactive Vision in-game dock with a larger RR beam and marker, larger session W/L and K/D, and slightly reduced rank-name text for clearer visual hierarchy at webcam width
@@ -219,7 +259,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.75-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.77-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -248,10 +288,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.75`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.77`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.75`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.77`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -259,8 +299,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.75
-git push origin v0.8.0-beta.75
+git tag v0.8.0-beta.77
+git push origin v0.8.0-beta.77
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

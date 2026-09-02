@@ -2,13 +2,15 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
-const { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, shell, Tray } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, shell, Tray } = require('electron');
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
+const { SenseiStore } = require('./sensei-store.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
+const { SenseiService, detectFfmpeg, extractVodFrames } = require('./services/sensei-service.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -17,6 +19,8 @@ if (!hasSingleInstanceLock) app.quit();
 
 let mainWindow = null;
 let settings = null;
+let senseiStore = null;
+let senseiService = null;
 let service = null;
 let snapshot = null;
 let overlayServer = null;
@@ -30,6 +34,20 @@ let tray = null;
 let trayBusy = false;
 let quitting = false;
 let lastTrayUpdateNotice = '';
+
+function senseiAccountId() {
+  const profile = snapshot?.profile || {};
+  return `${profile.gameName || 'local'}#${profile.tagLine || 'player'}`.slice(0, 160);
+}
+
+function completedMatch(matchId) {
+  const match = (snapshot?.matches || []).find((row) => String(row?.id || '') === String(matchId || ''));
+  return match && ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result) ? match : null;
+}
+
+function senseiEntry(matchId) {
+  return senseiStore?.get(senseiAccountId(), matchId) || null;
+}
 
 function relayModeEnabled() {
   const current = settings?.get?.() || {};
@@ -365,6 +383,96 @@ function registerIpc() {
   });
   ipcMain.handle('session:update', (_event, selection) => updateSessionDataSource(selection));
 
+  ipcMain.handle('sensei:status', async () => {
+    const current = settings.get();
+    const health = await senseiService.health();
+    const ffmpeg = detectFfmpeg();
+    let freeStorage = 0;
+    try {
+      const storage = fs.statfsSync(app.getPath('userData'));
+      freeStorage = Number(storage.bavail) * Number(storage.bsize);
+    } catch {}
+    return { ...health, ffmpegAvailable: Boolean(ffmpeg), freeStorage, enabled: current.senseiEnabled, tier: current.senseiTier, vodEnabled: current.senseiVodEnabled };
+  });
+  ipcMain.handle('sensei:get', (_event, matchId) => senseiEntry(String(matchId || '')));
+  ipcMain.handle('sensei:run', async (_event, request = {}) => {
+    const current = settings.get();
+    if (!current.senseiEnabled) throw new Error('Enable Sensei Vision in Settings first.');
+    const matchId = String(request.matchId || '');
+    const match = completedMatch(matchId);
+    if (!match) throw new Error('Sensei Vision can only run on a completed match.');
+    const existing = senseiEntry(matchId);
+    if (existing?.status === 'ready' && request.regenerate !== true) return existing;
+    const tier = current.senseiTier === 'sensei' ? 'sensei' : 'lite';
+    senseiStore.save(senseiAccountId(), matchId, { status: 'analyzing', tier, error: '' });
+    try {
+      const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
+      return senseiStore.save(senseiAccountId(), matchId, { status: 'ready', tier, model: result.model, report: result.report, error: '', chat: request.regenerate ? [] : existing?.chat || [] });
+    } catch (error) {
+      senseiStore.save(senseiAccountId(), matchId, { status: 'failed', tier, error: error.message || 'Sensei analysis failed.' });
+      throw error;
+    }
+  });
+  ipcMain.handle('sensei:ask', async (_event, request = {}) => {
+    const matchId = String(request.matchId || '');
+    const match = completedMatch(matchId);
+    const existing = senseiEntry(matchId);
+    if (!match || existing?.status !== 'ready' || !existing.report) throw new Error('Run Sensei Vision on this match first.');
+    const answer = await senseiService.ask({ question: request.question, report: existing.report, match, model: settings.get().senseiModel, tier: existing.tier });
+    const chat = [...(existing.chat || []), { role: 'user', text: String(request.question || '').trim(), createdAt: Date.now() }, { role: 'assistant', text: answer, createdAt: Date.now() }];
+    return senseiStore.save(senseiAccountId(), matchId, { chat });
+  });
+  ipcMain.handle('sensei:vod-import', async (_event, matchIdValue) => {
+    const current = settings.get();
+    if (!current.senseiEnabled || !current.senseiVodEnabled) throw new Error('Enable the optional VOD Vision add-on in Settings first.');
+    const matchId = String(matchIdValue || '');
+    if (!completedMatch(matchId)) throw new Error('Select a completed match before importing a VOD.');
+    const selection = await dialog.showOpenDialog(mainWindow || undefined, {
+      title: 'Select the clean gameplay recording for this match', properties: ['openFile'],
+      filters: [{ name: 'Gameplay recordings', extensions: ['mp4', 'mkv', 'mov', 'webm'] }]
+    });
+    if (selection.canceled || !selection.filePaths[0]) return { canceled: true };
+    const source = path.resolve(selection.filePaths[0]);
+    const extension = path.extname(source).toLowerCase();
+    if (!['.mp4', '.mkv', '.mov', '.webm'].includes(extension)) throw new Error('Choose an MP4, MKV, MOV, or WebM recording.');
+    const info = fs.statSync(source);
+    if (!info.isFile() || info.size <= 0) throw new Error('The selected recording is empty or unavailable.');
+    const existing = senseiEntry(matchId) || {};
+    return senseiStore.save(senseiAccountId(), matchId, { vod: { path: source, name: path.basename(source), size: info.size, importedAt: Date.now(), analyzedAt: 0, deletedAt: 0, status: 'ready', error: '', report: null } });
+  });
+  ipcMain.handle('sensei:vod-analyze', async (_event, matchIdValue) => {
+    const current = settings.get();
+    if (!current.senseiEnabled || !current.senseiVodEnabled) throw new Error('Enable the optional VOD Vision add-on in Settings first.');
+    const matchId = String(matchIdValue || '');
+    const match = completedMatch(matchId);
+    const existing = senseiEntry(matchId);
+    if (!match || !existing?.vod?.path || !fs.existsSync(existing.vod.path)) throw new Error('Import the gameplay recording for this match first.');
+    if (!existing.report) throw new Error('Run the statistical Sensei report before adding VOD analysis.');
+    const ffmpeg = detectFfmpeg();
+    if (!ffmpeg) throw new Error('VOD Vision needs FFmpeg for local frame extraction. Install FFmpeg or set BYAKUGAN_FFMPEG_PATH, then restart BYAKUGAN.');
+    if (!current.senseiVodModel) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
+    senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzing', error: '' } });
+    const temporary = fs.mkdtempSync(path.join(app.getPath('temp'), 'byakugan-sensei-'));
+    try {
+      const extraction = await extractVodFrames({ ffmpeg, source: existing.vod.path, outputDirectory: temporary, frameCount: 24 });
+      const vodReport = await senseiService.analyzeVod({ match, statisticalReport: existing.report, frameFiles: extraction.files, frameIntervalSeconds: extraction.intervalSeconds, model: current.senseiVodModel });
+      return senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' } });
+    } catch (error) {
+      senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, status: 'failed', error: error.message || 'VOD analysis failed.' } });
+      throw error;
+    } finally {
+      try { fs.rmSync(temporary, { recursive: true, force: true }); } catch {}
+    }
+  });
+  ipcMain.handle('sensei:vod-delete', async (_event, request = {}) => {
+    const matchId = String(request.matchId || '');
+    const existing = senseiEntry(matchId);
+    const source = existing?.vod?.path;
+    if (!source || request.confirmed !== true) throw new Error('VOD deletion was not confirmed.');
+    if (fs.existsSync(source)) await shell.trashItem(source);
+    return senseiStore.save(senseiAccountId(), matchId, { vod: { ...existing.vod, path: '', status: 'deleted', deletedAt: Date.now(), error: '' } });
+  });
+
   ipcMain.handle('settings:get', () => settings.get());
   ipcMain.handle('settings:update', async (_event, patch) => {
     const before = settings.get();
@@ -584,6 +692,8 @@ async function startRelayMode() {
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
   settings = new SettingsStore(app.getPath('userData'));
+  senseiStore = new SenseiStore(app.getPath('userData'));
+  senseiService = new SenseiService();
   if (settings.get().gamingRelayMode && (settings.get().pcRole !== 'gaming' || !settings.get().remoteViewerEnabled)) {
     settings.update({ pcRole: 'gaming', remoteViewerEnabled: true });
   }

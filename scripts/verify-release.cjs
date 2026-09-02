@@ -10,7 +10,15 @@ const files = fs.existsSync(releaseDirectory) ? fs.readdirSync(releaseDirectory)
 const expectedInstaller = `BYAKUGAN-Setup-${project.version}-x64.exe`;
 const errors = [];
 
-if (!files.includes(expectedInstaller)) errors.push(`Missing installer: ${expectedInstaller}`);
+if (!files.includes(expectedInstaller)) {
+  errors.push(`Missing installer: ${expectedInstaller}`);
+} else {
+  const installer = path.join(releaseDirectory, expectedInstaller);
+  const size = fs.statSync(installer).size;
+  const signature = fs.readFileSync(installer).subarray(0, 2).toString('ascii');
+  if (signature !== 'MZ') errors.push(`Invalid Windows executable header: ${expectedInstaller}`);
+  if (size < 10 * 1024 * 1024) errors.push(`Incomplete installer (${size} bytes): ${expectedInstaller}`);
+}
 if (requireFeed && !files.includes('beta.yml')) errors.push('Missing beta.yml update manifest.');
 if (requireFeed && !files.some((name) => name.endsWith('.exe.blockmap'))) errors.push('Missing installer blockmap.');
 

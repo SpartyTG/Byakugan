@@ -387,7 +387,7 @@ class OverlayServer {
       'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
-      'Content-Security-Policy': "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: https://media.valorant-api.com; connect-src 'self'"
+      'Content-Security-Policy': "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: https://media.valorant-api.com; media-src 'self'; connect-src 'self'"
     };
   }
 
@@ -439,6 +439,7 @@ class OverlayServer {
     if (url.pathname === '/overlay.css') return this.sendFile(response, 'overlay.css', 'text/css; charset=utf-8');
     if (url.pathname === '/overlay.js') return this.sendFile(response, 'overlay.js', 'text/javascript; charset=utf-8');
     if (url.pathname === '/rr-energy-beam.gif') return this.sendFile(response, 'rr-energy-beam.gif', 'image/gif');
+    if (url.pathname === '/byakugan-eye-activation.mp3') return this.sendFile(response, 'byakugan-eye-activation.mp3', 'audio/mpeg');
 
     if (url.pathname.startsWith('/overlay/')) {
       let token = '';

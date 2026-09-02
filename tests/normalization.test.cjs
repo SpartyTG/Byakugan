@@ -31,6 +31,25 @@ function metadata() {
   };
 }
 
+test('optional loadout 404 does not mark the required Riot connection unhealthy', async () => {
+  const service = new RiotClientService();
+  service.remoteRequest = async () => {
+    const error = new Error('Not found');
+    error.status = 404;
+    throw error;
+  };
+
+  const optional = await service.safeRemote('/personalization/v2/players/self/playerloadout', 'pd', { ignoredStatuses: [404] });
+  assert.equal(optional, null);
+  assert.deepEqual(service.diagnostics, []);
+
+  const required = await service.safeRemote('/mmr/v1/players/self');
+  assert.equal(required, null);
+  assert.equal(service.diagnostics.length, 1);
+  assert.equal(service.diagnostics[0].status, 404);
+  assert.equal(service.diagnostics[0].endpoint, '/mmr/v1/players/self');
+});
+
 test('detects a completed live match and merges it ahead of stale act-cache data', () => {
   assert.equal(didActiveMatchEnd('INGAME', 'MENUS'), true);
   assert.equal(didActiveMatchEnd('CORE_GAME', 'MENUS'), true);

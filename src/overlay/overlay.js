@@ -25,6 +25,7 @@ let shiftEffectTimer = null;
 let demoVisionState = '';
 let transitionPreviewSourceData = null;
 let transitionPreviewTimers = [];
+let byakuganShiftAudio = null;
 
 const OVERLAY_LAYOUT_CLASSES = ['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].map((layout) => `layout-${layout}`);
 
@@ -89,108 +90,28 @@ function activateShiftEffect(oldRect, newRect) {
   shiftEffectTimer = setTimeout(() => byakuganShiftEffect.classList.remove('active'), transitionPreviewMode ? 1_560 : 1_100);
 }
 
+function prepareByakuganShiftSound() {
+  if (byakuganShiftAudio) return byakuganShiftAudio;
+  try {
+    byakuganShiftAudio = new Audio('/byakugan-eye-activation.mp3');
+    byakuganShiftAudio.preload = 'auto';
+    byakuganShiftAudio.volume = .88;
+    byakuganShiftAudio.load();
+  } catch {
+    byakuganShiftAudio = null;
+  }
+  return byakuganShiftAudio;
+}
+
 function playByakuganShiftSound(preferences = {}) {
   if (preferences.transitionSound !== true) return;
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  let context;
-  try { context = new AudioContextClass(); } catch { return; }
-  const closeContext = () => context.close?.().catch?.(() => {});
-  const begin = () => {
-    try {
-      const now = context.currentTime;
-      const impactAt = now + .31;
-      const master = context.createGain();
-      const compressor = context.createDynamicsCompressor();
-      master.gain.setValueAtTime(.0001, now);
-      master.gain.exponentialRampToValueAtTime(.16, impactAt);
-      master.gain.setValueAtTime(.16, impactAt + .24);
-      master.gain.exponentialRampToValueAtTime(.0001, now + 1.34);
-      compressor.threshold.value = -20;
-      compressor.knee.value = 16;
-      compressor.ratio.value = 7;
-      compressor.attack.value = .004;
-      compressor.release.value = .26;
-      master.connect(compressor).connect(context.destination);
-
-      const noiseLength = Math.floor(context.sampleRate * 1.15);
-      const noiseBuffer = context.createBuffer(1, noiseLength, context.sampleRate);
-      const noiseData = noiseBuffer.getChannelData(0);
-      for (let index = 0; index < noiseLength; index += 1) noiseData[index] = Math.random() * 2 - 1;
-
-      const reverseSwell = context.createBufferSource();
-      const swellFilter = context.createBiquadFilter();
-      const swellGain = context.createGain();
-      reverseSwell.buffer = noiseBuffer;
-      swellFilter.type = 'bandpass';
-      swellFilter.Q.value = 1.35;
-      swellFilter.frequency.setValueAtTime(260, now);
-      swellFilter.frequency.exponentialRampToValueAtTime(2_100, impactAt);
-      swellGain.gain.setValueAtTime(.0001, now);
-      swellGain.gain.exponentialRampToValueAtTime(.34, impactAt);
-      swellGain.gain.exponentialRampToValueAtTime(.0001, impactAt + .11);
-      reverseSwell.connect(swellFilter).connect(swellGain).connect(master);
-
-      const ocularSnap = context.createBufferSource();
-      const snapFilter = context.createBiquadFilter();
-      const snapGain = context.createGain();
-      ocularSnap.buffer = noiseBuffer;
-      snapFilter.type = 'bandpass';
-      snapFilter.Q.value = 2.7;
-      snapFilter.frequency.setValueAtTime(1_850, impactAt);
-      snapFilter.frequency.exponentialRampToValueAtTime(620, impactAt + .18);
-      snapGain.gain.setValueAtTime(.46, impactAt);
-      snapGain.gain.exponentialRampToValueAtTime(.0001, impactAt + .2);
-      ocularSnap.connect(snapFilter).connect(snapGain).connect(master);
-
-      const subImpact = context.createOscillator();
-      const subGain = context.createGain();
-      subImpact.type = 'sine';
-      subImpact.frequency.setValueAtTime(76, impactAt);
-      subImpact.frequency.exponentialRampToValueAtTime(37, impactAt + .82);
-      subGain.gain.setValueAtTime(.88, impactAt);
-      subGain.gain.exponentialRampToValueAtTime(.0001, impactAt + .92);
-      subImpact.connect(subGain).connect(master);
-
-      const shadowRumble = context.createOscillator();
-      const rumbleFilter = context.createBiquadFilter();
-      const rumbleGain = context.createGain();
-      shadowRumble.type = 'sawtooth';
-      shadowRumble.frequency.setValueAtTime(93, impactAt);
-      shadowRumble.frequency.exponentialRampToValueAtTime(44, impactAt + .88);
-      rumbleFilter.type = 'lowpass';
-      rumbleFilter.Q.value = 1.1;
-      rumbleFilter.frequency.setValueAtTime(310, impactAt);
-      rumbleFilter.frequency.exponentialRampToValueAtTime(105, impactAt + .82);
-      rumbleGain.gain.setValueAtTime(.19, impactAt);
-      rumbleGain.gain.exponentialRampToValueAtTime(.0001, impactAt + 1.02);
-      shadowRumble.connect(rumbleFilter).connect(rumbleGain).connect(master);
-
-      const resonance = context.createOscillator();
-      const resonanceGain = context.createGain();
-      resonance.type = 'sine';
-      resonance.frequency.setValueAtTime(46, impactAt);
-      resonance.detune.setValueAtTime(-11, impactAt);
-      resonanceGain.gain.setValueAtTime(.0001, impactAt);
-      resonanceGain.gain.exponentialRampToValueAtTime(.26, impactAt + .08);
-      resonanceGain.gain.exponentialRampToValueAtTime(.0001, impactAt + 1.04);
-      resonance.connect(resonanceGain).connect(master);
-
-      reverseSwell.start(now);
-      reverseSwell.stop(impactAt + .13);
-      ocularSnap.start(impactAt, .17);
-      ocularSnap.stop(impactAt + .22);
-      subImpact.start(impactAt);
-      shadowRumble.start(impactAt);
-      resonance.start(impactAt);
-      subImpact.stop(impactAt + .96);
-      shadowRumble.stop(impactAt + 1.06);
-      resonance.stop(impactAt + 1.08);
-      setTimeout(closeContext, 1_700);
-    } catch { closeContext(); }
-  };
-  if (context.state === 'suspended') context.resume().then(begin).catch(closeContext);
-  else begin();
+  const audio = prepareByakuganShiftSound();
+  if (!audio) return;
+  try {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.play()?.catch?.(() => {});
+  } catch {}
 }
 
 function runByakuganShift(captured) {
@@ -612,6 +533,7 @@ function renderFrame(data) {
 function render(data) {
   latestOverlayData = data;
   const preferences = data.preferences || {};
+  if (preferences.transitionSound === true) prepareByakuganShiftSound();
   const anticipatedState = anticipatedVisionState(data);
   const reduceMotion = !transitionPreviewMode && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const shouldShift = (!previewMode || transitionPreviewMode) && preferences.smoothTransitions !== false && !reduceMotion

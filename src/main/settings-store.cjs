@@ -38,7 +38,13 @@ const DEFAULTS = Object.freeze({
   streamOverlayPostMatchRecapSeconds: 7,
   streamOverlayBackgroundOpacity: 70,
   streamOverlayCustom: DEFAULT_CUSTOM_OVERLAY,
-  streamOverlayToken: ''
+  streamOverlayToken: '',
+  senseiEnabled: false,
+  senseiTier: 'lite',
+  senseiModel: '',
+  senseiVodEnabled: false,
+  senseiVodModel: '',
+  senseiOfferVodCleanup: false
 });
 
 class SettingsStore {
@@ -85,6 +91,10 @@ class SettingsStore {
         } else if (value < 1) continue;
       }
       if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
+      if (key === 'senseiTier' && !['lite', 'sensei'].includes(value)) continue;
+      if (['senseiModel', 'senseiVodModel'].includes(key)) {
+        if (typeof value !== 'string' || value.length > 120 || !/^[\w./:@-]*$/.test(value)) continue;
+      }
       if (key === 'streamOverlayMatchPulseStyle' && !['segments', 'dots'].includes(value)) continue;
       if (key === 'pcRole' && !['gaming', 'viewer'].includes(value)) continue;
       if (['streamOverlayToken', 'remoteViewerToken'].includes(key) && !/^[a-f0-9]{48}$/.test(value)) continue;
