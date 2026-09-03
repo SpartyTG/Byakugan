@@ -89,7 +89,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.91
+## Included in version 0.8.0-beta.94
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
@@ -192,9 +192,9 @@ registered trademarks of Riot Games, Inc.
 - Player-profile fallback to locally observed shared competitive matches when Riot withholds all detailed history
 - Current-act wins and current RR on inspected profiles when MMR is available but detailed match history remains private
 - Background tracked dodge RR-loss total with normal match losses and identified AFK penalties excluded
-- Strict inspection privacy: live opponents, Riot-incognito players, and hidden identities are never inspectable
+- Strict inspection privacy: live opponents, Riot-incognito players, and hidden identities are never inspectable, even when a public opponent's Riot name is visible
 - Party-aware identity handling: current party members remain named and inspectable even when their general in-game incognito setting is enabled
-- Friend-aware identity handling: Riot friends remain named, ranked, and inspectable regardless of incognito setting or team assignment
+- Friend-aware identity handling: Riot friends remain named and ranked regardless of incognito setting or team assignment; an opposing friend's profile stays non-clickable during the live match
 - Match Autopsy with personal round-by-round impact timelines and PNG recap export
 - Match Autopsy Tactical Replay with a completed-match engagement heat map, selectable round maps, kill/death markers, duel lines, timestamps, agent labels, and calibrated map callouts when Riot returns positional snapshots
 - CSP-safe SVG tactical markers so every heat-map location renders at its calibrated position instead of collapsing into the map corner
@@ -203,6 +203,7 @@ registered trademarks of Riot Games, Inc.
 - Privacy-safe tactical events that identify hidden opponents only by agent and never retain or expose their Riot identity
 - Post-match-only **IGL Review** with evidence-linked strengths, adjustment priorities, location clusters, opening-duel analysis, multikill conversion analysis, and round-specific coaching
 - Match Autopsy post-game rosters with agents, match ranks, K/D/A, ACS, privacy-preserved names, and visible-player profile links
+- Career-consistent completed-match identities: post-match rosters resolve every participant name Riot makes visible after the match, while live play resolves only public opponents after the core game begins
 - Act Journey RR visualization with rank and match milestones
 - Evidence-based BYAKUGAN Insights with explicit sample sizes
 - Personal challenges, current-session tracking, and post-match summaries
@@ -242,15 +243,15 @@ registered trademarks of Riot Games, Inc.
 - Friend-only squad synergy derived from shared matches
 - Selectable Friend Synergy profiles with tracked shared-match history and direct Match Autopsy access
 - Awakened Eye visual system with stronger hierarchy, artwork, motion, and depth
-- Match-start enemy reveal boundary: every opponent card stays concealed throughout agent select and loading, then exposes only selected agent, current rank, and peak rank after Riot reports an active core game
+- Match-start enemy reveal boundary: every opponent card stays concealed throughout agent select and loading, then exposes the selected agent, current rank, peak rank, and public Riot name after Riot reports an active core game
 - Active-match opponent rank hydration with five concurrent tier lookups when Riot's core-game roster reports zero for every enemy, while keeping the lookup path disabled throughout pregame
 - Current and all-time peak ranks on every Live Match card, with peak episode/act context available on hover and the entire enemy rank block concealed until the core game begins
-- Riot account levels on every revealed Live Match card, including the complete party and opponents after the core game begins, with a cached account-XP fallback when Riot omits the level from its live roster
+- Riot account levels on every revealed Live Match card, including the complete party and opponents after the core game begins, with a cached account-XP fallback and a clear **LVL PRIVATE** state when Riot withholds the value
 - Detailed match scores, K/D/A, K/D ratio, RR changes, and recent-game statistics
 - Paginated current-act competitive W/L, K/D, and headshot statistics
 - Live Match tab with map, ally/enemy rosters, agents, and competitive ranks
-- Privacy-preserving player names: Riot-incognito ally names are never looked up or retained;
-  live enemy names are never requested or displayed
+- Privacy-preserving player names: Riot-incognito names are never looked up or retained;
+  public opponent names appear only after the active core game begins, independent of the signed-in player's **Use Generic Names** preference
 - Cached roster-rank fallback when the live match payload omits competitive tiers
 - Regional profile, account XP, competitive data, loadout, and match-history calls
 - Live menu/pregame/in-game state polling
@@ -282,7 +283,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.91-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.94-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -311,10 +312,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.91`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.94`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.91`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.94`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -322,8 +323,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.91
-git push origin v0.8.0-beta.91
+git tag v0.8.0-beta.94
+git push origin v0.8.0-beta.94
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -423,8 +424,8 @@ Electron main process
 - Riot's local/private endpoints are undocumented and can change. Keep the
   connector isolated and verify Riot's current policies before distribution.
 - Riot prohibits opponent scouting before a match. BYAKUGAN therefore conceals
-  every enemy card until the active core game begins and never looks up live
-  enemy identities, stats, skins, or profiles. Current and peak competitive-rank
+  every enemy card until the active core game begins, then displays only Riot IDs
+  marked public by Riot while never exposing opponent stats, skins, or profiles. Current and peak competitive-rank
   summaries may be resolved only after the active core game begins, and only
   those rank summaries are retained.
 - Feature availability elsewhere in the VALORANT ecosystem does not constitute

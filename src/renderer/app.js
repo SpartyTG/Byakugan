@@ -719,14 +719,14 @@ function livePlayerRow(player) {
   const peakLabel = player.peakRank ? `PEAK ${player.peakRank}` : 'PEAK —';
   const peakContext = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ');
   const hasLevel = player.level !== null && player.level !== undefined && Number.isFinite(Number(player.level));
-  const levelLabel = player.levelHidden ? 'LVL HIDDEN' : hasLevel ? `LVL ${Math.floor(Number(player.level))}` : 'LVL —';
-  const protectedEnemy = player.side === 'enemy' && !player.friend;
-  const identityTitle = protectedEnemy
+  const levelLabel = player.levelHidden ? 'LVL HIDDEN' : hasLevel ? `LVL ${Math.floor(Number(player.level))}` : 'LVL PRIVATE';
+  const hiddenEnemy = player.side === 'enemy' && player.hidden;
+  const identityTitle = hiddenEnemy
     ? `<strong>${escapeHtml(player.agent)}</strong>`
-    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : player.hidden ? '◌ ' : ''}${escapeHtml(player.name)}</strong>`;
-  const identityDetail = protectedEnemy
-    ? `ENEMY AGENT${player.locked ? ' • LOCKED' : ''}`
-    : `${escapeHtml(player.agent)}${player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}`;
+    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : ''}${escapeHtml(player.name || 'Riot Player')}</strong>`;
+  const identityDetail = hiddenEnemy
+    ? `IDENTITY HIDDEN${player.locked ? ' • LOCKED' : ''}`
+    : `${escapeHtml(player.agent)}${player.side === 'enemy' ? ' • ENEMY' : player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}`;
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
     <div class="live-player-identity"><div class="live-player-heading">${identityTitle}<span class="live-player-level ${player.levelHidden ? 'hidden' : ''}">${escapeHtml(levelLabel)}</span></div><small>${identityDetail}</small></div>

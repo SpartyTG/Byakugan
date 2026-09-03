@@ -339,7 +339,7 @@ test('uses competitive update match IDs when an ally history index is private', 
   assert.equal(matches[0].kills, 20);
 });
 
-test('live roster never resolves or exposes Riot-incognito names', () => {
+test('live roster shows public opponent names without exposing hidden identities or opponent profiles', () => {
   const players = [
     { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false, AccountLevel: 271, HideAccountLevel: false } },
     { Subject: 'visible', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
@@ -359,7 +359,7 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.deepEqual(visiblePlayerIds(players, 'self'), ['self', 'visible', 'party-hidden-in-game', 'friend-hidden-in-game']);
 
   const roster = normalizeLivePlayers(players, 'self', metadata(), {
-    self: 'MyName#NA1', visible: 'VisibleName#NA1', 'party-hidden-in-game': 'MyPartyFriend#NA1', 'visible-enemy': 'EnemyMustNotAppear#NA1', hidden: 'MustNotAppear#NA1',
+    self: 'MyName#NA1', visible: 'VisibleName#NA1', 'party-hidden-in-game': 'MyPartyFriend#NA1', 'visible-enemy': 'PublicEnemy#NA1', hidden: 'MustNotAppear#NA1',
     'unknown-privacy': 'MustNotAppearEither#NA1', 'friend-hidden-in-game': 'KnownFriend#NA1'
   });
   assert.equal(roster[0].name, 'You');
@@ -372,26 +372,41 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(roster[0].inspectable, true);
   assert.equal(roster[1].inspectable, true);
   assert.equal(roster[3].inspectable, false);
+  assert.equal(roster[3].name, 'PublicEnemy#NA1');
+  assert.equal(roster[3].hidden, false);
   assert.equal(roster[3].level, 144);
   assert.equal(roster[4].level, 55);
   assert.equal(roster[4].levelHidden, false);
   assert.equal(roster[4].inspectable, false);
-  assert.equal(roster[3].name, '');
   assert.equal(roster[4].name, '');
   assert.equal(roster[5].name, '');
   assert.equal(roster[6].name, 'KnownFriend#NA1');
   assert.equal(roster[6].hidden, false);
   assert.equal(roster[6].friend, true);
   assert.equal(roster[6].side, 'enemy');
-  assert.equal(roster[6].inspectable, true);
+  assert.equal(roster[6].inspectable, false);
   assert.equal(roster[3].rank, 'Ascendant 1');
   assert.equal(roster[3].peakRank, 'Immortal 1');
   assert.equal(roster[3].peakEpisode, 'Episode 9');
   assert.equal(roster[3].peakAct, 'Act 2');
   assert.equal(roster[3].agent, 'Jett');
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
-  assert.equal(JSON.stringify(roster).includes('EnemyMustNotAppear'), false);
+  assert.equal(JSON.stringify(roster).includes('PublicEnemy#NA1'), true);
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);
+});
+
+test('public opponent name lookup unlocks only for the active core game', () => {
+  const players = [
+    { Subject: 'self', TeamID: 'Blue', PlayerIdentity: { Incognito: false } },
+    { Subject: 'ally', TeamID: 'Blue', PlayerIdentity: { Incognito: false } },
+    { Subject: 'public-enemy', TeamID: 'Red', PlayerIdentity: { Incognito: false } },
+    { Subject: 'hidden-enemy', TeamID: 'Red', PlayerIdentity: { Incognito: true } }
+  ];
+  assert.deepEqual(visiblePlayerIds(players, 'self'), ['self', 'ally']);
+  assert.deepEqual(
+    visiblePlayerIds(players, 'self', { allowOpponentNames: true }),
+    ['self', 'ally', 'public-enemy']
+  );
 });
 
 test('live account levels support Riot identity variants regardless of the display preference', () => {
@@ -492,7 +507,7 @@ test('active core-game hydration resolves a missing enemy tier', async () => {
   assert.equal(calls.includes('enemy'), true);
 });
 
-test('historical roster keeps incognito identities hidden and includes match performance', () => {
+test('completed match roster uses Career-visible names regardless of the live incognito flag', () => {
   const detail = {
     Players: [
       { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
@@ -502,16 +517,41 @@ test('historical roster keeps incognito identities hidden and includes match per
     ],
     RoundResults: Array.from({ length: 20 }, () => ({}))
   };
-  const roster = normalizeHistoricalRoster(detail, 'self', metadata(), { 'visible-enemy': 'Visible#NA1', 'hidden-enemy': 'MustNotAppear#NA1', 'hidden-friend': 'KnownFriend#NA1' });
+  const roster = normalizeHistoricalRoster(detail, 'self', metadata(), { 'visible-enemy': 'Visible#NA1', 'hidden-enemy': 'CareerName#NA1', 'hidden-friend': 'KnownFriend#NA1' });
   assert.equal(roster[0].acs, 200);
   assert.equal(roster[1].name, 'Visible#NA1');
   assert.equal(roster[1].inspectable, true);
-  assert.equal(roster[2].name, '');
-  assert.equal(roster[2].inspectable, false);
+  assert.equal(roster[2].name, 'CareerName#NA1');
+  assert.equal(roster[2].hidden, false);
+  assert.equal(roster[2].inspectable, true);
   assert.equal(roster[3].name, 'KnownFriend#NA1');
   assert.equal(roster[3].hidden, false);
   assert.equal(roster[3].inspectable, true);
-  assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
+});
+
+test('completed match hydration requests names for every scoreboard participant', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.fetchMatchDetail = async () => ({
+    MatchInfo: { MatchID: 'career-match', QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [
+      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
+      { Subject: 'live-hidden', TeamID: 'Red', CharacterID: 'agent-sova', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } }
+    ],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }],
+    RoundResults: Array.from({ length: 20 }, () => ({}))
+  });
+  let requested = [];
+  service.lookupNames = async (subjects) => {
+    requested = subjects;
+    return { self: 'Self#NA1', 'live-hidden': 'CareerVisible#NA1' };
+  };
+
+  const matches = await service.fetchDetailedMatches({ History: [{ MatchID: 'career-match', QueueID: 'competitive' }] }, { Matches: [] });
+  assert.deepEqual(new Set(requested), new Set(['self', 'live-hidden']));
+  assert.equal(matches[0].roster[1].name, 'CareerVisible#NA1');
+  assert.equal(matches[0].roster[1].hidden, false);
 });
 
 test('selects a roster rank from the active act, then competitive updates', () => {

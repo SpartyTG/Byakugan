@@ -715,13 +715,15 @@ function isPlayerNameHidden(player, ownPuuid) {
   return ![false, 0, 'false'].includes(privacyFlag);
 }
 
-function visiblePlayerIds(players, ownPuuid) {
+function visiblePlayerIds(players, ownPuuid, { allowOpponentNames = false } = {}) {
   const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
   const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
   return players
     .filter((player) => {
       const teamId = player.TeamID || player.teamId;
-      return (!ownTeam || teamId === ownTeam || isKnownFriend(player)) && !isPlayerNameHidden(player, ownPuuid);
+      const opponent = Boolean(ownTeam && teamId && teamId !== ownTeam);
+      const relationshipVisible = !opponent || isKnownFriend(player) || allowOpponentNames;
+      return relationshipVisible && !isPlayerNameHidden(player, ownPuuid);
     })
     .map((player) => player.Subject || player.subject || player.puuid)
     .filter(Boolean);
@@ -756,7 +758,7 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
     const teamId = player.TeamID || player.teamId || ownTeam;
     const isAlly = teamId === ownTeam;
     const friend = isKnownFriend(player);
-    const canShowIdentity = isAlly || friend;
+    const canShowIdentity = !hidden;
     const characterId = player.CharacterID || player.characterId;
     const tierNumber = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
     const agent = resolveById(metadata.agents, characterId, {
@@ -769,11 +771,11 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
 
     return {
       id: `player-${index}`,
-      name: canShowIdentity ? (hidden ? 'Hidden Player' : isSelf ? 'You' : (names[subject] || 'Riot Player')) : '',
-      hidden: canShowIdentity ? hidden : true,
+      name: canShowIdentity ? (isSelf ? 'You' : (names[subject] || 'Riot Player')) : '',
+      hidden,
       isSelf,
       side: isAlly ? 'ally' : 'enemy',
-      inspectable: Boolean(canShowIdentity && !hidden),
+      inspectable: Boolean(isAlly && canShowIdentity),
       friend,
       partyMember: Boolean(isAlly && isKnownPartyMember(player)),
       teamId,
@@ -802,8 +804,13 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
   return players.map((player) => {
     const subject = player.Subject || player.subject || player.puuid || '';
     const teamId = player.TeamID || player.teamId || '';
-    const hidden = isPlayerNameHidden(player, ownPuuid);
     const isSelf = subject === ownPuuid;
+    // Riot's live Incognito flag protects identities during the active match,
+    // but the completed Career scoreboard resolves participant names. Mirror
+    // that boundary here: a post-match identity is hidden only when Riot's
+    // completed-match name lookup does not return it.
+    const resolvedName = String(names[subject] || '').trim();
+    const hidden = !isSelf && !resolvedName;
     const characterId = player.CharacterID || player.characterId;
     const agent = resolveById(metadata.agents, characterId, {
       name: 'Unknown agent', role: 'Agent', image: '', color: '#7b67f6'
@@ -819,7 +826,7 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
     const score = Number(stats.Score ?? stats.score ?? 0);
     return {
       subject,
-      name: hidden ? '' : isSelf ? 'You' : (names[subject] || 'Riot Player'),
+      name: isSelf ? 'You' : resolvedName,
       hidden,
       isSelf,
       side: ownTeam && teamId === ownTeam ? 'ally' : 'enemy',
@@ -1286,8 +1293,8 @@ class RiotClientService extends EventEmitter {
     return players.length ? { ...detail, Players: this.markKnownFriends(players) } : detail;
   }
 
-  async lookupVisibleNames(players) {
-    const visible = new Set(visiblePlayerIds(players, this.identity.puuid));
+  async lookupVisibleNames(players, options = {}) {
+    const visible = new Set(visiblePlayerIds(players, this.identity.puuid, options));
     for (const player of players) {
       const subject = player.Subject || player.subject || player.puuid;
       if (subject && !visible.has(subject)) this.nameCache.delete(subject);
@@ -1559,7 +1566,7 @@ class RiotClientService extends EventEmitter {
     if (loopState === 'PREGAME') players = filterPregameRoster(players, puuid);
     players = this.markKnownFriends(players);
     const [names, rankedPlayers, leveledPlayers] = await Promise.all([
-      this.lookupVisibleNames(players),
+      this.lookupVisibleNames(players, { allowOpponentNames: activeMatch }),
       this.hydrateRosterTiers(players, { allowOpponentRanks: ['INGAME', 'CORE_GAME'].includes(loopState) }),
       this.hydrateRosterLevels(players)
     ]);
@@ -1589,7 +1596,7 @@ class RiotClientService extends EventEmitter {
         : loopState === 'PREGAME'
         ? 'Enemy agents and ranks unlock only after the active match begins.'
         : roster.length
-          ? 'Active match roster: cards show account level, agent, current rank, and peak rank; enemy names and profiles remain protected.'
+          ? 'Active match roster: public Riot names are shown; hidden opponents remain agent-only, and enemy profiles stay unavailable.'
           : 'Waiting for Riot to expose the active roster.'
     };
   }
@@ -1609,7 +1616,6 @@ class RiotClientService extends EventEmitter {
     });
     const availableDetails = detailRows.filter(Boolean);
     const visibleSubjects = availableDetails.flatMap(({ detail }) => (detail?.Players || detail?.players || [])
-      .filter((player) => !isPlayerNameHidden(player, subject))
       .map((player) => player.Subject || player.subject || player.puuid)
       .filter(Boolean));
     const names = await this.lookupNames(visibleSubjects);
