@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, valorantPresenceAccountLevel, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -417,6 +417,36 @@ test('live account levels support Riot identity variants regardless of the displ
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 9001, HideAccountLevel: true } }), { level: 9001, hidden: false });
   assert.deepEqual(liveAccountLevel({ BYAKUGANAccountLevel: 55, BYAKUGANLevelHidden: true }), { level: 55, hidden: false });
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: {} }), { level: null, hidden: false });
+});
+
+test('VALORANT lobby presence exposes a queued party member account level', () => {
+  const privateData = Buffer.from(JSON.stringify({
+    sessionLoopState: 'MENUS', partyId: 'party-1', accountLevel: 187
+  })).toString('base64');
+  assert.equal(valorantPresenceAccountLevel({ product: 'valorant', private: privateData }), 187);
+  assert.equal(valorantPresenceAccountLevel({ product: 'league_of_legends', private: Buffer.from(JSON.stringify({ level: 999 })).toString('base64') }), null);
+});
+
+test('party roster preserves lobby levels even when the party identity contains a hidden zero', async () => {
+  const service = new RiotClientService();
+  service.safeRemote = async (endpoint) => endpoint.includes('/players/')
+    ? { CurrentPartyID: 'party-1' }
+    : { Members: [
+      { Subject: 'self', AccountLevel: 271, PlayerIdentity: { HideAccountLevel: true } },
+      { Subject: 'friend', PlayerIdentity: { AccountLevel: 0, HideAccountLevel: true } }
+    ] };
+  const privateData = Buffer.from(JSON.stringify({
+    sessionLoopState: 'MENUS', partyId: 'party-1', accountLevel: 187
+  })).toString('base64');
+  service.localRequest = async () => ({ data: { presences: [
+    { puuid: 'friend', product: 'valorant', private: privateData }
+  ] } });
+
+  const party = await service.fetchPartyPlayers('self');
+  assert.equal(party.players[0].BYAKUGANAccountLevel, 271);
+  assert.equal(party.players[1].BYAKUGANAccountLevel, 187);
+  assert.equal(party.players[1].PlayerIdentity.AccountLevel, 187);
+  assert.equal(liveAccountLevel(party.players[1]).level, 187);
 });
 
 test('missing live levels use cached Riot account XP regardless of the display preference', async () => {

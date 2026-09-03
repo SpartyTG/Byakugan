@@ -682,15 +682,38 @@ function playerIdentity(player) {
   return player?.PlayerIdentity || player?.playerIdentity || player?.Identity || player?.identity || {};
 }
 
+function normalizeAccountLevel(...values) {
+  for (const value of values) {
+    const level = Number(value);
+    if (Number.isFinite(level) && level >= 1) return Math.min(9999, Math.floor(level));
+  }
+  return null;
+}
+
 function liveAccountLevel(player) {
   const identity = playerIdentity(player);
-  const rawLevel = player?.BYAKUGANAccountLevel ?? player?.byakuganAccountLevel
-    ?? identity.AccountLevel ?? identity.accountLevel
-    ?? player?.AccountLevel ?? player?.accountLevel;
-  const level = Number(rawLevel);
-  return Number.isFinite(level) && level >= 1
-    ? { level: Math.min(9999, Math.floor(level)), hidden: false }
+  const level = normalizeAccountLevel(
+    player?.BYAKUGANAccountLevel, player?.byakuganAccountLevel,
+    identity.AccountLevel, identity.accountLevel,
+    player?.AccountLevel, player?.accountLevel
+  );
+  return level !== null
+    ? { level, hidden: false }
     : { level: null, hidden: false };
+}
+
+function valorantPresenceAccountLevel(presence) {
+  if (!presence) return null;
+  const sources = presenceSources(presence);
+  const product = String(presence.product || presence.Product || presence.productName || presence.product_name || '').toLowerCase();
+  const resource = String(presence.resource || presence.Resource || '').toLowerCase();
+  const valorantState = pickPresenceValue(sources, [
+    'sessionLoopState', 'partyOwnerSessionLoopState', 'loopState', 'partyId', 'partyID'
+  ]);
+  if (product && product !== 'valorant' && !resource.includes('valorant') && !resource.includes('ares') && valorantState === undefined) return null;
+  return normalizeAccountLevel(pickPresenceValue(sources, [
+    'accountLevel', 'playerLevel', 'partyOwnerAccountLevel', 'level'
+  ]));
 }
 
 function isKnownPartyMember(player) {
@@ -1419,7 +1442,10 @@ class RiotClientService extends EventEmitter {
     if (!subject) return supplied;
 
     const cached = this.levelCache.get(subject);
-    if (cached?.expiresAt > Date.now()) return { level: cached.level, hidden: cached.hidden };
+    const partyMember = isKnownPartyMember(player);
+    if (cached?.expiresAt > Date.now() && (!partyMember || cached.level !== null)) {
+      return { level: cached.level, hidden: cached.hidden };
+    }
 
     let result = supplied;
     try {
@@ -1435,7 +1461,7 @@ class RiotClientService extends EventEmitter {
     }
     this.levelCache.set(subject, {
       ...result,
-      expiresAt: Date.now() + (result.level !== null ? 30 * 60_000 : 2 * 60_000)
+      expiresAt: Date.now() + (result.level !== null ? 30 * 60_000 : partyMember ? 5_000 : 2 * 60_000)
     });
     return result;
   }
@@ -1479,18 +1505,39 @@ class RiotClientService extends EventEmitter {
     const membership = await this.safeRemote(`/parties/v1/players/${puuid}`, 'glz');
     const partyId = membership?.CurrentPartyID || membership?.currentPartyId || membership?.PartyID || membership?.partyId;
     if (!partyId) return { id: '', players: [] };
-    const party = await this.safeRemote(`/parties/v1/parties/${partyId}`, 'glz');
+    const [party, presenceResponse] = await Promise.all([
+      this.safeRemote(`/parties/v1/parties/${partyId}`, 'glz'),
+      this.localRequest('/chat/v4/presences').catch(() => null)
+    ]);
     const members = party?.Members || party?.members || [];
+    const presenceLevels = new Map();
+    for (const presence of presenceResponse?.data?.presences || presenceResponse?.data?.Presences || []) {
+      const subject = presence.puuid || presence.PUUID || presence.cid;
+      const level = valorantPresenceAccountLevel(presence);
+      if (subject && level !== null) presenceLevels.set(subject, level);
+    }
     return {
       id: partyId,
-      players: members.map((member) => ({
-        Subject: member.Subject || member.subject || member.PlayerIdentity?.Subject || member.playerIdentity?.subject,
-        TeamID: 'Party',
-        CompetitiveTier: member.CompetitiveTier ?? member.competitiveTier ?? 0,
-        PlayerIdentity: member.PlayerIdentity || member.playerIdentity || { Incognito: true },
-        BYAKUGANPartyMember: true,
-        CharacterID: ''
-      })).filter((member) => member.Subject)
+      players: members.map((member) => {
+        const identity = member.PlayerIdentity || member.playerIdentity || {};
+        const subject = member.Subject || member.subject || identity.Subject || identity.subject;
+        const accountLevel = normalizeAccountLevel(
+          member.BYAKUGANAccountLevel, member.byakuganAccountLevel,
+          member.AccountLevel, member.accountLevel,
+          identity.AccountLevel, identity.accountLevel,
+          presenceLevels.get(subject)
+        );
+        return {
+          Subject: subject,
+          TeamID: 'Party',
+          CompetitiveTier: member.CompetitiveTier ?? member.competitiveTier ?? 0,
+          AccountLevel: accountLevel,
+          PlayerIdentity: { ...identity, AccountLevel: accountLevel },
+          BYAKUGANAccountLevel: accountLevel,
+          BYAKUGANPartyMember: true,
+          CharacterID: ''
+        };
+      }).filter((member) => member.Subject)
     };
   }
 
@@ -2319,6 +2366,7 @@ module.exports = {
   isKnownPartyMember,
   isKnownFriend,
   liveAccountLevel,
+  valorantPresenceAccountLevel,
   visiblePlayerIds,
   filterPregameRoster,
   shouldHydrateRosterTier,

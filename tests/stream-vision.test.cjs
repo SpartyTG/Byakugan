@@ -41,8 +41,8 @@ test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', 
 });
 
 test('Live Match renders an account-level badge for every revealed roster card', () => {
-  assert.match(app, /const levelLabel = player\.levelHidden \? 'LVL HIDDEN'/);
-  assert.match(app, /: 'LVL PRIVATE'/);
+  assert.match(app, /player\.partyMember \? 'LVL SYNCING'/);
+  assert.match(app, /levelIsHidden \? 'LVL HIDDEN' : 'LVL PRIVATE'/);
   assert.match(app, /class="live-player-level/);
   assert.match(app, /Level, agent, and ranks reveal after the match begins/);
   assert.match(app, /const hiddenEnemy = player\.side === 'enemy' && player\.hidden/);
