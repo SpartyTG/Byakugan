@@ -89,7 +89,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.86
+## Included in version 0.8.0-beta.87
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
@@ -117,6 +117,7 @@ registered trademarks of Riot Games, Inc.
 - A clearly labeled, independent **Show +/- RR on beam** control for the Between Games, In Game, and Post Match custom Reactive Vision canvases
 - Live OBS transitions that honor BYAKUGAN's explicit Shift toggle instead of being silently disabled by an incorrect reduced-motion signal from OBS's embedded browser
 - Independently scrollable page and navigation regions that keep every control accessible at increased interface scales
+- One-click per-user Windows installation plus silent in-app updates that preserve the install scope and location, skip the repeated Setup wizard, and restart BYAKUGAN automatically
 - Live Riot Client connection with automatic migration from retired Demo Mode settings
 - Connector health now treats Riot's optional player-loadout `404` as unavailable cosmetic data instead of a failed core connection; authentication, match, rank, and relay failures remain visible
 - Riot Client lockfile discovery and validation
@@ -281,7 +282,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.86-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.87-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -310,10 +311,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.86`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.87`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.86`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.87`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -321,8 +322,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.86
-git push origin v0.8.0-beta.86
+git tag v0.8.0-beta.87
+git push origin v0.8.0-beta.87
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

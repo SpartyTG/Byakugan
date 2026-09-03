@@ -156,7 +156,10 @@ class UpdateService extends EventEmitter {
   install() {
     if (!this.installApproved || !['downloaded', 'installing'].includes(this.data.state)) return this.status();
     this.setState('installing', { percent: 100, message: 'Applying update and restarting BYAKUGAN…' });
-    this.updater.quitAndInstall(false, true);
+    // Updates reuse the install scope and location chosen during the original
+    // installation. Run NSIS silently so an in-app update does not reopen the
+    // assisted Setup wizard; force-run BYAKUGAN when the update completes.
+    this.updater.quitAndInstall(true, true);
     return this.status();
   }
 
