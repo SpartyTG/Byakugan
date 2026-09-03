@@ -398,8 +398,38 @@ test('live account levels support Riot identity variants and explicit privacy', 
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 271 } }), { level: 271, hidden: false });
   assert.deepEqual(liveAccountLevel({ playerIdentity: { accountLevel: 88 } }), { level: 88, hidden: false });
   assert.deepEqual(liveAccountLevel({ AccountLevel: 42 }), { level: 42, hidden: false });
+  assert.deepEqual(liveAccountLevel({ BYAKUGANAccountLevel: 144 }), { level: 144, hidden: false });
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 9001, HideAccountLevel: true } }), { level: null, hidden: true });
+  assert.deepEqual(liveAccountLevel({ BYAKUGANAccountLevel: 55, BYAKUGANLevelHidden: true }), { level: null, hidden: true });
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: {} }), { level: null, hidden: false });
+});
+
+test('missing live levels use cached Riot account XP without affecting hidden players', async () => {
+  const service = new RiotClientService();
+  service.region = { region: 'na', shard: 'na' };
+  const calls = [];
+  service.remoteRequest = async (url) => {
+    calls.push(url);
+    const subject = url.split('/').at(-1);
+    return { data: { Progress: { Level: subject === 'self' ? 271 : 144 } } };
+  };
+  const players = [
+    { Subject: 'self', PlayerIdentity: {} },
+    { Subject: 'enemy', PlayerIdentity: {} },
+    { Subject: 'embedded', PlayerIdentity: { AccountLevel: 88 } },
+    { Subject: 'hidden', PlayerIdentity: { AccountLevel: 55, HideAccountLevel: true } }
+  ];
+
+  const hydrated = await service.hydrateRosterLevels(players);
+  assert.equal(hydrated[0].BYAKUGANAccountLevel, 271);
+  assert.equal(hydrated[1].BYAKUGANAccountLevel, 144);
+  assert.equal(hydrated[2].BYAKUGANAccountLevel, 88);
+  assert.equal(hydrated[3].BYAKUGANAccountLevel, null);
+  assert.equal(hydrated[3].BYAKUGANLevelHidden, true);
+  assert.equal(calls.length, 2);
+
+  await service.hydrateRosterLevels(players);
+  assert.equal(calls.length, 2);
 });
 
 test('pregame roster excludes every opponent until the core game begins', () => {

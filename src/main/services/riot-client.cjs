@@ -684,10 +684,12 @@ function playerIdentity(player) {
 
 function liveAccountLevel(player) {
   const identity = playerIdentity(player);
-  const hideLevel = identity.HideAccountLevel ?? identity.hideAccountLevel
+  const hideLevel = player?.BYAKUGANLevelHidden ?? player?.byakuganLevelHidden
+    ?? identity.HideAccountLevel ?? identity.hideAccountLevel
     ?? player?.HideAccountLevel ?? player?.hideAccountLevel;
   if ([true, 1, 'true'].includes(hideLevel)) return { level: null, hidden: true };
-  const rawLevel = identity.AccountLevel ?? identity.accountLevel
+  const rawLevel = player?.BYAKUGANAccountLevel ?? player?.byakuganAccountLevel
+    ?? identity.AccountLevel ?? identity.accountLevel
     ?? player?.AccountLevel ?? player?.accountLevel;
   const level = Number(rawLevel);
   return Number.isFinite(level) && level >= 1
@@ -1067,6 +1069,7 @@ class RiotClientService extends EventEmitter {
     this.diagnostics = [];
     this.nameCache = new Map();
     this.rankCache = new Map();
+    this.levelCache = new Map();
     this.matchDetailCache = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
     this.sessionStore = options.cacheDirectory ? new SessionStore(options.cacheDirectory) : null;
@@ -1406,6 +1409,45 @@ class RiotClientService extends EventEmitter {
     return (await this.fetchRosterRankSummary(player, activeSeasonId)).tier;
   }
 
+  async fetchRosterAccountLevel(player) {
+    const supplied = liveAccountLevel(player);
+    if (supplied.hidden || supplied.level !== null) return supplied;
+    const subject = player.Subject || player.subject || player.puuid;
+    if (!subject) return supplied;
+
+    const cached = this.levelCache.get(subject);
+    if (cached?.expiresAt > Date.now()) return { level: cached.level, hidden: cached.hidden };
+
+    let result = supplied;
+    try {
+      const xp = (await this.remoteRequest(this.pdUrl(`/account-xp/v1/players/${subject}`))).data;
+      const rawLevel = xp?.Progress?.Level ?? xp?.progress?.level;
+      const level = Number(rawLevel);
+      if (Number.isFinite(level) && level >= 1) {
+        result = { level: Math.min(9999, Math.floor(level)), hidden: false };
+      }
+    } catch {
+      // Account XP is optional roster enrichment. A private/unavailable level
+      // must not affect connector health, ranks, or the rest of Live Match.
+    }
+    this.levelCache.set(subject, {
+      ...result,
+      expiresAt: Date.now() + (result.level !== null ? 30 * 60_000 : 2 * 60_000)
+    });
+    return result;
+  }
+
+  async hydrateRosterLevels(players) {
+    return mapWithConcurrency(players, 5, async (player) => {
+      const accountLevel = await this.fetchRosterAccountLevel(player);
+      return {
+        ...player,
+        BYAKUGANAccountLevel: accountLevel.level,
+        BYAKUGANLevelHidden: accountLevel.hidden
+      };
+    });
+  }
+
   async hydrateRosterTiers(players, { allowOpponentRanks = false } = {}) {
     if (!players.length) return players;
     const activeSeasonId = await this.fetchActiveSeasonId();
@@ -1520,12 +1562,18 @@ class RiotClientService extends EventEmitter {
     }
     if (loopState === 'PREGAME') players = filterPregameRoster(players, puuid);
     players = this.markKnownFriends(players);
-    const [names, rankedPlayers] = await Promise.all([
+    const [names, rankedPlayers, leveledPlayers] = await Promise.all([
       this.lookupVisibleNames(players),
-      this.hydrateRosterTiers(players, { allowOpponentRanks: ['INGAME', 'CORE_GAME'].includes(loopState) })
+      this.hydrateRosterTiers(players, { allowOpponentRanks: ['INGAME', 'CORE_GAME'].includes(loopState) }),
+      this.hydrateRosterLevels(players)
     ]);
-    const roster = normalizeLivePlayers(rankedPlayers, puuid, this.metadata || { agents: new Map(), tiers: new Map() }, names);
-    this.rememberInspectablePlayers(rankedPlayers, roster, names);
+    const hydratedPlayers = rankedPlayers.map((player, index) => ({
+      ...player,
+      BYAKUGANAccountLevel: leveledPlayers[index]?.BYAKUGANAccountLevel ?? null,
+      BYAKUGANLevelHidden: leveledPlayers[index]?.BYAKUGANLevelHidden === true
+    }));
+    const roster = normalizeLivePlayers(hydratedPlayers, puuid, this.metadata || { agents: new Map(), tiers: new Map() }, names);
+    this.rememberInspectablePlayers(hydratedPlayers, roster, names);
     const queueId = match?.MatchmakingData?.QueueID || match?.matchmakingData?.queueId || match?.QueueID || match?.queueId || session.queueId || session.QueueID || '';
     return {
       state: loopState,
@@ -2173,6 +2221,7 @@ class RiotClientService extends EventEmitter {
     this.diagnostics = [];
     this.nameCache.clear();
     this.rankCache.clear();
+    this.levelCache.clear();
     this.matchDetailCache.clear();
     this.actStatsCache = null;
     this.actStatsPromise = null;
