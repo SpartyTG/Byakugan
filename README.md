@@ -53,9 +53,11 @@ invoke the coach again.
 Every report contains a match verdict, a five-part scorecard, up to three
 strengths and weaknesses, exactly three runnable drills, one next-match focus
 rule, and short statistical citations. Missing data is omitted rather than
-invented. Failures remain visible and recoverable instead of producing a fake
-report. The optional Ask Sensei field uses the saved report and same match
-context; it does not start a new analysis.
+invented. If a selected local text model cannot produce valid structured output
+after automatic repair, BYAKUGAN visibly falls back to its deterministic Sensei
+Lite report for that match. Connection, timeout, and missing-model failures
+remain visible. The optional Ask Sensei field uses the saved report and same
+match context; it does not start a new analysis.
 
 For streamers, the recommended VOD workflow is OBS Source Record on the
 streaming PC, recording only the capture-card gameplay source so the minimap is
@@ -89,7 +91,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.95
+## Included in version 0.8.0-beta.96
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
@@ -106,6 +108,8 @@ registered trademarks of Riot Games, Inc.
 - Tactical findings that require a visible decision, visible consequence, multi-frame evidence, and a specific adjustment or repeatable strength; generic webcam, HUD, weapon, health, and centered-crosshair descriptions are rejected
 - Actionable Ollama failures that preserve the HTTP response detail and distinguish a stopped or memory-exhausted local service from invalid structured output
 - Sensei structured-output repair with disabled model thinking, safe JSON-wrapper removal, one constrained retry, precomputed match-versus-baseline deltas, two-to-three-sentence verdict enforcement, concise focus rules, and three distinct Range/custom/Deathmatch drills
+- Smaller-model compatibility that performs the repair pass in broadly supported Ollama JSON mode, includes the exact validation problem, and still applies BYAKUGAN's strict report validator before accepting the result
+- A clearly labeled Sensei Lite fallback when the selected local text model returns unusable structured output twice, preventing a formatting mistake from discarding the completed match report while keeping connection and model-availability errors visible
 - Vision-response compatibility for models that emit thinking tags, explanatory prefixes, fenced JSON, double-encoded objects, or trailing commas
 - Lightweight JSON repair that sends only the failed candidate text—not the VOD frames—to the installed Sensei text model when available, with the vision model as an offline fallback
 - Accurate first-batch progress that changes from model loading to **Reviewing frames 1–4** before inference begins and identifies any structured-output repair pass
@@ -283,7 +287,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.95-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.96-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -312,10 +316,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.95`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.96`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.95`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.96`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -323,8 +327,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.95
-git push origin v0.8.0-beta.95
+git tag v0.8.0-beta.96
+git push origin v0.8.0-beta.96
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

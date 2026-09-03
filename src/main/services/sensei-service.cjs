@@ -269,7 +269,7 @@ async function generateStructured({ endpoint, model, repairModel = '', prompt, s
     if (signal?.aborted) throw canceledError();
     try {
       if (attempt) onRepair(lastError);
-      const repairPrompt = `Convert the candidate below into exactly one valid JSON object matching the supplied schema. Preserve only claims already present. Do not add commentary, markdown, or new facts. If a field is incomplete, use the smallest conservative value allowed by the schema.\nSCHEMA:${JSON.stringify(schema)}\nCANDIDATE:${candidate.slice(0, 18_000)}`;
+      const repairPrompt = `Convert the candidate below into exactly one valid JSON object matching the supplied schema. Preserve only claims already present. Do not add commentary, markdown, or new facts. If a field is incomplete, use the smallest conservative value allowed by the schema. Correct this validation problem: ${lastError?.message || 'invalid JSON'}.\nSCHEMA:${JSON.stringify(schema)}\nCANDIDATE:${candidate.slice(0, 18_000)}`;
       const response = await requestJson(`${endpoint}/api/generate`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -277,7 +277,10 @@ async function generateStructured({ endpoint, model, repairModel = '', prompt, s
           prompt: attempt ? repairPrompt : prompt,
           ...(!attempt && images?.length ? { images } : {}),
           stream: false,
-          format: schema,
+          // JSON mode is more widely supported by smaller Ollama models than
+          // applying a full schema for a second time. BYAKUGAN still validates
+          // the repaired object against its strict report rules below.
+          format: attempt ? 'json' : schema,
           think: false,
           options: { temperature: attempt ? 0 : .1, num_predict: attempt ? Math.max(1_200, numPredict) : numPredict }
         })
@@ -293,6 +296,7 @@ async function generateStructured({ endpoint, model, repairModel = '', prompt, s
     }
   }
   const error = new Error(`${lastError?.message || `The ${label} response was invalid`} Automatic JSON repair also failed.`);
+  error.code = 'SENSEI_STRUCTURED_OUTPUT';
   error.candidates = candidates;
   throw error;
 }
@@ -542,13 +546,22 @@ class SenseiService {
     const matchCard = compactMatch(match);
     const contextPack = buildContextPack(match, matches);
     if (!matchCard.matchId || !['VICTORY', 'DEFEAT', 'DRAW'].includes(matchCard.result)) throw new Error('Sensei Vision can only analyze a completed match.');
-    if (tier === 'lite') return { report: validateReport(liteReport(match, contextPack)), matchCard, contextPack, model: 'BYAKUGAN Lite Engine' };
+    if (tier === 'lite') return { report: validateReport(liteReport(match, contextPack)), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
     if (!model) throw new Error('Choose an installed local Sensei model in Settings first.');
-    const report = await generateStructured({
-      endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack), schema: strictSchema(),
-      label: 'local model', validate: validateReport, retries: 1
-    });
-    return { report, matchCard, contextPack, model };
+    try {
+      const report = await generateStructured({
+        endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack), schema: strictSchema(),
+        label: 'local model', validate: validateReport, retries: 1
+      });
+      return { report, matchCard, contextPack, model, tier: 'sensei', notice: '' };
+    } catch (error) {
+      if (error?.code !== 'SENSEI_STRUCTURED_OUTPUT') throw error;
+      return {
+        report: validateReport(liteReport(match, contextPack)), matchCard, contextPack,
+        model: 'BYAKUGAN Lite Engine', tier: 'lite',
+        notice: `The selected local model (${model}) could not produce a valid report after automatic repair, so BYAKUGAN safely used Sensei Lite for this match.`
+      };
+    }
   }
 
   async ask({ question, report, match, model = '', tier = 'lite' }) {

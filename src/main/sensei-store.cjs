@@ -53,6 +53,7 @@ function normalizeEntry(value = {}) {
     status: ['analyzing', 'ready', 'failed'].includes(value.status) ? value.status : 'not-analyzed',
     tier: ['lite', 'sensei'].includes(value.tier) ? value.tier : 'lite',
     model: cleanText(value.model, 120),
+    notice: cleanText(value.notice, 1_000),
     createdAt: Number(value.createdAt) || 0,
     updatedAt: Number(value.updatedAt) || 0,
     error: cleanText(value.error, 1_000),

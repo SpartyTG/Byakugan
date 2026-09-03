@@ -425,7 +425,7 @@ function registerIpc() {
     senseiStore.save(senseiAccountId(), matchId, { status: 'analyzing', tier, error: '' });
     try {
       const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
-      return senseiStore.save(senseiAccountId(), matchId, { status: 'ready', tier, model: result.model, report: result.report, error: '', chat: request.regenerate ? [] : existing?.chat || [] });
+      return senseiStore.save(senseiAccountId(), matchId, { status: 'ready', tier: result.tier || tier, model: result.model, notice: result.notice || '', report: result.report, error: '', chat: request.regenerate ? [] : existing?.chat || [] });
     } catch (error) {
       senseiStore.save(senseiAccountId(), matchId, { status: 'failed', tier, error: error.message || 'Sensei analysis failed.' });
       throw error;

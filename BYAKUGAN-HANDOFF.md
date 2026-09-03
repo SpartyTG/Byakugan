@@ -1,20 +1,21 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.95`.
+This package is the canonical source for `v0.8.0-beta.96`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.94`
-- Automated tests: `142 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.95`
+- Automated tests: `144 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
 
-Queued party-member account levels now use every level Riot exposes in the
-party payload plus a VALORANT lobby-presence fallback. A zero or hidden display
-placeholder no longer blocks a valid lobby level. Missing party levels retry
-after five seconds and render as `LVL SYNCING` instead of `LVL PRIVATE`.
+Sensei's local-model repair pass now uses Ollama's broadly supported JSON mode
+and supplies the exact validation problem. If both the original response and
+repair remain unusable, the statistical report completes through a clearly
+labeled Sensei Lite fallback rather than showing a failed panel. Connectivity,
+timeout, and missing-model errors are not hidden by the fallback.
 
 ## Preserved identity boundaries
 
@@ -29,9 +30,12 @@ after five seconds and render as `LVL SYNCING` instead of `LVL PRIVATE`.
 
 ## Next verification
 
-Publish beta.95 and queue with at least one party member. Confirm every level
-visible in the VALORANT lobby appears in BYAKUGAN. If a value initially shows
-`LVL SYNCING`, allow one refresh cycle and confirm it resolves.
+Publish beta.96 and rerun Sensei Vision on the match that previously failed.
+Confirm it produces a Full Sensei report when the selected model's repaired JSON
+passes validation, or a clearly labeled Sensei Lite fallback when it does not.
+An 8B model should generally improve report quality and instruction-following,
+but the 4B model must no longer leave the match report in a failed state solely
+because of malformed structured output.
 
 ## New-chat recovery
 
@@ -39,4 +43,3 @@ At the start of a new chat, inspect this file before changing code. Also locate
 `BYAKUGAN-CURRENT-HANDOFF.md`, which is updated after every release with the
 current archive filename, checksum, test count, GitHub status, and next action.
 The user should only need to say **Continue BYAKUGAN**.
-

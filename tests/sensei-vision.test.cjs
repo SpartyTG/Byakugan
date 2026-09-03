@@ -44,10 +44,11 @@ test('Sensei reports persist independently by player and match', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-sensei-'));
   try {
     const store = new SenseiStore(directory);
-    store.save('player-a', 'match-a', { status: 'ready', tier: 'lite', report: liteReport(match('match-a'), buildContextPack(match('match-a'), [])) });
+    store.save('player-a', 'match-a', { status: 'ready', tier: 'lite', notice: 'Local model fallback was used.', report: liteReport(match('match-a'), buildContextPack(match('match-a'), [])) });
     store.save('player-a', 'match-b', { status: 'failed', error: 'model unavailable' });
     store.save('player-b', 'match-a', { status: 'analyzing' });
     assert.equal(new SenseiStore(directory).get('player-a', 'match-a').status, 'ready');
+    assert.equal(new SenseiStore(directory).get('player-a', 'match-a').notice, 'Local model fallback was used.');
     assert.equal(new SenseiStore(directory).get('player-a', 'match-b').status, 'failed');
     assert.equal(new SenseiStore(directory).get('player-b', 'match-a').status, 'analyzing');
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
@@ -77,6 +78,56 @@ test('strict Sensei validation rejects repetitive drills and accepts harmless fe
   assert.equal(validateReport(parsed).drills.length, 3);
   report.drills[1] = { ...report.drills[0] };
   assert.throws(() => validateReport(report), /three distinct drills/i);
+});
+
+test('Full Sensei repairs malformed model output with broadly compatible JSON mode', async () => {
+  const payload = JSON.stringify(liteReport(match('structured-repair'), buildContextPack(match('structured-repair'), [])));
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: requests.length === 1 ? 'I analyzed the match, but forgot the JSON.' : payload }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({ match: match('structured-repair'), matches: [], tier: 'sensei', model: 'small-model:4b' });
+    assert.equal(result.tier, 'sensei');
+    assert.equal(result.model, 'small-model:4b');
+    assert.equal(result.notice, '');
+    assert.equal(requests.length, 2);
+    assert.equal(typeof requests[0].format, 'object');
+    assert.equal(requests[1].format, 'json');
+    assert.match(requests[1].prompt, /validation problem/i);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('Full Sensei safely falls back to an identified Lite report when JSON repair still fails', async () => {
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: 'This model refuses to return structured output.' }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({ match: match('structured-fallback'), matches: [], tier: 'sensei', model: 'small-model:4b' });
+    assert.equal(requests.length, 2);
+    assert.equal(result.tier, 'lite');
+    assert.equal(result.model, 'BYAKUGAN Lite Engine');
+    assert.match(result.notice, /small-model:4b/);
+    assert.match(result.notice, /Sensei Lite/);
+    assert.equal(validateReport(result.report).drills.length, 3);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
 test('Sensei verdicts stay specific and focus rules remain memorable', () => {
@@ -120,6 +171,7 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(renderer, /FULL-MATCH ANALYSIS IN PROGRESS/);
   assert.match(renderer, /Pause safely/);
   assert.match(renderer, /Resume full analysis/);
+  assert.match(renderer, /LOCAL MODEL FALLBACK/);
   assert.match(renderer, /Number\(entry\.vod\.analysisStartedAt\)/);
   assert.match(html, /Enable Sensei Vision/);
   assert.match(html, /No paid API and no live coaching/);
