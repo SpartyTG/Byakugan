@@ -682,6 +682,19 @@ function playerIdentity(player) {
   return player?.PlayerIdentity || player?.playerIdentity || player?.Identity || player?.identity || {};
 }
 
+function liveAccountLevel(player) {
+  const identity = playerIdentity(player);
+  const hideLevel = identity.HideAccountLevel ?? identity.hideAccountLevel
+    ?? player?.HideAccountLevel ?? player?.hideAccountLevel;
+  if ([true, 1, 'true'].includes(hideLevel)) return { level: null, hidden: true };
+  const rawLevel = identity.AccountLevel ?? identity.accountLevel
+    ?? player?.AccountLevel ?? player?.accountLevel;
+  const level = Number(rawLevel);
+  return Number.isFinite(level) && level >= 1
+    ? { level: Math.min(9999, Math.floor(level)), hidden: false }
+    : { level: null, hidden: false };
+}
+
 function isKnownPartyMember(player) {
   return Boolean(player?.BYAKUGANPartyMember || player?.byakuganPartyMember || player?.PartyMember || player?.partyMember);
 }
@@ -754,6 +767,7 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
     const tier = metadata.tiers.get(tierNumber) || {
       name: tierNumber ? `Competitive tier ${tierNumber}` : 'Unrated', image: '', color: '#60667b'
     };
+    const accountLevel = liveAccountLevel(player);
 
     return {
       id: `player-${index}`,
@@ -771,6 +785,8 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       rank: tier.name,
       rankImage: tier.image,
       rankColor: tier.color,
+      level: accountLevel.level,
+      levelHidden: accountLevel.hidden,
       peakRank: player.BYAKUGANPeakRank || '',
       peakRankImage: player.BYAKUGANPeakRankImage || '',
       peakEpisode: player.BYAKUGANPeakEpisode || '',
@@ -1529,7 +1545,7 @@ class RiotClientService extends EventEmitter {
         : loopState === 'PREGAME'
         ? 'Enemy agents and ranks unlock only after the active match begins.'
         : roster.length
-          ? 'Active match roster: enemy cards show agent, current rank, and peak rank only; names and profiles remain protected.'
+          ? 'Active match roster: cards show account level, agent, current rank, and peak rank; enemy names and profiles remain protected.'
           : 'Waiting for Riot to expose the active roster.'
     };
   }
@@ -2251,6 +2267,7 @@ module.exports = {
   isPlayerNameHidden,
   isKnownPartyMember,
   isKnownFriend,
+  liveAccountLevel,
   visiblePlayerIds,
   filterPregameRoster,
   shouldHydrateRosterTier,

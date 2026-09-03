@@ -40,6 +40,12 @@ test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', 
   assert.match(html, /id="streamOverlayPostMatchRecapSeconds"/);
 });
 
+test('Live Match renders an account-level badge for every revealed roster card', () => {
+  assert.match(app, /const levelLabel = player\.levelHidden \? 'LVL HIDDEN'/);
+  assert.match(app, /class="live-player-level/);
+  assert.match(app, /Level, agent, and ranks reveal after the match begins/);
+});
+
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
   assert.match(html, /<option value="custom">Custom Overlay Builder<\/option>/);
   assert.match(html, /id="customOverlayWidth"/);

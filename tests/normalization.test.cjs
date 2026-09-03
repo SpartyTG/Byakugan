@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -341,11 +341,11 @@ test('uses competitive update match IDs when an ally history index is private', 
 
 test('live roster never resolves or exposes Riot-incognito names', () => {
   const players = [
-    { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
+    { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false, AccountLevel: 271, HideAccountLevel: false } },
     { Subject: 'visible', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false } },
     { Subject: 'party-hidden-in-game', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANPartyMember: true },
-    { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2' },
-    { Subject: 'hidden', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true } },
+    { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false, AccountLevel: 144 }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2' },
+    { Subject: 'hidden', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true, AccountLevel: 55, HideAccountLevel: true } },
     { Subject: 'unknown-privacy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21 },
     { Subject: 'friend-hidden-in-game', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true }
   ];
@@ -363,6 +363,8 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
     'unknown-privacy': 'MustNotAppearEither#NA1', 'friend-hidden-in-game': 'KnownFriend#NA1'
   });
   assert.equal(roster[0].name, 'You');
+  assert.equal(roster[0].level, 271);
+  assert.equal(roster[0].levelHidden, false);
   assert.equal(roster[1].name, 'VisibleName#NA1');
   assert.equal(roster[2].name, 'MyPartyFriend#NA1');
   assert.equal(roster[2].partyMember, true);
@@ -370,6 +372,9 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(roster[0].inspectable, true);
   assert.equal(roster[1].inspectable, true);
   assert.equal(roster[3].inspectable, false);
+  assert.equal(roster[3].level, 144);
+  assert.equal(roster[4].level, null);
+  assert.equal(roster[4].levelHidden, true);
   assert.equal(roster[4].inspectable, false);
   assert.equal(roster[3].name, '');
   assert.equal(roster[4].name, '');
@@ -387,6 +392,14 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('EnemyMustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);
+});
+
+test('live account levels support Riot identity variants and explicit privacy', () => {
+  assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 271 } }), { level: 271, hidden: false });
+  assert.deepEqual(liveAccountLevel({ playerIdentity: { accountLevel: 88 } }), { level: 88, hidden: false });
+  assert.deepEqual(liveAccountLevel({ AccountLevel: 42 }), { level: 42, hidden: false });
+  assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 9001, HideAccountLevel: true } }), { level: null, hidden: true });
+  assert.deepEqual(liveAccountLevel({ PlayerIdentity: {} }), { level: null, hidden: false });
 });
 
 test('pregame roster excludes every opponent until the core game begins', () => {
