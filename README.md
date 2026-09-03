@@ -89,7 +89,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.89
+## Included in version 0.8.0-beta.91
 
 - Original desktop dashboard and navigation
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
@@ -245,7 +245,7 @@ registered trademarks of Riot Games, Inc.
 - Match-start enemy reveal boundary: every opponent card stays concealed throughout agent select and loading, then exposes only selected agent, current rank, and peak rank after Riot reports an active core game
 - Active-match opponent rank hydration with five concurrent tier lookups when Riot's core-game roster reports zero for every enemy, while keeping the lookup path disabled throughout pregame
 - Current and all-time peak ranks on every Live Match card, with peak episode/act context available on hover and the entire enemy rank block concealed until the core game begins
-- Riot account levels on every revealed Live Match card, including opponents after the core game begins, with a cached account-XP fallback when Riot omits the level from its live roster; an explicit Riot **Hide Account Level** preference remains respected
+- Riot account levels on every revealed Live Match card, including the complete party and opponents after the core game begins, with a cached account-XP fallback when Riot omits the level from its live roster
 - Detailed match scores, K/D/A, K/D ratio, RR changes, and recent-game statistics
 - Paginated current-act competitive W/L, K/D, and headshot statistics
 - Live Match tab with map, ally/enemy rosters, agents, and competitive ranks
@@ -282,7 +282,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.89-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.91-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -311,10 +311,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.89`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.91`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.89`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.91`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -322,8 +322,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.89
-git push origin v0.8.0-beta.89
+git tag v0.8.0-beta.91
+git push origin v0.8.0-beta.91
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

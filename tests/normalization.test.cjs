@@ -373,8 +373,8 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(roster[1].inspectable, true);
   assert.equal(roster[3].inspectable, false);
   assert.equal(roster[3].level, 144);
-  assert.equal(roster[4].level, null);
-  assert.equal(roster[4].levelHidden, true);
+  assert.equal(roster[4].level, 55);
+  assert.equal(roster[4].levelHidden, false);
   assert.equal(roster[4].inspectable, false);
   assert.equal(roster[3].name, '');
   assert.equal(roster[4].name, '');
@@ -394,18 +394,19 @@ test('live roster never resolves or exposes Riot-incognito names', () => {
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);
 });
 
-test('live account levels support Riot identity variants and explicit privacy', () => {
+test('live account levels support Riot identity variants regardless of the display preference', () => {
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 271 } }), { level: 271, hidden: false });
   assert.deepEqual(liveAccountLevel({ playerIdentity: { accountLevel: 88 } }), { level: 88, hidden: false });
   assert.deepEqual(liveAccountLevel({ AccountLevel: 42 }), { level: 42, hidden: false });
   assert.deepEqual(liveAccountLevel({ BYAKUGANAccountLevel: 144 }), { level: 144, hidden: false });
-  assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 9001, HideAccountLevel: true } }), { level: null, hidden: true });
-  assert.deepEqual(liveAccountLevel({ BYAKUGANAccountLevel: 55, BYAKUGANLevelHidden: true }), { level: null, hidden: true });
+  assert.deepEqual(liveAccountLevel({ PlayerIdentity: { AccountLevel: 9001, HideAccountLevel: true } }), { level: 9001, hidden: false });
+  assert.deepEqual(liveAccountLevel({ BYAKUGANAccountLevel: 55, BYAKUGANLevelHidden: true }), { level: 55, hidden: false });
   assert.deepEqual(liveAccountLevel({ PlayerIdentity: {} }), { level: null, hidden: false });
 });
 
-test('missing live levels use cached Riot account XP without affecting hidden players', async () => {
+test('missing live levels use cached Riot account XP regardless of the display preference', async () => {
   const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
   service.region = { region: 'na', shard: 'na' };
   const calls = [];
   service.remoteRequest = async (url) => {
@@ -414,22 +415,28 @@ test('missing live levels use cached Riot account XP without affecting hidden pl
     return { data: { Progress: { Level: subject === 'self' ? 271 : 144 } } };
   };
   const players = [
-    { Subject: 'self', PlayerIdentity: {} },
+    { Subject: 'self', PlayerIdentity: { HideAccountLevel: true } },
     { Subject: 'enemy', PlayerIdentity: {} },
     { Subject: 'embedded', PlayerIdentity: { AccountLevel: 88 } },
-    { Subject: 'hidden', PlayerIdentity: { AccountLevel: 55, HideAccountLevel: true } }
+    { Subject: 'party-hidden', BYAKUGANPartyMember: true, PlayerIdentity: { HideAccountLevel: true } },
+    { Subject: 'hidden', PlayerIdentity: { AccountLevel: 55, HideAccountLevel: true } },
+    { Subject: 'hidden-missing', PlayerIdentity: { HideAccountLevel: true } }
   ];
 
   const hydrated = await service.hydrateRosterLevels(players);
   assert.equal(hydrated[0].BYAKUGANAccountLevel, 271);
   assert.equal(hydrated[1].BYAKUGANAccountLevel, 144);
   assert.equal(hydrated[2].BYAKUGANAccountLevel, 88);
-  assert.equal(hydrated[3].BYAKUGANAccountLevel, null);
-  assert.equal(hydrated[3].BYAKUGANLevelHidden, true);
-  assert.equal(calls.length, 2);
+  assert.equal(hydrated[3].BYAKUGANAccountLevel, 144);
+  assert.equal(hydrated[3].BYAKUGANLevelHidden, false);
+  assert.equal(hydrated[4].BYAKUGANAccountLevel, 55);
+  assert.equal(hydrated[4].BYAKUGANLevelHidden, false);
+  assert.equal(hydrated[5].BYAKUGANAccountLevel, 144);
+  assert.equal(hydrated[5].BYAKUGANLevelHidden, false);
+  assert.equal(calls.length, 4);
 
   await service.hydrateRosterLevels(players);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 4);
 });
 
 test('pregame roster excludes every opponent until the core game begins', () => {

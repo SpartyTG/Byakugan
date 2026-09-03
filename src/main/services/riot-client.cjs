@@ -684,10 +684,6 @@ function playerIdentity(player) {
 
 function liveAccountLevel(player) {
   const identity = playerIdentity(player);
-  const hideLevel = player?.BYAKUGANLevelHidden ?? player?.byakuganLevelHidden
-    ?? identity.HideAccountLevel ?? identity.hideAccountLevel
-    ?? player?.HideAccountLevel ?? player?.hideAccountLevel;
-  if ([true, 1, 'true'].includes(hideLevel)) return { level: null, hidden: true };
   const rawLevel = player?.BYAKUGANAccountLevel ?? player?.byakuganAccountLevel
     ?? identity.AccountLevel ?? identity.accountLevel
     ?? player?.AccountLevel ?? player?.accountLevel;
@@ -1410,9 +1406,9 @@ class RiotClientService extends EventEmitter {
   }
 
   async fetchRosterAccountLevel(player) {
-    const supplied = liveAccountLevel(player);
-    if (supplied.hidden || supplied.level !== null) return supplied;
     const subject = player.Subject || player.subject || player.puuid;
+    const supplied = liveAccountLevel(player);
+    if (supplied.level !== null) return supplied;
     if (!subject) return supplied;
 
     const cached = this.levelCache.get(subject);
