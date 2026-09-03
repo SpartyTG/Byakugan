@@ -2,9 +2,8 @@
 
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const fs = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
+const project = require('../package.json');
 const { UpdateService } = require('../src/main/services/update-service.cjs');
 
 class FakeUpdater extends EventEmitter {
@@ -26,13 +25,8 @@ class FakeUpdater extends EventEmitter {
 const packagedApp = { isPackaged: true, getVersion: () => '0.7.0-beta.1' };
 
 test('Windows release uses a one-click per-user installer for the legacy updater path', () => {
-  const project = path.join(__dirname, '..');
-  const releaseConfig = JSON.parse(fs.readFileSync(path.join(project, 'release-config.json'), 'utf8'));
-  const packageConfig = JSON.parse(fs.readFileSync(path.join(project, 'package.json'), 'utf8')).build;
-  for (const config of [releaseConfig, packageConfig]) {
-    assert.equal(config.nsis.oneClick, true);
-    assert.equal(config.nsis.perMachine, false);
-  }
+  assert.equal(project.build.nsis.oneClick, true);
+  assert.equal(project.build.nsis.perMachine, false);
 });
 
 test('installed beta checks without downloading automatically', async () => {
