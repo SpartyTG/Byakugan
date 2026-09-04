@@ -728,6 +728,12 @@ function livePartyId(player) {
   return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 
+function partyMembershipId(membership) {
+  const value = membership?.CurrentPartyID ?? membership?.currentPartyId
+    ?? membership?.CurrentPartyId ?? membership?.PartyID ?? membership?.partyId ?? membership?.partyID;
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
 function livePartySizeLabel(size) {
   if (size === 2) return 'DUO';
   if (size === 3) return 'TRIO';
@@ -1211,6 +1217,7 @@ class RiotClientService extends EventEmitter {
     this.nameCache = new Map();
     this.rankCache = new Map();
     this.levelCache = new Map();
+    this.livePartyMembershipCache = new Map();
     this.matchDetailCache = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
     this.sessionStore = options.cacheDirectory ? new SessionStore(options.cacheDirectory) : null;
@@ -1341,7 +1348,8 @@ class RiotClientService extends EventEmitter {
   async safeRemote(endpoint, service = 'pd', options = {}) {
     try {
       const url = service === 'glz' ? this.glzUrl(endpoint) : this.pdUrl(endpoint);
-      return (await this.remoteRequest(url)).data;
+      const { ignoredStatuses: _ignoredStatuses, ...requestOptions } = options;
+      return (await this.remoteRequest(url, requestOptions)).data;
     } catch (error) {
       const ignoredStatuses = Array.isArray(options.ignoredStatuses)
         ? options.ignoredStatuses.map(Number)
@@ -1640,7 +1648,7 @@ class RiotClientService extends EventEmitter {
 
   async fetchPartyPlayers(puuid) {
     const membership = await this.safeRemote(`/parties/v1/players/${puuid}`, 'glz');
-    const partyId = membership?.CurrentPartyID || membership?.currentPartyId || membership?.PartyID || membership?.partyId;
+    const partyId = partyMembershipId(membership);
     if (!partyId) return { id: '', players: [] };
     const [party, presenceResponse] = await Promise.all([
       this.safeRemote(`/parties/v1/parties/${partyId}`, 'glz'),
@@ -1677,6 +1685,50 @@ class RiotClientService extends EventEmitter {
         };
       }).filter((member) => member.Subject)
     };
+  }
+
+  async hydrateLivePartyMemberships(players, matchId = '') {
+    const now = Date.now();
+    const matchKey = String(matchId || 'active-match');
+    let checked = 0;
+    let resolved = 0;
+    let unavailable = 0;
+    const hydrated = await mapWithConcurrency(players, 4, async (player) => {
+      const subject = player.Subject || player.subject || player.puuid;
+      if (!subject || livePartyId(player)) return player;
+      checked += 1;
+      const cacheKey = `${matchKey}:${subject}`;
+      const cached = this.livePartyMembershipCache.get(cacheKey);
+      let partyId = '';
+      let available = false;
+      if (cached?.expiresAt > now) {
+        partyId = cached.partyId;
+        available = cached.available;
+      } else {
+        const membership = await this.safeRemote(`/parties/v1/players/${encodeURIComponent(subject)}`, 'glz', {
+          ignoredStatuses: [400, 403, 404, 405, 429],
+          timeout: 2_500
+        });
+        partyId = partyMembershipId(membership);
+        available = Boolean(membership && partyId);
+        this.livePartyMembershipCache.set(cacheKey, {
+          partyId,
+          available,
+          // Party membership cannot change during an active match. Cache a
+          // success for the match and back off denied/unsupported probes.
+          expiresAt: now + (available ? 45 * 60_000 : 10 * 60_000)
+        });
+      }
+      if (available) resolved += 1;
+      else unavailable += 1;
+      return partyId ? { ...player, BYAKUGANPartyID: partyId } : player;
+    });
+    if (this.livePartyMembershipCache.size > 250) {
+      for (const [key, value] of this.livePartyMembershipCache) {
+        if (value.expiresAt <= now || !key.startsWith(`${matchKey}:`)) this.livePartyMembershipCache.delete(key);
+      }
+    }
+    return { players: hydrated, checked, resolved, unavailable };
   }
 
   rememberInspectablePlayers(rawPlayers, roster, names) {
@@ -1739,6 +1791,7 @@ class RiotClientService extends EventEmitter {
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
     let players = selectLiveMatchPlayers(match, loopState);
     const partyId = party.id;
+    let partyLookup = { checked: 0, resolved: 0, unavailable: 0 };
     if (players.length && party.players.length) {
       // The core-game roster identifies party members but often omits their
       // lobby-visible account level. Carry the value already resolved from the
@@ -1748,6 +1801,10 @@ class RiotClientService extends EventEmitter {
       players = party.players;
     }
     if (loopState === 'PREGAME') players = filterPregameRoster(players, puuid);
+    if (activeMatch && players.length) {
+      partyLookup = await this.hydrateLivePartyMemberships(players, matchId);
+      players = partyLookup.players;
+    }
     players = this.markKnownFriends(players);
     players = this.markKnownBlocked(players);
     const [names, rankedPlayers, leveledPlayers] = await Promise.all([
@@ -1761,6 +1818,7 @@ class RiotClientService extends EventEmitter {
       BYAKUGANLevelHidden: leveledPlayers[index]?.BYAKUGANLevelHidden === true
     }));
     const roster = normalizeLivePlayers(hydratedPlayers, puuid, this.metadata || { agents: new Map(), tiers: new Map() }, names);
+    const otherPartyGroups = new Set(roster.filter((player) => player.partyLabel && !player.ownParty).map((player) => player.partyLabel)).size;
     this.rememberInspectablePlayers(hydratedPlayers, roster, names);
     const queueId = match?.MatchmakingData?.QueueID || match?.matchmakingData?.queueId || match?.QueueID || match?.queueId || session.queueId || session.QueueID || '';
     return {
@@ -1781,7 +1839,11 @@ class RiotClientService extends EventEmitter {
         : loopState === 'PREGAME'
         ? 'Your full team is available during agent select; every opponent remains concealed until the active match begins.'
         : roster.length
-          ? 'Active match roster: public Riot names and available party groups are shown; hidden opponents remain agent-only, and enemy profiles stay unavailable.'
+          ? otherPartyGroups
+            ? `Experimental lookup confirmed ${otherPartyGroups} additional queued ${otherPartyGroups === 1 ? 'group' : 'groups'}; matching badges show who queued together. Hidden opponents remain agent-only.`
+            : partyLookup.checked && partyLookup.unavailable
+              ? 'Your party is confirmed. Riot did not expose other party memberships; unmarked players are unknown, not confirmed solo.'
+              : 'Experimental lookup found no repeated party IDs outside your party; unmarked players appear solo for this match.'
           : 'Waiting for Riot to expose the active roster.'
     };
   }
@@ -2530,6 +2592,7 @@ module.exports = {
   isPlayerNameHidden,
   isKnownPartyMember,
   livePartyId,
+  partyMembershipId,
   buildLivePartyGroups,
   isKnownFriend,
   isKnownBlocked,

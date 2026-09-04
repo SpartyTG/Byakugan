@@ -1,15 +1,29 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.110`.
+This package is the canonical source for `v0.8.0-beta.111`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.109`
-- Automated tests: `164 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.110`
+- Automated tests: `166 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.111 experimentally attempts to identify parties outside the signed-in
+player's own group during an active match. For each roster PUUID whose party is
+not already known, BYAKUGAN makes a read-only Riot party-membership request.
+Only repeated confirmed IDs become matching party badges; unique, missing, or
+denied results are never guessed. The lookup is limited to four concurrent
+requests with a 2.5-second timeout, caches successful membership for the match,
+and backs off unavailable results for 10 minutes. Raw party IDs remain backend
+only. The roster status explains whether other groups were confirmed, all
+returned IDs were unique, or Riot withheld enough data that unmarked players
+remain unknown. The experiment runs only after the core game begins; Agent
+Select opponent concealment is unchanged.
+
+## Previous completed changes
 
 Beta.110 fixes Ask Sensei text being erased by background refreshes. The
 composer now saves a separate draft for each selected match. Background refresh
@@ -19,8 +33,6 @@ Questions clear only after a successful response; a failed request preserves
 and refocuses the draft. A response completing after the user changes matches
 updates the correct saved report without overwriting the newly selected
 workspace.
-
-## Previous completed changes
 
 Beta.109 fixes the precise validation error revealed by the first beta.108
 rerun: Qwen omitted a supplied number from at least one weakness or returned an
@@ -186,7 +198,15 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.110 on both PCs. In Ask Sensei, type for longer than the configured
+Install beta.111 on both PCs and inspect Live Match after the core game begins.
+If Riot allows the experimental membership endpoint for other players, members
+of the same external duo/trio/stack should receive matching **PARTY A/B**
+badges. Read the roster status: it distinguishes confirmed extra groups from
+withheld memberships. Unmarked players must not be presented as confirmed solo
+when Riot denied or omitted the lookup. Pregame opponents must remain fully
+concealed.
+
+Also, in Ask Sensei, type for longer than the configured
 Riot-data refresh interval without submitting. Confirm the draft, focus, and
 cursor remain intact. Send the question and confirm it clears only after the
 answer appears; a failed request should retain the draft.

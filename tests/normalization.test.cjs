@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, isKnownBlocked, liveAccountLevel, livePartyId, buildLivePartyGroups, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, isKnownBlocked, liveAccountLevel, livePartyId, partyMembershipId, buildLivePartyGroups, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -472,6 +472,62 @@ test('live roster labels only confirmed queued groups without exposing Riot part
   assert.equal(roster[5].partyLabel, 'PARTY A · DUO');
   assert.equal(JSON.stringify(roster).includes('private-own-id'), false);
   assert.equal(JSON.stringify(roster).includes('private-enemy-id'), false);
+});
+
+test('experimental active-match lookup discovers other confirmed parties once and caches the result', async () => {
+  const service = new RiotClientService();
+  const calls = [];
+  const memberships = {
+    'ally-a': 'ally-duo', 'ally-b': 'ally-duo',
+    'enemy-a': 'enemy-duo', 'enemy-b': 'enemy-duo', solo: 'solo-party'
+  };
+  service.safeRemote = async (endpoint, target, options) => {
+    calls.push({ endpoint, target, options });
+    const subject = decodeURIComponent(endpoint.split('/').pop());
+    return { Subject: subject, CurrentPartyID: memberships[subject] };
+  };
+  const players = [
+    { Subject: 'self', TeamID: 'Blue', BYAKUGANPartyID: 'own-duo', PlayerIdentity: { Incognito: false } },
+    { Subject: 'friend', TeamID: 'Blue', BYAKUGANPartyID: 'own-duo', PlayerIdentity: { Incognito: false } },
+    { Subject: 'ally-a', TeamID: 'Blue', PlayerIdentity: { Incognito: false } },
+    { Subject: 'ally-b', TeamID: 'Blue', PlayerIdentity: { Incognito: false } },
+    { Subject: 'solo', TeamID: 'Blue', PlayerIdentity: { Incognito: false } },
+    { Subject: 'enemy-a', TeamID: 'Red', PlayerIdentity: { Incognito: false } },
+    { Subject: 'enemy-b', TeamID: 'Red', PlayerIdentity: { Incognito: false } }
+  ];
+  const first = await service.hydrateLivePartyMemberships(players, 'match-1');
+  assert.equal(first.checked, 5);
+  assert.equal(first.resolved, 5);
+  assert.equal(first.unavailable, 0);
+  assert.equal(calls.length, 5);
+  assert.equal(calls.every((call) => call.target === 'glz'), true);
+  assert.equal(calls.every((call) => call.options.ignoredStatuses.includes(403)), true);
+  assert.equal(calls.every((call) => call.options.timeout === 2_500), true);
+  assert.equal(partyMembershipId({ CurrentPartyID: 'party-id' }), 'party-id');
+  const groups = buildLivePartyGroups(first.players, 'self');
+  assert.equal(groups.get('ally-a').label, 'PARTY B · DUO');
+  assert.equal(groups.get('enemy-a').label, 'PARTY A · DUO');
+  assert.equal(groups.has('solo'), false);
+
+  const second = await service.hydrateLivePartyMemberships(players, 'match-1');
+  assert.equal(second.resolved, 5);
+  assert.equal(calls.length, 5);
+  const roster = normalizeLivePlayers(second.players, 'self', metadata(), Object.fromEntries(players.map((player) => [player.Subject, `${player.Subject}#NA1`])));
+  assert.equal(JSON.stringify(roster).includes('ally-duo'), false);
+  assert.equal(JSON.stringify(roster).includes('enemy-duo'), false);
+});
+
+test('experimental party lookup backs off when Riot withholds another membership', async () => {
+  const service = new RiotClientService();
+  let calls = 0;
+  service.safeRemote = async () => { calls += 1; return null; };
+  const players = [{ Subject: 'unknown-enemy', TeamID: 'Red', PlayerIdentity: { Incognito: true } }];
+  const first = await service.hydrateLivePartyMemberships(players, 'match-private');
+  const second = await service.hydrateLivePartyMemberships(players, 'match-private');
+  assert.equal(first.unavailable, 1);
+  assert.equal(second.unavailable, 1);
+  assert.equal(calls, 1);
+  assert.equal(first.players[0].BYAKUGANPartyID, undefined);
 });
 
 test('public opponent name lookup unlocks only for the active core game', () => {
