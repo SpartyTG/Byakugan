@@ -1,17 +1,25 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.100`.
+This package is the canonical source for `v0.8.0-beta.101`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.99` (adaptive test failed when its first 24-image request disconnected Ollama)
-- Automated tests: `148 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.100`
+- Automated tests: `149 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
 
-Beta.100 corrects the **Adaptive Quality Test** introduced in beta.99. It first scans the
+Live Match now displays every available player's all-time peak rank with the
+Episode and Act directly on the roster card instead of hiding the season in a
+tooltip. Completed Match History hydrates the same peak metadata for every
+scoreboard participant whose Riot MMR is available, using five concurrent
+requests and the existing player-rank cache. Missing peak data is labeled
+unavailable and never inferred. Pregame enemy concealment, Riot-hidden live
+identities, and non-clickable live opponent profiles remain unchanged.
+
+Beta.100 corrected the **Adaptive Quality Test** introduced in beta.99. It first scans the
 entire recording at one low-resolution frame per second, selects representative
 sustained-activity windows, supplements them with additional global activity
 windows and periodic quiet-play audits, and then gives each selected 12-second
@@ -43,7 +51,11 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.100 on the streaming PC and select **Adaptive Quality Test** in
+Install beta.101 on both PCs. During a core game, confirm every revealed player
+card shows current rank, all-time peak, and the peak Episode/Act while hidden
+enemy identities remain agent-only and non-clickable. Open several completed
+matches and confirm both teams show match rank plus all-time peak and
+Episode/Act. Then select **Adaptive Quality Test** in
 Settings. Use `qwen3:8b` for Sensei text and `qwen3-vl:8b-instruct` for VOD
 Vision. Run the same VOD that produced 498 exhaustive segments and record the
 selected window count, ETA after the first completed window, total runtime, and

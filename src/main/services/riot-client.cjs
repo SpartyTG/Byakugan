@@ -859,6 +859,10 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
       agentColor: agent.color,
       rank: tier.name,
       rankImage: tier.image || '',
+      peakRank: player.BYAKUGANPeakRank || '',
+      peakRankImage: player.BYAKUGANPeakRankImage || '',
+      peakEpisode: player.BYAKUGANPeakEpisode || '',
+      peakAct: player.BYAKUGANPeakAct || '',
       kills,
       deaths,
       assists,
@@ -1665,11 +1669,36 @@ class RiotClientService extends EventEmitter {
     const visibleSubjects = availableDetails.flatMap(({ detail }) => (detail?.Players || detail?.players || [])
       .map((player) => player.Subject || player.subject || player.puuid)
       .filter(Boolean));
-    const names = await this.lookupNames(visibleSubjects);
+    const hydrateRosterPeaks = subject === this.identity.puuid;
+    const [names, rosterPeakRows] = await Promise.all([
+      this.lookupNames(visibleSubjects),
+      hydrateRosterPeaks
+        ? this.fetchActiveSeasonId().then((activeSeasonId) => mapWithConcurrency(
+          [...new Set(visibleSubjects)], 5,
+          async (playerSubject) => [playerSubject, await this.fetchRosterRankSummary({ Subject: playerSubject }, activeSeasonId)]
+        ))
+        : []
+    ]);
+    const rosterPeaks = new Map(rosterPeakRows);
     const normalized = availableDetails.map(({ detail, row, ratingUpdate }) => {
       const match = normalizeMatchDetail(detail, subject, this.metadata, row, ratingUpdate);
       if (!match) return null;
-      const roster = normalizeHistoricalRoster(detail, subject, this.metadata, names).map((player) => {
+      const detailPlayers = detail?.Players || detail?.players || [];
+      const peakHydratedDetail = hydrateRosterPeaks ? {
+        ...detail,
+        Players: detailPlayers.map((player) => {
+          const playerSubject = player.Subject || player.subject || player.puuid;
+          const peak = rosterPeaks.get(playerSubject) || {};
+          return {
+            ...player,
+            BYAKUGANPeakRank: peak.peakRank || '',
+            BYAKUGANPeakRankImage: peak.peakRankImage || '',
+            BYAKUGANPeakEpisode: peak.peakEpisode || '',
+            BYAKUGANPeakAct: peak.peakAct || ''
+          };
+        })
+      } : detail;
+      const roster = normalizeHistoricalRoster(peakHydratedDetail, subject, this.metadata, names).map((player) => {
         const profileId = this.rememberHistoricalPlayer(player);
         const { subject: _subject, ...publicPlayer } = player;
         return { ...publicPlayer, profileId };

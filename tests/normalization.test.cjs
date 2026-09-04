@@ -541,7 +541,7 @@ test('completed match roster uses Career-visible names regardless of the live in
   const detail = {
     Players: [
       { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
-      { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
+      { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakRankImage: 'immortal.png', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2', PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
       { Subject: 'hidden-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } },
       { Subject: 'hidden-friend', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true, PlayerStats: { Kills: 10, Deaths: 12, Assists: 4, Score: 2200 } }
     ],
@@ -551,6 +551,10 @@ test('completed match roster uses Career-visible names regardless of the live in
   assert.equal(roster[0].acs, 200);
   assert.equal(roster[1].name, 'Visible#NA1');
   assert.equal(roster[1].inspectable, true);
+  assert.equal(roster[1].peakRank, 'Immortal 1');
+  assert.equal(roster[1].peakRankImage, 'immortal.png');
+  assert.equal(roster[1].peakEpisode, 'Episode 9');
+  assert.equal(roster[1].peakAct, 'Act 2');
   assert.equal(roster[2].name, 'CareerName#NA1');
   assert.equal(roster[2].hidden, false);
   assert.equal(roster[2].inspectable, true);
@@ -577,11 +581,27 @@ test('completed match hydration requests names for every scoreboard participant'
     requested = subjects;
     return { self: 'Self#NA1', 'live-hidden': 'CareerVisible#NA1' };
   };
+  const requestedPeaks = [];
+  service.fetchActiveSeasonId = async () => 'current-act';
+  service.fetchRosterRankSummary = async (player) => {
+    requestedPeaks.push(player.Subject);
+    return {
+      tier: 21,
+      peakRank: player.Subject === 'self' ? 'Immortal 1' : 'Ascendant 3',
+      peakRankImage: `${player.Subject}-peak.png`,
+      peakEpisode: 'Episode 9',
+      peakAct: player.Subject === 'self' ? 'Act 1' : 'Act 2'
+    };
+  };
 
   const matches = await service.fetchDetailedMatches({ History: [{ MatchID: 'career-match', QueueID: 'competitive' }] }, { Matches: [] });
   assert.deepEqual(new Set(requested), new Set(['self', 'live-hidden']));
+  assert.deepEqual(new Set(requestedPeaks), new Set(['self', 'live-hidden']));
   assert.equal(matches[0].roster[1].name, 'CareerVisible#NA1');
   assert.equal(matches[0].roster[1].hidden, false);
+  assert.equal(matches[0].roster[1].peakRank, 'Ascendant 3');
+  assert.equal(matches[0].roster[1].peakEpisode, 'Episode 9');
+  assert.equal(matches[0].roster[1].peakAct, 'Act 2');
 });
 
 test('selects a roster rank from the active act, then competitive updates', () => {

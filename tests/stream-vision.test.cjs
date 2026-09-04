@@ -50,6 +50,15 @@ test('Live Match renders an account-level badge for every revealed roster card',
   assert.match(app, /IDENTITY HIDDEN/);
 });
 
+test('Live Match and completed rosters visibly include peak Episode and Act context', () => {
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/app.js'), 'utf8');
+  assert.match(renderer, /player\.peakEpisode, player\.peakAct/);
+  assert.match(renderer, /EPISODE \/ ACT UNAVAILABLE/);
+  assert.match(renderer, /PEAK UNAVAILABLE/);
+  assert.match(renderer, /history-player-rank/);
+  assert.match(renderer, /live-rank/);
+});
+
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
   assert.match(html, /<option value="custom">Custom Overlay Builder<\/option>/);
   assert.match(html, /id="customOverlayWidth"/);

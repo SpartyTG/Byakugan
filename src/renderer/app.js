@@ -582,11 +582,13 @@ function historicalPlayerRow(player) {
   const displayName = player.hidden ? player.agent : player.name || 'Riot Player';
   const detail = player.hidden ? 'IDENTITY HIDDEN' : player.agent;
   const clickable = Boolean(player.inspectable && player.profileId);
+  const peakLabel = player.peakRank ? `PEAK ${player.peakRank}` : 'PEAK UNAVAILABLE';
+  const peakContext = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ') || 'EPISODE / ACT UNAVAILABLE';
   return `<div class="history-player ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${clickable ? 'inspectable' : ''}" ${clickable ? `data-player-id="${escapeHtml(player.profileId)}" role="button" tabindex="0"` : ''}>
     <div class="history-player-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
     <div class="history-player-name"><strong>${escapeHtml(displayName)}</strong><small>${escapeHtml(detail)}</small></div>
     <div class="history-player-performance"><small>THIS MATCH</small><strong>${escapeHtml(player.kills)} / ${escapeHtml(player.deaths)} / ${escapeHtml(player.assists)}</strong><em>${escapeHtml(player.acs || 0)} ACS</em></div>
-    <div class="history-player-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>MATCH RANK</small><strong>${escapeHtml(player.rank)}</strong></span></div>
+    <div class="history-player-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>MATCH RANK</small><strong>${escapeHtml(player.rank)}</strong><em>${escapeHtml(peakLabel)}</em><b>${escapeHtml(peakContext)}</b></span></div>
   </div>`;
 }
 
@@ -852,7 +854,7 @@ function livePlayerRow(player) {
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
     <div class="live-player-identity"><div class="live-player-heading">${identityTitle}<span class="live-player-level ${levelIsHidden ? 'hidden' : ''}">${escapeHtml(levelLabel)}</span></div><small>${identityDetail}</small></div>
-    <div class="live-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>CURRENT</small><strong>${escapeHtml(player.rank)}</strong><em${peakContext ? ` title="${escapeHtml(peakContext)}"` : ''}>${escapeHtml(peakLabel)}</em></span></div>
+    <div class="live-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>CURRENT</small><strong>${escapeHtml(player.rank)}</strong><em>${escapeHtml(peakLabel)}</em><b>${escapeHtml(peakContext || 'EPISODE / ACT UNAVAILABLE')}</b></span></div>
   </div>`;
 }
 

@@ -96,9 +96,12 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.100
+## Included in version 0.8.0-beta.101
 
 - Original desktop dashboard and navigation
+- Visible all-time peak rank context on every revealed Live Match card, including the Episode and Act shown directly beneath the peak instead of only in a hover tooltip
+- Completed Match History roster enrichment for every participant whose Riot MMR is available, showing all-time peak rank plus Episode and Act alongside that match's rank; unavailable values remain explicitly labeled rather than inferred
+- Five-at-a-time peak-rank hydration with the existing short-lived player cache to keep the expanded Match History lookup bounded, including in Dual PC Streaming Mode snapshots
 - Adaptive VOD requests capped at 16 ordered images per 12-second window after beta.99's 24-image requests repeatedly caused Ollama to disconnect on the test RX 6800 XT; increasing Ollama context length is not required
 - Adaptive checkpoint versioning updated so an incompatible beta.99 scan checkpoint is safely replaced instead of being presented as resumable with the corrected frame rate
 - A testable **Adaptive Quality Test** VOD mode that scans the full recording at low resolution, selects representative sustained-activity windows, adds global high-activity windows and periodic quiet-play audits, then performs higher-detail temporal review with the selected local vision model
@@ -334,10 +337,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.100`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.101`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.100`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.101`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -345,8 +348,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.100
-git push origin v0.8.0-beta.100
+git tag v0.8.0-beta.101
+git push origin v0.8.0-beta.101
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
