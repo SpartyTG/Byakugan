@@ -29,8 +29,8 @@ function normalizeVodFinding(value = {}) {
 
 function normalizeVodCheckpoint(value) {
   const version = Number(value?.version);
-  if (!value || typeof value !== 'object' || ![2, 3].includes(version)) return null;
-  const mode = value.mode === 'adaptive' || version === 3 ? 'adaptive' : 'exhaustive';
+  if (!value || typeof value !== 'object' || ![2, 3, 4].includes(version)) return null;
+  const mode = value.mode === 'adaptive' || version >= 3 ? 'adaptive' : 'exhaustive';
   return {
     version,
     mode,

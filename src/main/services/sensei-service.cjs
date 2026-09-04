@@ -11,10 +11,11 @@ const FULL_VOD_ANALYSIS_VERSION = 2;
 const FULL_VOD_CHUNK_SECONDS = 4;
 const FULL_VOD_FRAME_RATE = 4;
 const FULL_VOD_FRAME_WIDTH = 768;
-const ADAPTIVE_VOD_ANALYSIS_VERSION = 3;
+const ADAPTIVE_VOD_ANALYSIS_VERSION = 4;
 const ADAPTIVE_VOD_SCAN_FPS = 1;
 const ADAPTIVE_VOD_WINDOW_SECONDS = 12;
-const ADAPTIVE_VOD_FRAME_RATE = 2;
+const ADAPTIVE_VOD_MAX_FRAMES = 16;
+const ADAPTIVE_VOD_FRAME_RATE = ADAPTIVE_VOD_MAX_FRAMES / ADAPTIVE_VOD_WINDOW_SECONDS;
 const ADAPTIVE_VOD_BUCKET_SECONDS = 40;
 const ADAPTIVE_VOD_QUIET_AUDIT_SECONDS = 180;
 
@@ -644,7 +645,7 @@ function finalizeFullVodReport(checkpoint = {}) {
   const detailedSeconds = adaptive ? coveredWindowSeconds(checkpoint.windows || []) : durationSeconds;
   const detailedPercent = durationSeconds ? Math.min(100, Math.round((detailedSeconds / durationSeconds) * 100)) : 0;
   const reviewDescription = adaptive
-    ? `Scanned ${vodTime(durationSeconds)} from beginning to end at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS, then completed ${completedSegments} adaptive detail windows covering ${vodTime(detailedSeconds)} at ${checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE} FPS and ${checkpoint.framesReviewed || 0} ordered frames.`
+    ? `Scanned ${vodTime(durationSeconds)} from beginning to end at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS, then completed ${completedSegments} adaptive detail windows covering ${vodTime(detailedSeconds)} at ${number(checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE, 2)} FPS and ${checkpoint.framesReviewed || 0} ordered frames.`
     : `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames.`;
   const summary = findings.length
     ? `${reviewDescription} ${findings.length} coachable moment${findings.length === 1 ? '' : 's'} remained after removing HUD descriptions and unsupported observations.`
@@ -665,7 +666,7 @@ function finalizeFullVodReport(checkpoint = {}) {
     limitations: [...new Set([
       ...(checkpoint.limitations || []),
       adaptive
-        ? `The full recording was scanned at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS for sustained visual activity; the vision model then reviewed selected activity windows and periodic quiet-play audits at ${checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE} FPS. Events between detail windows may be missed.`
+        ? `The full recording was scanned at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS for sustained visual activity; the vision model then reviewed selected activity windows and periodic quiet-play audits at ${number(checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE, 2)} FPS with no more than ${ADAPTIVE_VOD_MAX_FRAMES} images per request. Events between detail windows may be missed.`
         : `Ordered visual frames were reviewed at ${checkpoint.frameRate || FULL_VOD_FRAME_RATE} FPS; actions shorter than the sampling interval may be missed.`,
       'Audio and communications were not analyzed.',
       ...(invalidSegments ? [`${invalidSegments} segment${invalidSegments === 1 ? '' : 's'} could not be converted into validated structured observations.`] : [])
@@ -853,7 +854,7 @@ class SenseiService {
           const selectionContext = adaptive
             ? `This window was selected by a full-video low-resolution activity scan as a ${window.kind === 'quiet-audit' ? 'periodic quiet-play audit' : window.kind === 'supplemental' ? 'supplemental sustained-activity window' : 'representative sustained-activity window'}. Selection is not evidence of a tactical mistake or success.`
             : 'This is one consecutive section of an exhaustive beginning-to-end review.';
-          const prompt = `You are reviewing ONE continuous ${segmentDuration.toFixed(1)}-second context window from a complete VALORANT VOD. Images are chronological at ${frameRate} frames per second: ${labels}.
+          const prompt = `You are reviewing ONE continuous ${segmentDuration.toFixed(1)}-second context window from a complete VALORANT VOD. Images are chronological at ${number(frameRate, 2)} frames per second: ${labels}.
 
 ${selectionContext}
 
@@ -988,7 +989,7 @@ async function extractVodSegmentFrames({
 
 module.exports = {
   FULL_VOD_ANALYSIS_VERSION, FULL_VOD_CHUNK_SECONDS, FULL_VOD_FRAME_RATE,
-  ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_SCAN_FPS, ADAPTIVE_VOD_WINDOW_SECONDS, ADAPTIVE_VOD_FRAME_RATE,
+  ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_SCAN_FPS, ADAPTIVE_VOD_WINDOW_SECONDS, ADAPTIVE_VOD_MAX_FRAMES, ADAPTIVE_VOD_FRAME_RATE,
   SenseiService, buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds, detectFfmpeg, detectFfprobe,
   extractVodFrames, extractVodSegmentFrames, finalizeFullVodReport, parseVodActivityScan, scanVodActivity,
   headshotPercent, isUsefulVodFinding, liteReport, parseStructuredJson, probeVodDuration, strictSchema, summarizeMatches,

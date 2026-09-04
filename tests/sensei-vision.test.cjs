@@ -8,7 +8,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { SenseiStore, normalizeEntry } = require('../src/main/sensei-store.cjs');
 const {
-  SenseiService, buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds,
+  SenseiService, ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_FRAME_RATE, ADAPTIVE_VOD_MAX_FRAMES, ADAPTIVE_VOD_WINDOW_SECONDS,
+  buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds,
   finalizeFullVodReport, isUsefulVodFinding, liteReport, parseStructuredJson, parseVodActivityScan,
   validateFullVodSegment, validateReport
 } = require('../src/main/services/sensei-service.cjs');
@@ -226,12 +227,14 @@ test('adaptive VOD planning scans the full timeline and selects bounded activity
   assert.deepEqual(windows, windows.slice().sort((left, right) => left.startSeconds - right.startSeconds));
   assert.equal(coveredWindowSeconds(windows) > 0, true);
   assert.equal(coveredWindowSeconds(windows) < durationSeconds, true);
+  assert.equal(Math.ceil(ADAPTIVE_VOD_FRAME_RATE * ADAPTIVE_VOD_WINDOW_SECONDS), ADAPTIVE_VOD_MAX_FRAMES);
+  assert.equal(ADAPTIVE_VOD_MAX_FRAMES, 16);
 });
 
 test('adaptive full-match reports separate complete scan coverage from detailed model coverage', () => {
   const report = finalizeFullVodReport({
-    version: 3, mode: 'adaptive', durationSeconds: 600, scanFps: 1, scanSamples: 600,
-    frameRate: 2, totalSegments: 3, completedSegments: 3, framesReviewed: 72,
+    version: ADAPTIVE_VOD_ANALYSIS_VERSION, mode: 'adaptive', durationSeconds: 600, scanFps: 1, scanSamples: 600,
+    frameRate: ADAPTIVE_VOD_FRAME_RATE, totalSegments: 3, completedSegments: 3, framesReviewed: 48,
     windows: [
       { startSeconds: 10, durationSeconds: 12, kind: 'activity' },
       { startSeconds: 100, durationSeconds: 12, kind: 'supplemental' },
@@ -403,16 +406,16 @@ test('full-match VOD checkpoints survive interruption and become resumable on st
 
 test('adaptive VOD checkpoints preserve their selected review plan', () => {
   const checkpoint = {
-    version: 3, mode: 'adaptive', durationSeconds: 1_800, chunkSeconds: 12, frameRate: 2,
+    version: ADAPTIVE_VOD_ANALYSIS_VERSION, mode: 'adaptive', durationSeconds: 1_800, chunkSeconds: 12, frameRate: ADAPTIVE_VOD_FRAME_RATE,
     scanFps: 1, scanSamples: 1_800, totalSegments: 2, completedSegments: 1,
-    framesReviewed: 24, elapsedMs: 50_000, findings: [], limitations: [],
+    framesReviewed: 16, elapsedMs: 50_000, findings: [], limitations: [],
     windows: [
       { startSeconds: 12, durationSeconds: 12, kind: 'activity', activityScore: 10 },
       { startSeconds: 88, durationSeconds: 12, kind: 'quiet-audit', activityScore: .2 }
     ]
   };
   const entry = normalizeEntry({ matchId: 'adaptive', vod: { path: 'C:\\recordings\\adaptive.mkv', status: 'canceled', checkpoint } });
-  assert.equal(entry.vod.checkpoint.version, 3);
+  assert.equal(entry.vod.checkpoint.version, ADAPTIVE_VOD_ANALYSIS_VERSION);
   assert.equal(entry.vod.checkpoint.mode, 'adaptive');
   assert.equal(entry.vod.checkpoint.scanSamples, 1_800);
   assert.equal(entry.vod.checkpoint.windows.length, 2);

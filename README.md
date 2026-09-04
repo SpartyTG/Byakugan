@@ -46,7 +46,9 @@ invoke the coach again.
   clean MP4, MKV, MOV, or WebM recording to a saved match report. The default
   Adaptive Quality Test scans the entire recording once per second, selects
   sustained-activity context windows plus periodic quiet-play audits, and then
-  gives those windows a deeper two-frame-per-second review. The original
+  gives each 12-second window a deeper 16-frame review. This preserves temporal
+  context while keeping each Ollama request at the image count already proven
+  stable by the exhaustive pipeline. The original
   exhaustive four-second pipeline remains available as a slower comparison
   mode. BYAKUGAN removes generic HUD descriptions before they can enter the
   tactical report, reports full-scan and deep-review coverage separately, and
@@ -94,9 +96,11 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.99
+## Included in version 0.8.0-beta.100
 
 - Original desktop dashboard and navigation
+- Adaptive VOD requests capped at 16 ordered images per 12-second window after beta.99's 24-image requests repeatedly caused Ollama to disconnect on the test RX 6800 XT; increasing Ollama context length is not required
+- Adaptive checkpoint versioning updated so an incompatible beta.99 scan checkpoint is safely replaced instead of being presented as resumable with the corrected frame rate
 - A testable **Adaptive Quality Test** VOD mode that scans the full recording at low resolution, selects representative sustained-activity windows, adds global high-activity windows and periodic quiet-play audits, then performs higher-detail temporal review with the selected local vision model
 - A selectable **Exhaustive** comparison mode that preserves the original consecutive four-second review pipeline and its compatible beta.98 checkpoints
 - Honest adaptive reporting that separates 100% full-video scan coverage from the smaller percentage receiving deep vision-model review and explicitly warns that events between detail windows can be missed
@@ -330,10 +334,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.99`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.100`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.99`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.100`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -341,8 +345,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.99
-git push origin v0.8.0-beta.99
+git tag v0.8.0-beta.100
+git push origin v0.8.0-beta.100
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

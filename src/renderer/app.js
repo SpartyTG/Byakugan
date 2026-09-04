@@ -32,6 +32,7 @@ const state = {
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const text = (selector, value) => { const element = $(selector); if (element) element.textContent = String(value ?? '—'); };
+const SENSEI_VOD_CHECKPOINT_VERSIONS = Object.freeze({ adaptive: 4, exhaustive: 2 });
 const OVERLAY_DIMENSIONS = Object.freeze({
   rank: { width: 480, height: 190 },
   reactive: { width: 480, height: 190 },
@@ -674,7 +675,7 @@ function senseiVodMarkup(entry) {
   const analyzing = vod?.status === 'analyzing';
   const selectedMode = state.settings?.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
   const checkpointMode = vod?.checkpoint?.mode || (Number(vod?.checkpoint?.version) === 2 ? 'exhaustive' : '');
-  const resumable = checkpointMode === selectedMode && Number(vod?.checkpoint?.completedSegments) > 0 && Number(vod?.checkpoint?.completedSegments) < Number(vod?.checkpoint?.totalSegments);
+  const resumable = checkpointMode === selectedMode && Number(vod?.checkpoint?.version) === SENSEI_VOD_CHECKPOINT_VERSIONS[selectedMode] && Number(vod?.checkpoint?.completedSegments) > 0 && Number(vod?.checkpoint?.completedSegments) < Number(vod?.checkpoint?.totalSegments);
   const modeLabel = selectedMode === 'adaptive' ? 'Adaptive Quality Test' : 'Exhaustive Comparison';
   const missing = state.senseiStatus?.vodMissing || ['Local setup check has not finished'];
   const ready = state.senseiStatus?.vodReady === true;
@@ -1666,7 +1667,7 @@ async function analyzeSenseiVod() {
   const checkpoint = state.senseiEntry?.vod?.checkpoint;
   const selectedMode = state.settings?.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
   const checkpointMode = checkpoint?.mode || (Number(checkpoint?.version) === 2 ? 'exhaustive' : '');
-  const compatibleCheckpoint = checkpointMode === selectedMode ? checkpoint : null;
+  const compatibleCheckpoint = checkpointMode === selectedMode && Number(checkpoint?.version) === SENSEI_VOD_CHECKPOINT_VERSIONS[selectedMode] ? checkpoint : null;
   const resumeText = Number(compatibleCheckpoint?.completedSegments) > 0
     ? `Resume after ${selectedMode === 'adaptive' ? 'review window' : 'segment'} ${compatibleCheckpoint.completedSegments} of ${compatibleCheckpoint.totalSegments}? Completed work will be retained.`
     : selectedMode === 'adaptive'

@@ -10,7 +10,7 @@ const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = requir
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
-const { SenseiService, detectFfmpeg, detectFfprobe } = require('./services/sensei-service.cjs');
+const { SenseiService, FULL_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_ANALYSIS_VERSION, detectFfmpeg, detectFfprobe } = require('./services/sensei-service.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -481,7 +481,10 @@ function registerIpc() {
     senseiVodJobs.set(jobKey, controller);
     const analysisMode = current.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
     const savedCheckpointMode = existing.vod.checkpoint?.mode || (Number(existing.vod.checkpoint?.version) === 2 ? 'exhaustive' : '');
-    const requestedCheckpoint = savedCheckpointMode === analysisMode ? existing.vod.checkpoint : null;
+    const expectedCheckpointVersion = analysisMode === 'adaptive' ? ADAPTIVE_VOD_ANALYSIS_VERSION : FULL_VOD_ANALYSIS_VERSION;
+    const requestedCheckpoint = savedCheckpointMode === analysisMode && Number(existing.vod.checkpoint?.version) === expectedCheckpointVersion
+      ? existing.vod.checkpoint
+      : null;
     const checkpointElapsedMs = Math.max(0, Number(requestedCheckpoint?.elapsedMs) || 0);
     const legacyElapsedMs = checkpointElapsedMs ? 0 : Math.max(0,
       Number(requestedCheckpoint?.updatedAt || 0) - Number(requestedCheckpoint?.startedAt || 0));

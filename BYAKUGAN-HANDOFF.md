@@ -1,21 +1,24 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.99`.
+This package is the canonical source for `v0.8.0-beta.100`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.98`
+- Previous canonical version: `v0.8.0-beta.99` (adaptive test failed when its first 24-image request disconnected Ollama)
 - Automated tests: `148 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
 
-Beta.99 adds an **Adaptive Quality Test** for VOD Vision. It first scans the
+Beta.100 corrects the **Adaptive Quality Test** introduced in beta.99. It first scans the
 entire recording at one low-resolution frame per second, selects representative
 sustained-activity windows, supplements them with additional global activity
 windows and periodic quiet-play audits, and then gives each selected 12-second
-window a detailed two-frame-per-second review with the configured vision model.
+window a detailed 16-frame review with the configured vision model. This keeps
+the full 12-second temporal context but returns each request to the image count
+already proven stable by the Exhaustive pipeline. Increasing Ollama above 32k
+context is not recommended because it increases VRAM use.
 For a 33:12 recording, the deterministic planner selected about 71 detailed
 windows instead of the old 498 model calls. Actual runtime and report quality
 must be measured on the user's RX 6800 XT and `qwen3-vl:8b-instruct`.
@@ -40,7 +43,7 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.99 on the streaming PC and select **Adaptive Quality Test** in
+Install beta.100 on the streaming PC and select **Adaptive Quality Test** in
 Settings. Use `qwen3:8b` for Sensei text and `qwen3-vl:8b-instruct` for VOD
 Vision. Run the same VOD that produced 498 exhaustive segments and record the
 selected window count, ETA after the first completed window, total runtime, and
