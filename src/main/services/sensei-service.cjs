@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFile, execFileSync } = require('node:child_process');
+const { execFile, execFileSync, spawn } = require('node:child_process');
 
 const SCORE_VALUES = new Set(['high', 'average', 'low']);
 const SCORE_KEYS = ['impact', 'aim', 'entry', 'utility', 'econ'];
@@ -11,6 +11,12 @@ const FULL_VOD_ANALYSIS_VERSION = 2;
 const FULL_VOD_CHUNK_SECONDS = 4;
 const FULL_VOD_FRAME_RATE = 4;
 const FULL_VOD_FRAME_WIDTH = 768;
+const ADAPTIVE_VOD_ANALYSIS_VERSION = 3;
+const ADAPTIVE_VOD_SCAN_FPS = 1;
+const ADAPTIVE_VOD_WINDOW_SECONDS = 12;
+const ADAPTIVE_VOD_FRAME_RATE = 2;
+const ADAPTIVE_VOD_BUCKET_SECONDS = 40;
+const ADAPTIVE_VOD_QUIET_AUDIT_SECONDS = 180;
 
 function number(value, digits = 1) {
   const parsed = Number(value);
@@ -282,6 +288,7 @@ async function generateStructured({ endpoint, model, repairModel = '', prompt, s
           // the repaired object against its strict report rules below.
           format: attempt ? 'json' : schema,
           think: false,
+          keep_alive: '30m',
           options: { temperature: attempt ? 0 : .1, num_predict: attempt ? Math.max(1_200, numPredict) : numPredict }
         })
       }, timeoutMs, signal);
@@ -399,14 +406,155 @@ function vodTime(seconds) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function fullVodSegmentSchema() {
+function parseVodActivityScan(raw = '') {
+  const samples = [];
+  let currentSeconds = null;
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    const frame = line.match(/\bpts_time:([0-9.]+)/);
+    if (frame) currentSeconds = Number(frame[1]);
+    const difference = line.match(/lavfi\.signalstats\.YDIF=([0-9.]+)/);
+    if (difference && Number.isFinite(currentSeconds)) {
+      samples.push({ seconds: currentSeconds, difference: Math.max(0, Number(difference[1]) || 0) });
+      currentSeconds = null;
+    }
+  }
+  return samples;
+}
+
+function percentile(values = [], ratio = .9) {
+  const sorted = values.map(Number).filter(Number.isFinite).sort((left, right) => left - right);
+  if (!sorted.length) return 0;
+  return sorted[Math.max(0, Math.min(sorted.length - 1, Math.round((sorted.length - 1) * ratio)))];
+}
+
+function scoreVodActivity(samples = []) {
+  const ceiling = Math.max(.01, percentile(samples.map((sample) => sample.difference), .9));
+  const clipped = samples.map((sample) => Math.min(ceiling, Math.max(0, Number(sample.difference) || 0)));
+  return samples.map((sample, index) => ({
+    ...sample,
+    score: clipped[index]
+      + ((clipped[index - 1] || 0) + (clipped[index + 1] || 0)) * .65
+      + ((clipped[index - 2] || 0) + (clipped[index + 2] || 0)) * .25
+  }));
+}
+
+function adaptiveWindow(sample, durationSeconds, kind = 'activity') {
+  const duration = Math.max(.1, Math.min(ADAPTIVE_VOD_WINDOW_SECONDS, Number(durationSeconds) || ADAPTIVE_VOD_WINDOW_SECONDS));
+  const startSeconds = Math.max(0, Math.min(Math.max(0, durationSeconds - duration), Number(sample?.seconds || 0) - duration / 2));
+  return {
+    startSeconds: Math.round(startSeconds * 10) / 10,
+    durationSeconds: Math.round(duration * 10) / 10,
+    kind,
+    activityScore: Math.round(Math.max(0, Number(sample?.score) || 0) * 100) / 100
+  };
+}
+
+function buildAdaptiveReviewWindows(samples = [], durationSeconds = 0) {
+  const duration = Math.max(.1, Number(durationSeconds) || 0);
+  const scored = scoreVodActivity(samples.length ? samples : Array.from({ length: Math.max(1, Math.ceil(duration)) }, (_, seconds) => ({ seconds, difference: 0 })));
+  const selected = [];
+  const add = (sample, kind, minimumGap = ADAPTIVE_VOD_WINDOW_SECONDS * .8) => {
+    if (!sample) return false;
+    const candidate = adaptiveWindow(sample, duration, kind);
+    const center = candidate.startSeconds + candidate.durationSeconds / 2;
+    if (selected.some((window) => Math.abs((window.startSeconds + window.durationSeconds / 2) - center) < minimumGap)) return false;
+    selected.push(candidate);
+    return true;
+  };
+
+  for (let start = 0; start < duration; start += ADAPTIVE_VOD_BUCKET_SECONDS) {
+    const bucket = scored.filter((sample) => sample.seconds >= start && sample.seconds < Math.min(duration, start + ADAPTIVE_VOD_BUCKET_SECONDS));
+    add(bucket.sort((left, right) => right.score - left.score)[0], 'activity');
+  }
+
+  let supplemental = Math.max(1, Math.ceil(duration / 120));
+  for (const sample of scored.slice().sort((left, right) => right.score - left.score)) {
+    if (!supplemental) break;
+    if (add(sample, 'supplemental', ADAPTIVE_VOD_WINDOW_SECONDS * 1.15)) supplemental -= 1;
+  }
+
+  for (let start = 0; start < duration; start += ADAPTIVE_VOD_QUIET_AUDIT_SECONDS) {
+    const bucket = scored.filter((sample) => sample.seconds >= start && sample.seconds < Math.min(duration, start + ADAPTIVE_VOD_QUIET_AUDIT_SECONDS));
+    add(bucket.sort((left, right) => left.score - right.score)[0], 'quiet-audit', ADAPTIVE_VOD_WINDOW_SECONDS * .75);
+  }
+
+  return selected.sort((left, right) => left.startSeconds - right.startSeconds);
+}
+
+function coveredWindowSeconds(windows = []) {
+  const ranges = windows.map((window) => [Number(window.startSeconds) || 0, (Number(window.startSeconds) || 0) + (Number(window.durationSeconds) || 0)])
+    .filter((range) => range[1] > range[0]).sort((left, right) => left[0] - right[0]);
+  let covered = 0;
+  let current = null;
+  for (const range of ranges) {
+    if (!current) current = range.slice();
+    else if (range[0] <= current[1]) current[1] = Math.max(current[1], range[1]);
+    else { covered += current[1] - current[0]; current = range.slice(); }
+  }
+  if (current) covered += current[1] - current[0];
+  return Math.round(covered * 10) / 10;
+}
+
+function scanVodActivity({ ffmpeg, source, durationSeconds, signal = null, onProgress = () => {} }) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(canceledError());
+    const args = [
+      '-nostdin', '-hide_banner', '-loglevel', 'error', '-i', source,
+      '-vf', `fps=${ADAPTIVE_VOD_SCAN_FPS},scale=192:-2,format=gray,signalstats,metadata=mode=print:key=lavfi.signalstats.YDIF:file=-`,
+      '-an', '-f', 'null', '-'
+    ];
+    const child = spawn(ffmpeg, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    let errors = '';
+    let buffered = '';
+    let lastReported = -30;
+    const consume = (chunk) => {
+      output += chunk;
+      buffered += chunk;
+      const lines = buffered.split(/\r?\n/);
+      buffered = lines.pop() || '';
+      for (const line of lines) {
+        const match = line.match(/\bpts_time:([0-9.]+)/);
+        const seconds = match ? Number(match[1]) : NaN;
+        if (Number.isFinite(seconds) && seconds - lastReported >= 30) {
+          lastReported = seconds;
+          onProgress({
+            phase: 'adaptive-scan', stage: 'scanning', current: Math.min(durationSeconds, seconds), total: durationSeconds,
+            mediaSeconds: seconds, durationSeconds, mode: 'adaptive', message: `Scanning complete VOD at ${vodTime(seconds)} of ${vodTime(durationSeconds)}`
+          });
+        }
+      }
+    };
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', consume);
+    child.stderr.on('data', (chunk) => { errors = `${errors}${chunk}`.slice(-4_000); });
+    const abort = () => child.kill();
+    signal?.addEventListener('abort', abort, { once: true });
+    child.once('error', (error) => {
+      signal?.removeEventListener('abort', abort);
+      reject(signal?.aborted ? canceledError() : error);
+    });
+    child.once('close', (code) => {
+      signal?.removeEventListener('abort', abort);
+      if (buffered) consume('\n');
+      if (signal?.aborted) return reject(canceledError());
+      if (code !== 0) return reject(new Error(`The adaptive VOD scan failed${errors.trim() ? `: ${errors.trim().replace(/\s+/g, ' ').slice(0, 500)}` : '.'}`));
+      const samples = parseVodActivityScan(output);
+      if (!samples.length) return reject(new Error('The adaptive VOD scan did not return readable activity samples. Use Exhaustive mode for this recording.'));
+      resolve(samples);
+    });
+  });
+}
+
+function fullVodSegmentSchema(maxFindings = 2) {
   return {
     type: 'object', required: ['sceneType', 'activity', 'summary', 'findings', 'limitations'],
     properties: {
       sceneType: { type: 'string', enum: ['gameplay', 'menu', 'loading', 'round-transition', 'spectating', 'unknown'] },
       activity: { type: 'string', enum: ['none', 'setup', 'rotation', 'combat', 'objective', 'death', 'spectating'] },
       summary: { type: 'string' },
-      findings: { type: 'array', maxItems: 2, items: { type: 'object', required: ['timestamp', 'category', 'outcome', 'observation', 'evidence', 'coaching', 'confidence'], properties: {
+      findings: { type: 'array', maxItems: maxFindings, items: { type: 'object', required: ['timestamp', 'category', 'outcome', 'observation', 'evidence', 'coaching', 'confidence'], properties: {
         timestamp: { type: 'string' }, round: { type: 'integer' }, category: { type: 'string' },
         outcome: { type: 'string', enum: ['positive', 'negative', 'neutral'] }, observation: { type: 'string' },
         evidence: { type: 'string' }, coaching: { type: 'string' }, confidence: { type: 'string', enum: ['high', 'average', 'low'] }
@@ -435,13 +583,13 @@ function isUsefulVodFinding(finding = {}) {
   return !filler.some((pattern) => pattern.test(combined));
 }
 
-function validateFullVodSegment(parsed, { startSeconds = 0, endSeconds = 0, frameCount = 0 } = {}) {
+function validateFullVodSegment(parsed, { startSeconds = 0, endSeconds = 0, frameCount = 0, maxFindings = 2 } = {}) {
   if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.findings) || !Array.isArray(parsed.limitations)) {
     throw new Error('The vision model returned an incomplete full-match segment.');
   }
   const allowedScenes = new Set(['gameplay', 'menu', 'loading', 'round-transition', 'spectating', 'unknown']);
   const allowedActivities = new Set(['none', 'setup', 'rotation', 'combat', 'objective', 'death', 'spectating']);
-  const findings = parsed.findings.slice(0, 2).map((finding) => {
+  const findings = parsed.findings.slice(0, maxFindings).map((finding) => {
     const timestampText = String(finding?.timestamp || '').trim();
     const parts = timestampText.match(/^(\d+):([0-5]?\d)$/);
     const suppliedSeconds = parts ? Number(parts[1]) * 60 + Number(parts[2]) : startSeconds;
@@ -492,18 +640,33 @@ function finalizeFullVodReport(checkpoint = {}) {
   const completedSegments = Math.max(0, Number(checkpoint.completedSegments) || 0);
   const invalidSegments = Math.max(0, Number(checkpoint.invalidSegments) || 0);
   const coverage = totalSegments ? Math.round((completedSegments / totalSegments) * 100) : 0;
+  const adaptive = checkpoint.mode === 'adaptive';
+  const detailedSeconds = adaptive ? coveredWindowSeconds(checkpoint.windows || []) : durationSeconds;
+  const detailedPercent = durationSeconds ? Math.min(100, Math.round((detailedSeconds / durationSeconds) * 100)) : 0;
+  const reviewDescription = adaptive
+    ? `Scanned ${vodTime(durationSeconds)} from beginning to end at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS, then completed ${completedSegments} adaptive detail windows covering ${vodTime(detailedSeconds)} at ${checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE} FPS and ${checkpoint.framesReviewed || 0} ordered frames.`
+    : `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames.`;
   const summary = findings.length
-    ? `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames. ${findings.length} coachable moment${findings.length === 1 ? '' : 's'} remained after removing HUD descriptions and unsupported observations.`
-    : `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames. The local model did not return a defensible coachable moment, so BYAKUGAN did not manufacture advice.`;
+    ? `${reviewDescription} ${findings.length} coachable moment${findings.length === 1 ? '' : 's'} remained after removing HUD descriptions and unsupported observations.`
+    : `${reviewDescription} The local model did not return a defensible coachable moment, so BYAKUGAN did not manufacture advice.`;
   return {
-    analysisVersion: FULL_VOD_ANALYSIS_VERSION,
-    mode: 'full-match', summary, findings, patterns,
+    analysisVersion: Number(checkpoint.version) || FULL_VOD_ANALYSIS_VERSION,
+    mode: adaptive ? 'adaptive-full-match' : 'full-match', summary, findings, patterns,
     confidence: invalidSegments > Math.max(2, totalSegments * .08) || !findings.length ? 'low' : 'average',
-    coverage: { durationSeconds, totalSegments, completedSegments, percent: coverage, frameRate: checkpoint.frameRate || FULL_VOD_FRAME_RATE },
+    coverage: {
+      durationSeconds, totalSegments, completedSegments, percent: coverage,
+      frameRate: checkpoint.frameRate || FULL_VOD_FRAME_RATE,
+      ...(adaptive ? {
+        scanPercent: 100, scanFps: checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS,
+        scanSamples: Math.max(0, Number(checkpoint.scanSamples) || 0), detailedSeconds, detailedPercent
+      } : {})
+    },
     framesReviewed: Math.max(0, Number(checkpoint.framesReviewed) || 0),
     limitations: [...new Set([
       ...(checkpoint.limitations || []),
-      `Ordered visual frames were reviewed at ${checkpoint.frameRate || FULL_VOD_FRAME_RATE} FPS; actions shorter than the sampling interval may be missed.`,
+      adaptive
+        ? `The full recording was scanned at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS for sustained visual activity; the vision model then reviewed selected activity windows and periodic quiet-play audits at ${checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE} FPS. Events between detail windows may be missed.`
+        : `Ordered visual frames were reviewed at ${checkpoint.frameRate || FULL_VOD_FRAME_RATE} FPS; actions shorter than the sampling interval may be missed.`,
       'Audio and communications were not analyzed.',
       ...(invalidSegments ? [`${invalidSegments} segment${invalidSegments === 1 ? '' : 's'} could not be converted into validated structured observations.`] : [])
     ])].slice(0, 12)
@@ -615,63 +778,102 @@ class SenseiService {
 
   async analyzeFullVod({
     match, statisticalReport, source, ffmpeg, outputDirectory, checkpoint = null,
-    model = '', repairModel = '', signal = null, onProgress = () => {}, onCheckpoint = () => {}
+    model = '', repairModel = '', analysisMode = 'adaptive', signal = null, onProgress = () => {}, onCheckpoint = () => {}
   }) {
     if (!model) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
     const durationSeconds = await probeVodDuration(ffmpeg, source, { signal });
-    const chunkSeconds = FULL_VOD_CHUNK_SECONDS;
-    const frameRate = FULL_VOD_FRAME_RATE;
-    const totalSegments = Math.max(1, Math.ceil(durationSeconds / chunkSeconds));
-    const canResume = checkpoint?.version === FULL_VOD_ANALYSIS_VERSION
-      && Number(checkpoint.totalSegments) === totalSegments
-      && Math.abs(Number(checkpoint.durationSeconds) - durationSeconds) < 2;
+    const mode = analysisMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
+    const adaptive = mode === 'adaptive';
+    const version = adaptive ? ADAPTIVE_VOD_ANALYSIS_VERSION : FULL_VOD_ANALYSIS_VERSION;
+    const checkpointMode = checkpoint?.mode || (Number(checkpoint?.version) === FULL_VOD_ANALYSIS_VERSION ? 'exhaustive' : '');
+    const expectedExhaustiveSegments = Math.max(1, Math.ceil(durationSeconds / FULL_VOD_CHUNK_SECONDS));
+    const canResume = Number(checkpoint?.version) === version
+      && checkpointMode === mode
+      && Math.abs(Number(checkpoint.durationSeconds) - durationSeconds) < 2
+      && (adaptive ? Array.isArray(checkpoint.windows) && checkpoint.windows.length === Number(checkpoint.totalSegments) : Number(checkpoint.totalSegments) === expectedExhaustiveSegments);
+    let windows = canResume && adaptive ? checkpoint.windows : [];
+    let scanSamples = canResume ? Math.max(0, Number(checkpoint.scanSamples) || 0) : 0;
+    if (!canResume && adaptive) {
+      onProgress({
+        phase: 'adaptive-scan', stage: 'scanning', current: 0, total: durationSeconds, mediaSeconds: 0,
+        durationSeconds, mode, message: `Scanning the complete ${vodTime(durationSeconds)} recording for sustained activity`
+      });
+      const activity = await scanVodActivity({ ffmpeg, source, durationSeconds, signal, onProgress });
+      scanSamples = activity.length;
+      windows = buildAdaptiveReviewWindows(activity, durationSeconds);
+      if (!windows.length) throw new Error('The adaptive scan could not create any safe detail windows. Use Exhaustive mode for this recording.');
+    }
+    const chunkSeconds = adaptive ? ADAPTIVE_VOD_WINDOW_SECONDS : FULL_VOD_CHUNK_SECONDS;
+    const frameRate = adaptive ? ADAPTIVE_VOD_FRAME_RATE : FULL_VOD_FRAME_RATE;
+    const totalSegments = adaptive ? windows.length : expectedExhaustiveSegments;
     const progress = canResume ? {
       ...checkpoint,
       findings: Array.isArray(checkpoint.findings) ? checkpoint.findings : [],
-      limitations: Array.isArray(checkpoint.limitations) ? checkpoint.limitations : []
+      limitations: Array.isArray(checkpoint.limitations) ? checkpoint.limitations : [],
+      ...(adaptive ? { windows } : {})
     } : {
-      version: FULL_VOD_ANALYSIS_VERSION, durationSeconds, chunkSeconds, frameRate, totalSegments,
+      version, mode, durationSeconds, chunkSeconds, frameRate, totalSegments,
       completedSegments: 0, framesReviewed: 0, gameplaySegments: 0, actionSegments: 0, invalidSegments: 0,
-      startedAt: Date.now(), updatedAt: Date.now(), findings: [], limitations: []
+      startedAt: Date.now(), updatedAt: Date.now(), findings: [], limitations: [],
+      ...(adaptive ? { scanFps: ADAPTIVE_VOD_SCAN_FPS, scanSamples, windows } : {})
     };
     const accumulatedElapsedMs = Math.max(0, Number(progress.elapsedMs) || 0);
     const analysisStartedAt = Date.now();
     const resumedAt = Math.max(0, Number(progress.completedSegments) || 0);
-    let estimatedEtaSeconds = 0;
+    if (!canResume) await onCheckpoint({ ...progress });
+    if (adaptive) {
+      onProgress({
+        phase: 'full-analysis', stage: 'scan-complete', current: resumedAt, total: totalSegments,
+        mediaSeconds: resumedAt ? windows[Math.max(0, resumedAt - 1)]?.startSeconds || 0 : 0,
+        durationSeconds, etaSeconds: 0, mode,
+        message: `Full scan complete • ${totalSegments} high-quality review windows selected`
+      });
+    }
+    let estimatedEtaSeconds = resumedAt && accumulatedElapsedMs
+      ? Math.round((totalSegments - resumedAt) * (accumulatedElapsedMs / resumedAt) / 1_000)
+      : 0;
     for (let index = resumedAt; index < totalSegments; index += 1) {
       if (signal?.aborted) throw canceledError();
-      const startSeconds = index * chunkSeconds;
-      const segmentDuration = Math.max(.1, Math.min(chunkSeconds, durationSeconds - startSeconds));
+      const window = adaptive ? windows[index] : null;
+      const startSeconds = adaptive ? Number(window.startSeconds) || 0 : index * chunkSeconds;
+      const segmentDuration = adaptive
+        ? Math.max(.1, Math.min(Number(window.durationSeconds) || chunkSeconds, durationSeconds - startSeconds))
+        : Math.max(.1, Math.min(chunkSeconds, durationSeconds - startSeconds));
       const endSeconds = Math.min(durationSeconds, startSeconds + segmentDuration);
       const segmentDirectory = path.join(outputDirectory, `segment-${String(index + 1).padStart(5, '0')}`);
       let extraction;
       try {
-        onProgress({ phase: 'full-analysis', stage: 'extracting', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, message: `Extracting ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
+        onProgress({ phase: 'full-analysis', stage: 'extracting', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, mode, message: `Extracting ${adaptive ? 'review window' : 'segment'} ${index + 1} of ${totalSegments} • ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
         extraction = await extractVodSegmentFrames({ ffmpeg, source, outputDirectory: segmentDirectory, startSeconds, durationSeconds: segmentDuration, frameRate, signal });
-        onProgress({ phase: 'full-analysis', stage: 'reviewing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, message: `Reviewing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
+        onProgress({ phase: 'full-analysis', stage: 'reviewing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, mode, message: `Reviewing ${adaptive ? 'context window' : 'segment'} ${index + 1} of ${totalSegments} • ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
         let report = null;
         try {
           const timestamps = extraction.files.map((_, frameIndex) => startSeconds + (frameIndex / frameRate));
           const labels = timestamps.map((seconds, frameIndex) => `Image ${frameIndex + 1}=${vodTime(seconds)}`).join(', ');
-          const prompt = `You are reviewing ONE continuous ${segmentDuration.toFixed(1)}-second section from a complete VALORANT VOD. Images are chronological at ${frameRate} frames per second: ${labels}.
+          const selectionContext = adaptive
+            ? `This window was selected by a full-video low-resolution activity scan as a ${window.kind === 'quiet-audit' ? 'periodic quiet-play audit' : window.kind === 'supplemental' ? 'supplemental sustained-activity window' : 'representative sustained-activity window'}. Selection is not evidence of a tactical mistake or success.`
+            : 'This is one consecutive section of an exhaustive beginning-to-end review.';
+          const prompt = `You are reviewing ONE continuous ${segmentDuration.toFixed(1)}-second context window from a complete VALORANT VOD. Images are chronological at ${frameRate} frames per second: ${labels}.
 
-Decide whether this section contains a defensible tactical event. Compare changes across the ordered images; do not describe isolated screenshots. A useful finding must identify a visible player decision, its visible consequence, concrete evidence across frames, and a specific adjustment or repeatable strength. Return at most two findings.
+${selectionContext}
+
+Decide whether this section contains a defensible tactical event. Compare changes across the ordered images; do not describe isolated screenshots. A useful finding must identify a visible player decision, its visible consequence, concrete evidence across frames, and a specific adjustment or repeatable strength. Return at most ${adaptive ? 'three' : 'two'} findings.
 
 NEVER create findings merely because the crosshair is centered, health/weapon/HUD is visible, a webcam or overlay exists, a Buy Phase/Won/Lost screen appears, or the player is standing/walking without a visible tactical consequence. Put obstructions in limitations. If there is no coachable evidence, return an empty findings array. Do not infer audio, communications, hidden enemies, intent, or activity between supplied frames. Return strict JSON only.
 
 MATCH CARD:${JSON.stringify(compactMatch(match))}
 SAVED STATISTICAL REPORT:${JSON.stringify({ verdict: statisticalReport?.verdict, strengths: statisticalReport?.strengths, weaknesses: statisticalReport?.weaknesses, focusRule: statisticalReport?.focusRule })}`;
           report = await generateStructured({
-            endpoint: this.endpoint, model, repairModel, prompt, schema: fullVodSegmentSchema(),
+            endpoint: this.endpoint, model, repairModel, prompt, schema: fullVodSegmentSchema(adaptive ? 3 : 2),
             images: extraction.files.map((file) => fs.readFileSync(file).toString('base64')),
             timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_000,
-            onRepair: () => onProgress({ phase: 'full-analysis', stage: 'repairing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, message: `Repairing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` }),
-            validate: (value) => validateFullVodSegment(value, { startSeconds, endSeconds, frameCount: extraction.files.length })
+            onRepair: () => onProgress({ phase: 'full-analysis', stage: 'repairing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, mode, message: `Repairing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` }),
+            validate: (value) => validateFullVodSegment(value, { startSeconds, endSeconds, frameCount: extraction.files.length, maxFindings: adaptive ? 3 : 2 })
           });
         } catch (error) {
           if (error?.code === 'SENSEI_CANCELED' || /^Ollama returned HTTP/.test(error?.message || '') || /lost contact with Ollama|local model timed out/i.test(error?.message || '')) throw error;
           progress.invalidSegments += 1;
-          progress.limitations.push(`The segment at ${vodTime(startSeconds)} could not be normalized and was omitted.`);
+          progress.limitations.push(`The ${adaptive ? 'review window' : 'segment'} at ${vodTime(startSeconds)} could not be normalized and was omitted.`);
           report = { sceneType: 'unknown', activity: 'none', findings: [], limitations: [], framesReviewed: extraction.files.length };
         }
         progress.completedSegments = index + 1;
@@ -689,14 +891,14 @@ SAVED STATISTICAL REPORT:${JSON.stringify({ verdict: statisticalReport?.verdict,
         estimatedEtaSeconds = Math.round((totalSegments - progress.completedSegments) * averageMs / 1_000);
         onProgress({
           phase: 'full-analysis', stage: 'complete-segment', current: progress.completedSegments, total: totalSegments,
-          mediaSeconds: endSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, resumed: resumedAt > 0,
-          message: `Reviewed ${vodTime(endSeconds)} of ${vodTime(durationSeconds)}`
+          mediaSeconds: endSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, resumed: resumedAt > 0, mode,
+          message: adaptive ? `Completed review window ${progress.completedSegments} of ${totalSegments}` : `Reviewed ${vodTime(endSeconds)} of ${vodTime(durationSeconds)}`
         });
       } finally {
         try { fs.rmSync(segmentDirectory, { recursive: true, force: true }); } catch {}
       }
     }
-    onProgress({ phase: 'validating', current: totalSegments, total: totalSegments, mediaSeconds: durationSeconds, durationSeconds, message: 'Building the full-match tactical report' });
+    onProgress({ phase: 'validating', current: totalSegments, total: totalSegments, mediaSeconds: durationSeconds, durationSeconds, mode, message: 'Building the full-match tactical report' });
     return finalizeFullVodReport(progress);
   }
 }
@@ -786,7 +988,9 @@ async function extractVodSegmentFrames({
 
 module.exports = {
   FULL_VOD_ANALYSIS_VERSION, FULL_VOD_CHUNK_SECONDS, FULL_VOD_FRAME_RATE,
-  SenseiService, buildContextPack, compactMatch, detectFfmpeg, detectFfprobe, extractVodFrames, extractVodSegmentFrames, finalizeFullVodReport,
+  ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_SCAN_FPS, ADAPTIVE_VOD_WINDOW_SECONDS, ADAPTIVE_VOD_FRAME_RATE,
+  SenseiService, buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds, detectFfmpeg, detectFfprobe,
+  extractVodFrames, extractVodSegmentFrames, finalizeFullVodReport, parseVodActivityScan, scanVodActivity,
   headshotPercent, isUsefulVodFinding, liteReport, parseStructuredJson, probeVodDuration, strictSchema, summarizeMatches,
   validateFullVodSegment, validateReport, validateVodReport, vodTime
 };

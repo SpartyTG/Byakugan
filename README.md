@@ -43,12 +43,15 @@ invoke the coach again.
   is required; the model temporarily consumes local CPU/GPU and memory only
   while the user asks it to run.
 - **VOD Vision · Full Match** is a separate opt-in add-on. A user may attach a
-  clean MP4, MKV, MOV, or WebM recording to a saved match report. BYAKUGAN
-  processes every consecutive four-second section from beginning to end at four
-  ordered frames per second. A user-selected local vision model reviews each
-  temporal sequence, and BYAKUGAN removes generic HUD descriptions before they
-  can enter the tactical report. Completed sections are checkpointed so an
-  interrupted or deliberately paused overnight analysis can resume later.
+  clean MP4, MKV, MOV, or WebM recording to a saved match report. The default
+  Adaptive Quality Test scans the entire recording once per second, selects
+  sustained-activity context windows plus periodic quiet-play audits, and then
+  gives those windows a deeper two-frame-per-second review. The original
+  exhaustive four-second pipeline remains available as a slower comparison
+  mode. BYAKUGAN removes generic HUD descriptions before they can enter the
+  tactical report, reports full-scan and deep-review coverage separately, and
+  checkpoints every completed review window so a paused overnight analysis can
+  resume later.
 
 Every report contains a match verdict, a five-part scorecard, up to three
 strengths and weaknesses, exactly three runnable drills, one next-match focus
@@ -91,9 +94,14 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.98
+## Included in version 0.8.0-beta.99
 
 - Original desktop dashboard and navigation
+- A testable **Adaptive Quality Test** VOD mode that scans the full recording at low resolution, selects representative sustained-activity windows, adds global high-activity windows and periodic quiet-play audits, then performs higher-detail temporal review with the selected local vision model
+- A selectable **Exhaustive** comparison mode that preserves the original consecutive four-second review pipeline and its compatible beta.98 checkpoints
+- Honest adaptive reporting that separates 100% full-video scan coverage from the smaller percentage receiving deep vision-model review and explicitly warns that events between detail windows can be missed
+- Mode-specific, resumable checkpoints and progress labels; switching modes clearly warns before replacing an incompatible saved checkpoint
+- A 30-minute Ollama keep-alive so the selected text or vision model does not needlessly unload between local inference calls
 - A dedicated **Sensei** navigation tab that explains each coaching tier, presents local readiness in context, and keeps report generation out of the general match-details modal
 - A compact completed-match selector and saved coaching library inside Sensei, without duplicating the full Match History table
 - A current **Next-match focus** card on Overview plus **Open in Sensei** routing from completed match details
@@ -322,10 +330,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.98`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.99`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.98`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.99`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -333,8 +341,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.98
-git push origin v0.8.0-beta.98
+git tag v0.8.0-beta.99
+git push origin v0.8.0-beta.99
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

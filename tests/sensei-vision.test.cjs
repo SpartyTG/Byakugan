@@ -8,8 +8,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { SenseiStore, normalizeEntry } = require('../src/main/sensei-store.cjs');
 const {
-  SenseiService, buildContextPack, compactMatch, finalizeFullVodReport, isUsefulVodFinding,
-  liteReport, parseStructuredJson, validateFullVodSegment, validateReport
+  SenseiService, buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds,
+  finalizeFullVodReport, isUsefulVodFinding, liteReport, parseStructuredJson, parseVodActivityScan,
+  validateFullVodSegment, validateReport
 } = require('../src/main/services/sensei-service.cjs');
 const { SettingsStore } = require('../src/main/settings-store.cjs');
 
@@ -145,10 +146,13 @@ test('Sensei settings are optional, allowlisted, and disabled by default', () =>
     const store = new SettingsStore(directory);
     assert.equal(store.get().senseiEnabled, false);
     assert.equal(store.get().senseiVodEnabled, false);
-    const updated = store.update({ senseiEnabled: true, senseiTier: 'sensei', senseiModel: 'qwen2.5:7b', senseiVodEnabled: true, senseiVodModel: 'vision/model:latest', senseiOfferVodCleanup: true });
+    assert.equal(store.get().senseiVodMode, 'adaptive');
+    const updated = store.update({ senseiEnabled: true, senseiTier: 'sensei', senseiModel: 'qwen2.5:7b', senseiVodEnabled: true, senseiVodModel: 'vision/model:latest', senseiVodMode: 'exhaustive', senseiOfferVodCleanup: true });
     assert.equal(updated.senseiTier, 'sensei');
+    assert.equal(updated.senseiVodMode, 'exhaustive');
     assert.equal(updated.senseiOfferVodCleanup, true);
-    assert.equal(store.update({ senseiTier: 'cloud', senseiModel: '<script>' }).senseiTier, 'sensei');
+    assert.equal(store.update({ senseiTier: 'cloud', senseiModel: '<script>', senseiVodMode: 'fastest' }).senseiTier, 'sensei');
+    assert.equal(store.get().senseiVodMode, 'exhaustive');
     assert.equal(store.get().senseiModel, 'qwen2.5:7b');
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
@@ -170,7 +174,8 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(main, /visionCapable/);
   assert.match(renderer, /Run Sensei Vision/);
   assert.match(renderer, /I’ve read it — remove VOD/);
-  assert.match(renderer, /FULL-MATCH ANALYSIS IN PROGRESS/);
+  assert.match(renderer, /ADAPTIVE QUALITY TEST IN PROGRESS/);
+  assert.match(renderer, /EXHAUSTIVE ANALYSIS IN PROGRESS/);
   assert.match(renderer, /Pause safely/);
   assert.match(renderer, /Resume full analysis/);
   assert.match(renderer, /LOCAL MODEL FALLBACK/);
@@ -194,11 +199,52 @@ test('Sensei owns a dedicated coaching workspace without duplicating full match 
   assert.match(html, /id="senseiMatchPicker"/);
   assert.match(html, /id="senseiRecentReports"/);
   assert.match(html, /id="senseiWorkspacePanel"/);
+  assert.match(html, /Adaptive Quality Test/);
+  assert.match(html, /Exhaustive — slow comparison mode/);
   assert.match(html, /CURRENT COACHING FOCUS/);
   assert.match(renderer, /data-open-sensei-match/);
   assert.match(renderer, /Open in Sensei/);
   assert.match(renderer, /hydrateSenseiHub/);
   assert.match(renderer, /senseiVodActiveMatchId/);
+});
+
+test('adaptive VOD planning scans the full timeline and selects bounded activity plus quiet-audit windows', () => {
+  const raw = 'frame:0 pts:0 pts_time:0\nlavfi.signalstats.YDIF=0\nframe:1 pts:1 pts_time:1\nlavfi.signalstats.YDIF=12.5\n';
+  assert.deepEqual(parseVodActivityScan(raw), [{ seconds: 0, difference: 0 }, { seconds: 1, difference: 12.5 }]);
+  const durationSeconds = 600;
+  const samples = Array.from({ length: durationSeconds }, (_, seconds) => ({
+    seconds,
+    difference: seconds % 40 === 20 ? 16 : seconds % 13 < 4 ? 6 : .5
+  }));
+  const windows = buildAdaptiveReviewWindows(samples, durationSeconds);
+  assert.equal(windows.length > 15, true);
+  assert.equal(windows.length < durationSeconds / 4, true);
+  assert.equal(windows.some((window) => window.kind === 'activity'), true);
+  assert.equal(windows.some((window) => window.kind === 'supplemental'), true);
+  assert.equal(windows.some((window) => window.kind === 'quiet-audit'), true);
+  assert.equal(windows.every((window) => window.startSeconds >= 0 && window.startSeconds + window.durationSeconds <= durationSeconds + .1), true);
+  assert.deepEqual(windows, windows.slice().sort((left, right) => left.startSeconds - right.startSeconds));
+  assert.equal(coveredWindowSeconds(windows) > 0, true);
+  assert.equal(coveredWindowSeconds(windows) < durationSeconds, true);
+});
+
+test('adaptive full-match reports separate complete scan coverage from detailed model coverage', () => {
+  const report = finalizeFullVodReport({
+    version: 3, mode: 'adaptive', durationSeconds: 600, scanFps: 1, scanSamples: 600,
+    frameRate: 2, totalSegments: 3, completedSegments: 3, framesReviewed: 72,
+    windows: [
+      { startSeconds: 10, durationSeconds: 12, kind: 'activity' },
+      { startSeconds: 100, durationSeconds: 12, kind: 'supplemental' },
+      { startSeconds: 300, durationSeconds: 12, kind: 'quiet-audit' }
+    ],
+    findings: [], limitations: []
+  });
+  assert.equal(report.mode, 'adaptive-full-match');
+  assert.equal(report.coverage.scanPercent, 100);
+  assert.equal(report.coverage.detailedSeconds, 36);
+  assert.equal(report.coverage.detailedPercent, 6);
+  assert.match(report.summary, /scanned 10:00 from beginning to end/i);
+  assert.match(report.limitations.join(' '), /events between detail windows may be missed/i);
 });
 
 test('VOD Vision batches images, disables model thinking, and exposes actionable Ollama errors', () => {
@@ -353,6 +399,24 @@ test('full-match VOD checkpoints survive interruption and become resumable on st
     assert.equal(recovered.vod.checkpoint.elapsedMs, 654_321);
     assert.match(recovered.vod.error, /resume/i);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('adaptive VOD checkpoints preserve their selected review plan', () => {
+  const checkpoint = {
+    version: 3, mode: 'adaptive', durationSeconds: 1_800, chunkSeconds: 12, frameRate: 2,
+    scanFps: 1, scanSamples: 1_800, totalSegments: 2, completedSegments: 1,
+    framesReviewed: 24, elapsedMs: 50_000, findings: [], limitations: [],
+    windows: [
+      { startSeconds: 12, durationSeconds: 12, kind: 'activity', activityScore: 10 },
+      { startSeconds: 88, durationSeconds: 12, kind: 'quiet-audit', activityScore: .2 }
+    ]
+  };
+  const entry = normalizeEntry({ matchId: 'adaptive', vod: { path: 'C:\\recordings\\adaptive.mkv', status: 'canceled', checkpoint } });
+  assert.equal(entry.vod.checkpoint.version, 3);
+  assert.equal(entry.vod.checkpoint.mode, 'adaptive');
+  assert.equal(entry.vod.checkpoint.scanSamples, 1_800);
+  assert.equal(entry.vod.checkpoint.windows.length, 2);
+  assert.equal(entry.vod.checkpoint.windows[1].kind, 'quiet-audit');
 });
 
 test('active full-match analysis preserves its elapsed-clock origin across navigation', () => {

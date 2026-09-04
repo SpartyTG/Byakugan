@@ -44,6 +44,7 @@ const DEFAULTS = Object.freeze({
   senseiModel: '',
   senseiVodEnabled: false,
   senseiVodModel: '',
+  senseiVodMode: 'adaptive',
   senseiOfferVodCleanup: false
 });
 
@@ -92,6 +93,7 @@ class SettingsStore {
       }
       if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
       if (key === 'senseiTier' && !['lite', 'sensei'].includes(value)) continue;
+      if (key === 'senseiVodMode' && !['adaptive', 'exhaustive'].includes(value)) continue;
       if (['senseiModel', 'senseiVodModel'].includes(key)) {
         if (typeof value !== 'string' || value.length > 120 || !/^[\w./:@-]*$/.test(value)) continue;
       }

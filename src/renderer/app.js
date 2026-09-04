@@ -136,7 +136,9 @@ function renderSenseiVodGlobal() {
   if (!active) return;
   const completed = Math.max(0, Number(progress.current) || 0);
   const total = Math.max(0, Number(progress.total) || 0);
-  const count = total ? `${completed} / ${total} segments` : 'Preparing segments';
+  const count = progress.phase === 'adaptive-scan'
+    ? `Scanning ${formatElapsed((Number(progress.mediaSeconds) || 0) * 1_000)} / ${formatElapsed((Number(progress.durationSeconds) || 0) * 1_000)}`
+    : total ? `${completed} / ${total} ${progress.mode === 'adaptive' ? 'review windows' : 'segments'}` : 'Preparing analysis';
   const detail = `${count} • ${formatEta(progress.etaSeconds)}`;
   const elapsed = formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()));
   const match = findMatchById(state.senseiVodActiveMatchId);
@@ -149,12 +151,13 @@ function renderSenseiVodGlobal() {
 
 function senseiProgressPercent(progress = {}) {
   const ratio = Number(progress.total) > 0 ? Math.max(0, Math.min(1, Number(progress.current) / Number(progress.total))) : 0;
-  if (progress.phase === 'full-analysis') return Math.max(1, Math.round(ratio * 96));
+  if (progress.phase === 'adaptive-scan') return Math.max(2, Math.round(ratio * 12));
+  if (progress.phase === 'full-analysis') return progress.mode === 'adaptive' ? 12 + Math.round(ratio * 84) : Math.max(1, Math.round(ratio * 96));
   if (progress.phase === 'extracting') return Math.round(ratio * 35);
   if (progress.phase === 'loading-model') return 38;
   if (progress.phase === 'reviewing') return 40 + Math.round(ratio * 50);
-  if (progress.phase === 'validating') return 93;
-  if (progress.phase === 'saving') return 97;
+  if (progress.phase === 'validating') return 97;
+  if (progress.phase === 'saving') return 99;
   if (progress.phase === 'complete') return 100;
   return 4;
 }
@@ -669,7 +672,10 @@ function senseiVodMarkup(entry) {
   const findings = (analyzed?.findings || []).map((finding) => `<div class="sensei-vod-finding ${escapeHtml(finding.outcome || 'neutral')}"><time>${escapeHtml(finding.timestamp || '—')}${finding.round ? `<small>ROUND ${escapeHtml(finding.round)}</small>` : ''}</time><b>${escapeHtml(finding.category || 'Decision')}</b><span><strong>${escapeHtml(finding.observation)}</strong>${finding.evidence ? `<small><em>EVIDENCE</em>${escapeHtml(finding.evidence)}</small>` : ''}${finding.coaching ? `<small class="sensei-vod-coaching"><em>${finding.outcome === 'positive' ? 'KEEP' : 'ADJUSTMENT'}</em>${escapeHtml(finding.coaching)}</small>` : ''}</span></div>`).join('');
   const patterns = (analyzed?.patterns || []).map((pattern) => `<article><strong>${escapeHtml(pattern.category)}</strong><small>${escapeHtml(pattern.occurrences)} repeated moment${Number(pattern.occurrences) === 1 ? '' : 's'}</small><p>${escapeHtml(pattern.coaching)}</p></article>`).join('');
   const analyzing = vod?.status === 'analyzing';
-  const resumable = Number(vod?.checkpoint?.completedSegments) > 0 && Number(vod?.checkpoint?.completedSegments) < Number(vod?.checkpoint?.totalSegments);
+  const selectedMode = state.settings?.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
+  const checkpointMode = vod?.checkpoint?.mode || (Number(vod?.checkpoint?.version) === 2 ? 'exhaustive' : '');
+  const resumable = checkpointMode === selectedMode && Number(vod?.checkpoint?.completedSegments) > 0 && Number(vod?.checkpoint?.completedSegments) < Number(vod?.checkpoint?.totalSegments);
+  const modeLabel = selectedMode === 'adaptive' ? 'Adaptive Quality Test' : 'Exhaustive Comparison';
   const missing = state.senseiStatus?.vodMissing || ['Local setup check has not finished'];
   const ready = state.senseiStatus?.vodReady === true;
   const reason = missing.join('; ');
@@ -678,15 +684,21 @@ function senseiVodMarkup(entry) {
     : vod?.path
       ? `<button class="ghost-button" data-sensei-vod-import>Replace VOD</button><button class="primary-button" data-sensei-vod-analyze ${ready ? '' : 'disabled'} title="${escapeHtml(ready ? 'Analyze this recording locally' : reason)}">${resumable ? 'Resume full analysis' : analyzed ? 'Regenerate full analysis' : 'Run full-match analysis'}</button>${analyzed ? '<button class="ghost-button danger" data-sensei-vod-delete>I’ve read it — remove VOD</button>' : ''}`
       : '<button class="primary-button" data-sensei-vod-import>Import clean VOD</button>';
-  const progress = state.senseiVodProgress || { phase: 'preparing', current: vod?.checkpoint?.completedSegments || 0, total: vod?.checkpoint?.totalSegments || 0, message: 'Preparing recording' };
-  const progressDetail = progress.phase === 'full-analysis'
-    ? `${progress.current || 0} of ${progress.total || '—'} chronological segments • ${formatEta(progress.etaSeconds)}`
-    : 'Preparing local full-match pipeline • original VOD unchanged';
-  const progressMarkup = analyzing ? `<div class="sensei-vod-progress"><div class="sensei-progress-head"><span><strong>FULL-MATCH ANALYSIS IN PROGRESS</strong><small>${escapeHtml(progress.message || 'Preparing recording')}</small></span><time id="senseiVodElapsed">${formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()))}</time></div><div class="sensei-progress-track"><i style="width:${senseiProgressPercent(progress)}%"></i></div><div class="sensei-progress-foot"><span>${escapeHtml(progressDetail)}</span><button class="ghost-button danger" data-sensei-vod-cancel>Pause safely</button></div></div>` : '';
+  const progress = state.senseiVodProgress || { phase: 'preparing', current: vod?.checkpoint?.completedSegments || 0, total: vod?.checkpoint?.totalSegments || 0, mode: selectedMode, message: 'Preparing recording' };
+  const progressDetail = progress.phase === 'adaptive-scan'
+    ? `Scanning every second from ${formatElapsed((Number(progress.mediaSeconds) || 0) * 1_000)} of ${formatElapsed((Number(progress.durationSeconds) || 0) * 1_000)} • detailed windows follow`
+    : progress.phase === 'full-analysis'
+      ? `${progress.current || 0} of ${progress.total || '—'} ${progress.mode === 'adaptive' ? 'high-quality review windows' : 'chronological segments'} • ${formatEta(progress.etaSeconds)}`
+      : 'Preparing local full-match pipeline • original VOD unchanged';
+  const progressMarkup = analyzing ? `<div class="sensei-vod-progress"><div class="sensei-progress-head"><span><strong>${escapeHtml(progress.mode === 'adaptive' || progress.phase === 'adaptive-scan' ? 'ADAPTIVE QUALITY TEST IN PROGRESS' : 'EXHAUSTIVE ANALYSIS IN PROGRESS')}</strong><small>${escapeHtml(progress.message || 'Preparing recording')}</small></span><time id="senseiVodElapsed">${formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()))}</time></div><div class="sensei-progress-track"><i style="width:${senseiProgressPercent(progress)}%"></i></div><div class="sensei-progress-foot"><span>${escapeHtml(progressDetail)}</span><button class="ghost-button danger" data-sensei-vod-cancel>Pause safely</button></div></div>` : '';
   const readinessMarkup = vod?.path && !analyzing && !ready ? `<div class="sensei-readiness-blocked"><strong>VOD analysis is not ready</strong><span>${escapeHtml(reason)}. Open Settings and run Check local setup.</span></div>` : '';
   const coverage = analyzed?.coverage;
-  const coverageLabel = coverage ? `${escapeHtml(coverage.percent)}% COVERAGE • ${escapeHtml(coverage.completedSegments)} / ${escapeHtml(coverage.totalSegments)} SEGMENTS • ${escapeHtml(analyzed.framesReviewed || 0)} ORDERED FRAMES` : `${escapeHtml(analyzed?.framesReviewed || 0)} FRAMES`;
-  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · Full Match</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p></div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
+  const coverageLabel = coverage
+    ? analyzed.mode === 'adaptive-full-match'
+      ? `${escapeHtml(coverage.scanPercent || coverage.percent)}% FULL-VIDEO SCAN • ${escapeHtml(coverage.completedSegments)} / ${escapeHtml(coverage.totalSegments)} DETAIL WINDOWS • ${escapeHtml(coverage.detailedPercent)}% DEEP-REVIEW COVERAGE • ${escapeHtml(analyzed.framesReviewed || 0)} ORDERED FRAMES`
+      : `${escapeHtml(coverage.percent)}% COVERAGE • ${escapeHtml(coverage.completedSegments)} / ${escapeHtml(coverage.totalSegments)} SEGMENTS • ${escapeHtml(analyzed.framesReviewed || 0)} ORDERED FRAMES`
+    : `${escapeHtml(analyzed?.framesReviewed || 0)} FRAMES`;
+  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · ${escapeHtml(modeLabel)}</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p></div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
 }
 
 function renderSenseiPanel(entry, selector = '#senseiWorkspacePanel') {
@@ -1052,14 +1064,17 @@ function syncSettingsForm() {
   $('#senseiModel').value = settings.senseiModel || '';
   $('#senseiVodEnabled').checked = Boolean(settings.senseiVodEnabled);
   $('#senseiVodModel').value = settings.senseiVodModel || '';
+  $('#senseiVodMode').value = settings.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
   $('#senseiOfferVodCleanup').checked = Boolean(settings.senseiOfferVodCleanup);
   $('#senseiTier').disabled = !settings.senseiEnabled;
   $('#senseiModel').disabled = !settings.senseiEnabled || settings.senseiTier !== 'sensei';
   $('#senseiVodEnabled').disabled = !settings.senseiEnabled;
   $('#senseiVodModel').disabled = !settings.senseiEnabled || !settings.senseiVodEnabled;
+  $('#senseiVodMode').disabled = !settings.senseiEnabled || !settings.senseiVodEnabled;
   $('#senseiOfferVodCleanup').disabled = !settings.senseiEnabled || !settings.senseiVodEnabled;
   $('#senseiModelRow').hidden = settings.senseiTier !== 'sensei';
   $('#senseiVodModelRow').hidden = !settings.senseiVodEnabled;
+  $('#senseiVodModeRow').hidden = !settings.senseiVodEnabled;
   const senseiChip = $('#senseiSettingsChip');
   senseiChip.textContent = settings.senseiEnabled ? (settings.senseiTier === 'sensei' ? 'SENSEI' : 'LITE READY') : 'DISABLED';
   senseiChip.classList.toggle('ready', Boolean(settings.senseiEnabled));
@@ -1649,17 +1664,25 @@ async function analyzeSenseiVod() {
     return;
   }
   const checkpoint = state.senseiEntry?.vod?.checkpoint;
-  const resumeText = Number(checkpoint?.completedSegments) > 0
-    ? `Resume after segment ${checkpoint.completedSegments} of ${checkpoint.totalSegments}? Completed work will be retained.`
-    : 'Review this recording continuously from beginning to end?';
-  if (!window.confirm(`${resumeText}\n\nFull-match analysis may run for several hours and can use substantial CPU/GPU and memory. It is intended for an extended break or overnight use. Avoid running it during a live stream unless the streaming PC has adequate headroom.`)) return;
+  const selectedMode = state.settings?.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
+  const checkpointMode = checkpoint?.mode || (Number(checkpoint?.version) === 2 ? 'exhaustive' : '');
+  const compatibleCheckpoint = checkpointMode === selectedMode ? checkpoint : null;
+  const resumeText = Number(compatibleCheckpoint?.completedSegments) > 0
+    ? `Resume after ${selectedMode === 'adaptive' ? 'review window' : 'segment'} ${compatibleCheckpoint.completedSegments} of ${compatibleCheckpoint.totalSegments}? Completed work will be retained.`
+    : selectedMode === 'adaptive'
+      ? 'Run the Adaptive Quality Test? BYAKUGAN will scan the entire recording, then deeply review selected activity windows and periodic quiet-play audits with your vision model.'
+      : 'Run the original Exhaustive review continuously from beginning to end?';
+  const replacementWarning = checkpoint && !compatibleCheckpoint
+    ? `\n\nThe saved ${checkpointMode || 'other-mode'} checkpoint is incompatible with ${selectedMode} mode and will be replaced if you continue.`
+    : '';
+  if (!window.confirm(`${resumeText}${replacementWarning}\n\nThis analysis can use substantial GPU and memory. Adaptive mode is intended for an overnight quality test; Exhaustive mode can take considerably longer. Avoid running it during a live stream unless the streaming PC has adequate headroom.`)) return;
   state.senseiBusy = true;
   state.senseiVodRequestActive = true;
   state.senseiVodActiveMatchId = matchId;
-  const savedElapsedMs = Math.max(0, Number(checkpoint?.elapsedMs) || 0);
-  const legacyElapsedMs = savedElapsedMs ? 0 : Math.max(0, Number(checkpoint?.updatedAt || 0) - Number(checkpoint?.startedAt || 0));
+  const savedElapsedMs = Math.max(0, Number(compatibleCheckpoint?.elapsedMs) || 0);
+  const legacyElapsedMs = savedElapsedMs ? 0 : Math.max(0, Number(compatibleCheckpoint?.updatedAt || 0) - Number(compatibleCheckpoint?.startedAt || 0));
   state.senseiVodStartedAt = Date.now() - (savedElapsedMs || legacyElapsedMs);
-  state.senseiVodProgress = { matchId, phase: 'preparing', current: checkpoint?.completedSegments || 0, total: checkpoint?.totalSegments || 0, message: checkpoint ? 'Preparing saved checkpoint' : 'Preparing full-match analysis' };
+  state.senseiVodProgress = { matchId, phase: 'preparing', current: compatibleCheckpoint?.completedSegments || 0, total: compatibleCheckpoint?.totalSegments || 0, mode: selectedMode, message: compatibleCheckpoint ? 'Preparing saved checkpoint' : `Preparing ${selectedMode} full-match analysis` };
   renderSenseiVodGlobal();
   const existing = state.senseiEntry || await window.companion.getSenseiReport(matchId).catch(() => null);
   if (existing && state.senseiSelectedMatchId === matchId) renderSenseiPanel({ ...existing, vod: { ...existing.vod, status: 'analyzing', error: '' } });
@@ -1867,6 +1890,11 @@ function bindEvents() {
     refreshSenseiStatus();
   });
   $('#senseiVodModel').addEventListener('change', async (event) => { await saveSettingsPatch({ senseiVodModel: event.target.value.trim() }, false); refreshSenseiStatus(); });
+  $('#senseiVodMode').addEventListener('change', async (event) => {
+    await saveSettingsPatch({ senseiVodMode: event.target.value }, false);
+    if (state.senseiSelectedMatchId && state.senseiEntry) renderSenseiPanel(state.senseiEntry);
+    toast('VOD review mode updated', event.target.value === 'adaptive' ? 'Adaptive Quality Test will scan the full video and deeply review selected context windows.' : 'Exhaustive mode will use the original slower four-second review pipeline.');
+  });
   $('#senseiOfferVodCleanup').addEventListener('change', (event) => saveSettingsPatch({ senseiOfferVodCleanup: event.target.checked }, false));
   $('#checkSenseiSystem').addEventListener('click', refreshSenseiStatus);
   $('#pcRole').addEventListener('change', async (event) => {

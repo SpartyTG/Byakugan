@@ -1,27 +1,31 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.98`.
+This package is the canonical source for `v0.8.0-beta.99`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.96` (`v0.8.0-beta.97` was folded into this release before publication)
-- Automated tests: `145 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.98`
+- Automated tests: `148 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
 
-Sensei now owns a dedicated navigation workspace with an explanation of Sensei
-Lite, Full Sensei, and VOD Vision; a compact completed-match selector; a saved
-coaching library; local readiness; and the complete report and VOD controls.
-Match History remains the full statistical record and routes into Sensei instead
-of duplicating coaching UI. Overview displays the current next-match focus.
+Beta.99 adds an **Adaptive Quality Test** for VOD Vision. It first scans the
+entire recording at one low-resolution frame per second, selects representative
+sustained-activity windows, supplements them with additional global activity
+windows and periodic quiet-play audits, and then gives each selected 12-second
+window a detailed two-frame-per-second review with the configured vision model.
+For a 33:12 recording, the deterministic planner selected about 71 detailed
+windows instead of the old 498 model calls. Actual runtime and report quality
+must be measured on the user's RX 6800 XT and `qwen3-vl:8b-instruct`.
 
-The unreleased beta.97 VOD fixes are included here: the latest calculated ETA
-survives extracting, reviewing, and repair events; Pause and Resume preserve
-accumulated active-analysis time without counting the pause; and a persistent
-top-bar, navigation, and Sensei-workspace indicator shows progress even after
-leaving the report.
+The original exhaustive four-second/four-FPS pipeline remains selectable for a
+quality comparison and can resume compatible beta.98 checkpoints. Adaptive and
+Exhaustive have separate checkpoint versions; the UI warns before replacing an
+incompatible checkpoint. Reports label the full-video scan separately from
+deep-review coverage and disclose that events between selected windows may be
+missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Preserved identity boundaries
 
@@ -36,14 +40,16 @@ leaving the report.
 
 ## Next verification
 
-Publish beta.98 and run or resume a full-match VOD analysis. The display may say
-`Estimating remaining time` while the first segment is processed; after the
-first completed segment it must show an approximate ETA continuously. Pause and
-resume once to confirm the elapsed timer continues from its saved value without
-counting paused time. Navigate between Overview, Match History, and Sensei while
-it runs; confirm the global indicator remains visible and opens the correct
-Sensei workspace. Confirm completed match details use **Open in Sensei** and
-Overview shows the selected report's next-match focus.
+Install beta.99 on the streaming PC and select **Adaptive Quality Test** in
+Settings. Use `qwen3:8b` for Sensei text and `qwen3-vl:8b-instruct` for VOD
+Vision. Run the same VOD that produced 498 exhaustive segments and record the
+selected window count, ETA after the first completed window, total runtime, and
+report usefulness. `ollama ps` previously confirmed 100% GPU execution on the
+RX 6800 XT. Pause and resume once to verify the elapsed timer continues without
+counting paused time, and navigate away to verify the global indicator remains.
+Afterward, compare the adaptive report against the exhaustive report or saved
+beta.98 progress. Choosing Adaptive will warn before replacing an existing
+Exhaustive checkpoint.
 
 ## New-chat recovery
 

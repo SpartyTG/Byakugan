@@ -479,40 +479,43 @@ function registerIpc() {
     if (senseiVodJobs.has(jobKey)) throw new Error('VOD analysis is already running for this match.');
     const controller = new AbortController();
     senseiVodJobs.set(jobKey, controller);
-    const checkpointElapsedMs = Math.max(0, Number(existing.vod.checkpoint?.elapsedMs) || 0);
+    const analysisMode = current.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
+    const savedCheckpointMode = existing.vod.checkpoint?.mode || (Number(existing.vod.checkpoint?.version) === 2 ? 'exhaustive' : '');
+    const requestedCheckpoint = savedCheckpointMode === analysisMode ? existing.vod.checkpoint : null;
+    const checkpointElapsedMs = Math.max(0, Number(requestedCheckpoint?.elapsedMs) || 0);
     const legacyElapsedMs = checkpointElapsedMs ? 0 : Math.max(0,
-      Number(existing.vod.checkpoint?.updatedAt || 0) - Number(existing.vod.checkpoint?.startedAt || 0));
+      Number(requestedCheckpoint?.updatedAt || 0) - Number(requestedCheckpoint?.startedAt || 0));
     const analysisStartedAt = Date.now() - (checkpointElapsedMs || legacyElapsedMs);
     let powerBlockerId = null;
     try { powerBlockerId = powerSaveBlocker.start('prevent-app-suspension'); } catch {}
     const progress = (payload) => {
       if (!event.sender.isDestroyed()) event.sender.send('sensei:vod-progress', { matchId, at: Date.now(), analysisStartedAt, ...payload });
     };
-    let vodState = { ...existing.vod, analysisStartedAt, status: 'analyzing', error: '' };
+    let vodState = { ...existing.vod, checkpoint: requestedCheckpoint, analysisStartedAt, status: 'analyzing', error: '' };
     senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
     let temporary = '';
     try {
       temporary = fs.mkdtempSync(path.join(app.getPath('temp'), 'byakugan-sensei-'));
-      const resumedSegments = Number(existing.vod.checkpoint?.completedSegments) || 0;
-      const expectedSegments = Number(existing.vod.checkpoint?.totalSegments) || 0;
-      progress({ phase: 'preparing', current: resumedSegments, total: expectedSegments, message: resumedSegments ? `Preparing to resume after segment ${resumedSegments}` : 'Preparing full-match analysis' });
-      progress({ phase: 'loading-model', current: resumedSegments, total: expectedSegments, message: `Loading ${current.senseiVodModel}` });
+      const resumedSegments = Number(requestedCheckpoint?.completedSegments) || 0;
+      const expectedSegments = Number(requestedCheckpoint?.totalSegments) || 0;
+      progress({ phase: 'preparing', current: resumedSegments, total: expectedSegments, mode: analysisMode, message: resumedSegments ? `Preparing to resume after ${analysisMode === 'adaptive' ? 'review window' : 'segment'} ${resumedSegments}` : `Preparing ${analysisMode} full-match analysis` });
+      progress({ phase: 'loading-model', current: resumedSegments, total: expectedSegments, mode: analysisMode, message: `Loading ${current.senseiVodModel}` });
       const repairModel = health.models.some((entry) => String(entry.name).toLowerCase() === String(current.senseiModel || '').toLowerCase())
         ? current.senseiModel
         : current.senseiVodModel;
       const vodReport = await senseiService.analyzeFullVod({
         match, statisticalReport: existing.report, source: existing.vod.path, ffmpeg, outputDirectory: temporary,
-        checkpoint: existing.vod.checkpoint, model: current.senseiVodModel, repairModel, signal: controller.signal, onProgress: progress,
+        checkpoint: requestedCheckpoint, model: current.senseiVodModel, repairModel, analysisMode, signal: controller.signal, onProgress: progress,
         onCheckpoint: (checkpoint) => {
           vodState = { ...vodState, checkpoint, status: 'analyzing', error: '' };
           senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
         }
       });
       const totalSegments = Number(vodReport.coverage?.totalSegments) || 0;
-      progress({ phase: 'saving', current: totalSegments, total: totalSegments, message: 'Saving full-match report' });
+      progress({ phase: 'saving', current: totalSegments, total: totalSegments, mode: analysisMode, message: 'Saving full-match report' });
       vodState = { ...vodState, checkpoint: null, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' };
       const saved = senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
-      progress({ phase: 'complete', current: totalSegments, total: totalSegments, message: 'Full-match analysis complete' });
+      progress({ phase: 'complete', current: totalSegments, total: totalSegments, mode: analysisMode, message: 'Full-match analysis complete' });
       return saved;
     } catch (error) {
       const canceled = error?.code === 'SENSEI_CANCELED' || controller.signal.aborted;
@@ -522,7 +525,7 @@ function registerIpc() {
         ? { ...latestVod.checkpoint, elapsedMs: Math.max(Number(latestVod.checkpoint.elapsedMs) || 0, Date.now() - analysisStartedAt), updatedAt: Date.now() }
         : null;
       senseiStore.save(senseiAccountId(), matchId, { vod: { ...latestVod, checkpoint, status: canceled ? 'canceled' : 'failed', error: message } });
-      progress({ phase: canceled ? 'canceled' : 'failed', current: 0, total: 0, message });
+      progress({ phase: canceled ? 'canceled' : 'failed', current: 0, total: 0, mode: analysisMode, message });
       throw error;
     } finally {
       senseiVodJobs.delete(jobKey);

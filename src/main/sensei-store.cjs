@@ -28,9 +28,12 @@ function normalizeVodFinding(value = {}) {
 }
 
 function normalizeVodCheckpoint(value) {
-  if (!value || typeof value !== 'object' || Number(value.version) !== 2) return null;
+  const version = Number(value?.version);
+  if (!value || typeof value !== 'object' || ![2, 3].includes(version)) return null;
+  const mode = value.mode === 'adaptive' || version === 3 ? 'adaptive' : 'exhaustive';
   return {
-    version: 2,
+    version,
+    mode,
     durationSeconds: Math.max(0, Number(value.durationSeconds) || 0),
     chunkSeconds: Math.max(1, Number(value.chunkSeconds) || 4),
     frameRate: Math.max(.25, Number(value.frameRate) || 4),
@@ -40,6 +43,14 @@ function normalizeVodCheckpoint(value) {
     gameplaySegments: Math.max(0, Math.floor(Number(value.gameplaySegments) || 0)),
     actionSegments: Math.max(0, Math.floor(Number(value.actionSegments) || 0)),
     invalidSegments: Math.max(0, Math.floor(Number(value.invalidSegments) || 0)),
+    scanFps: mode === 'adaptive' ? Math.max(.25, Number(value.scanFps) || 1) : 0,
+    scanSamples: mode === 'adaptive' ? Math.max(0, Math.floor(Number(value.scanSamples) || 0)) : 0,
+    windows: mode === 'adaptive' ? (Array.isArray(value.windows) ? value.windows : []).slice(0, 1_000).map((window) => ({
+      startSeconds: Math.max(0, Number(window?.startSeconds) || 0),
+      durationSeconds: Math.max(.1, Number(window?.durationSeconds) || 12),
+      kind: ['activity', 'supplemental', 'quiet-audit'].includes(window?.kind) ? window.kind : 'activity',
+      activityScore: Math.max(0, Number(window?.activityScore) || 0)
+    })) : [],
     startedAt: Number(value.startedAt) || 0,
     updatedAt: Number(value.updatedAt) || 0,
     elapsedMs: Math.max(0, Number(value.elapsedMs) || 0),
