@@ -328,6 +328,19 @@ test('Sensei owns a dedicated coaching workspace without duplicating full match 
   assert.match(renderer, /senseiVodActiveMatchId/);
 });
 
+test('Ask Sensei preserves a focused draft across automatic report refreshes', () => {
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/app.js'), 'utf8');
+  assert.match(renderer, /senseiChatDrafts:\s*\{\}/);
+  assert.match(renderer, /senseiChatPendingMatchId:\s*''/);
+  assert.match(renderer, /captureSenseiChatDraft\(state\.senseiSelectedMatchId\)/);
+  assert.match(renderer, /focusState\?\.focused && !state\.senseiBusy/);
+  assert.match(renderer, /restoreSenseiChatDraft\(panel, matchId, focusState\)/);
+  assert.match(renderer, /input\.setSelectionRange\(/);
+  assert.match(renderer, /addEventListener\('input',[\s\S]{0,300}senseiChatDrafts/);
+  assert.match(renderer, /state\.senseiChatDrafts\[matchId\] = '';[\s\S]{0,100}input\.value = ''/);
+  assert.match(renderer, /state\.senseiSelectedMatchId === matchId\) renderSenseiPanel\(entry\)/);
+});
+
 test('adaptive VOD planning scans the full timeline and selects bounded activity plus quiet-audit windows', () => {
   const raw = 'frame:0 pts:0 pts_time:0\nlavfi.signalstats.YDIF=0\nframe:1 pts:1 pts_time:1\nlavfi.signalstats.YDIF=12.5\n';
   assert.deepEqual(parseVodActivityScan(raw), [{ seconds: 0, difference: 0 }, { seconds: 1, difference: 12.5 }]);

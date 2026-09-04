@@ -21,6 +21,8 @@ const state = {
   senseiBusy: false,
   senseiEntry: null,
   senseiSelectedMatchId: '',
+  senseiChatDrafts: {},
+  senseiChatPendingMatchId: '',
   senseiReportsByMatch: {},
   senseiVodProgress: null,
   senseiVodStartedAt: 0,
@@ -486,6 +488,7 @@ function renderSenseiHubLists() {
 async function selectSenseiMatch(matchId) {
   const id = String(matchId || '');
   if (!findMatchById(id)) return;
+  captureSenseiChatDraft(state.senseiSelectedMatchId);
   state.senseiSelectedMatchId = id;
   state.senseiEntry = state.senseiReportsByMatch[id] || null;
   renderSenseiHubLists();
@@ -710,10 +713,40 @@ function senseiVodMarkup(entry) {
   return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · ${escapeHtml(modeLabel)}</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${outdatedMarkup}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p>${qualityMarkup}</div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
 }
 
+function captureSenseiChatDraft(matchId = state.senseiSelectedMatchId, panel = $('#senseiWorkspacePanel')) {
+  const id = String(matchId || '');
+  const input = panel?.querySelector('[data-sensei-chat] input[name="question"]');
+  if (id && input) state.senseiChatDrafts[id] = input.value;
+  return input;
+}
+
+function restoreSenseiChatDraft(panel, matchId, focusState = null) {
+  const input = panel?.querySelector('[data-sensei-chat] input[name="question"]');
+  if (!input) return;
+  input.value = state.senseiChatDrafts[String(matchId || '')] || '';
+  if (!focusState?.focused) return;
+  try { input.focus({ preventScroll: true }); } catch { input.focus(); }
+  if (Number.isInteger(focusState.start) && Number.isInteger(focusState.end)) {
+    input.setSelectionRange(focusState.start, focusState.end, focusState.direction || 'none');
+  }
+}
+
 function renderSenseiPanel(entry, selector = '#senseiWorkspacePanel') {
   const panel = $(selector);
   if (!panel) return;
   if (entry) state.senseiEntry = entry;
+  const matchId = state.senseiSelectedMatchId;
+  const currentInput = captureSenseiChatDraft(matchId, panel);
+  const focusState = currentInput ? {
+    focused: document.activeElement === currentInput,
+    start: currentInput.selectionStart,
+    end: currentInput.selectionEnd,
+    direction: currentInput.selectionDirection
+  } : null;
+  // Riot/remote status refreshes can arrive every few seconds. The report can
+  // safely wait until the composer blurs; replacing a focused input destroys
+  // the user's draft and cursor position.
+  if ((focusState?.focused && !state.senseiBusy) || (currentInput && state.senseiChatPendingMatchId === matchId)) return;
   if (!state.settings?.senseiEnabled) {
     panel.innerHTML = `<div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><span class="sensei-status-chip">OPTIONAL</span></div><div class="sensei-empty"><strong>Sensei Vision is disabled</strong><span>Enable Sensei Lite or a local Sensei model in Settings. Nothing downloads or runs automatically.</span><button class="ghost-button" data-sensei-settings>Review setup</button></div>`;
     return;
@@ -737,6 +770,7 @@ function renderSenseiPanel(entry, selector = '#senseiWorkspacePanel') {
     body = `<div class="sensei-report">${fallbackNotice}<div class="sensei-verdict"><small>MATCH VERDICT • ${escapeHtml(entry.tier === 'sensei' ? 'FULL SENSEI' : 'SENSEI LITE')}</small><p>${escapeHtml(report.verdict)}</p></div><div class="sensei-scorecard">${scorecard}</div><div class="sensei-columns"><article class="sensei-section-card"><h3>Strengths</h3>${senseiList(report.strengths)}</article><article class="sensei-section-card"><h3>Weaknesses</h3>${senseiList(report.weaknesses)}</article></div><div class="sensei-drills">${drills}</div><div class="sensei-focus"><small>NEXT-MATCH FOCUS</small><strong>${escapeHtml(report.focusRule)}</strong></div><div class="sensei-citations">Evidence: ${(report.citations || []).map(escapeHtml).join(' • ')}</div>${senseiVodMarkup(entry)}<div class="sensei-chat"><div class="sensei-vod-head"><div><h3>Ask Sensei</h3><p>Short follow-up using this saved match report only.</p></div></div><div class="sensei-chat-log">${chat || '<div class="sensei-chat-message assistant">Ask about a weakness, drill, or next-match focus. This does not rerun the analysis.</div>'}</div><form class="sensei-chat-form" data-sensei-chat><input name="question" maxlength="1000" placeholder="Ask about this match…" required><button class="ghost-button">Ask</button></form></div></div>`;
   }
   panel.innerHTML = `<div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><div class="sensei-panel-actions"><span class="sensei-status-chip ${status}">${label}</span>${actions}</div></div>${body}`;
+  restoreSenseiChatDraft(panel, matchId, focusState);
 }
 
 async function hydrateSenseiPanel(matchId) {
@@ -1838,14 +1872,33 @@ function bindEvents() {
     const input = form.elements.question;
     const question = input.value.trim();
     if (!question || state.senseiBusy) return;
+    const matchId = state.senseiSelectedMatchId;
+    state.senseiChatDrafts[matchId] = question;
+    state.senseiChatPendingMatchId = matchId;
     state.senseiBusy = true;
     input.disabled = true;
     try {
-      const entry = await window.companion.askSensei({ matchId: state.senseiSelectedMatchId, question });
-      state.senseiReportsByMatch[state.senseiSelectedMatchId] = entry;
-      renderSenseiPanel(entry);
-    } catch (error) { toast('Ask Sensei failed', error.message, 'error'); }
-    finally { state.senseiBusy = false; }
+      const entry = await window.companion.askSensei({ matchId, question });
+      state.senseiChatDrafts[matchId] = '';
+      input.value = '';
+      state.senseiReportsByMatch[matchId] = entry;
+      state.senseiChatPendingMatchId = '';
+      if (state.senseiSelectedMatchId === matchId) renderSenseiPanel(entry);
+    } catch (error) {
+      state.senseiChatPendingMatchId = '';
+      if (state.senseiSelectedMatchId === matchId && input.isConnected) {
+        input.disabled = false;
+        input.focus();
+      }
+      toast('Ask Sensei failed', error.message, 'error');
+    } finally {
+      if (state.senseiChatPendingMatchId === matchId) state.senseiChatPendingMatchId = '';
+      state.senseiBusy = false;
+    }
+  });
+  $('#senseiWorkspacePanel').addEventListener('input', (event) => {
+    const input = event.target.closest('[data-sensei-chat] input[name="question"]');
+    if (input && state.senseiSelectedMatchId) state.senseiChatDrafts[state.senseiSelectedMatchId] = input.value;
   });
   $('#allyRoster').addEventListener('click', (event) => {
     const row = event.target.closest('[data-player-id]');

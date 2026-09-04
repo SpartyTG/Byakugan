@@ -1,15 +1,26 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.109`.
+This package is the canonical source for `v0.8.0-beta.110`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.108`
-- Automated tests: `163 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.109`
+- Automated tests: `164 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.110 fixes Ask Sensei text being erased by background refreshes. The
+composer now saves a separate draft for each selected match. Background refresh
+rendering no longer replaces a focused composer, and any later
+necessary render restores the draft, focus, cursor position, and selection.
+Questions clear only after a successful response; a failed request preserves
+and refocuses the draft. A response completing after the user changes matches
+updates the correct saved report without overwriting the newly selected
+workspace.
+
+## Previous completed changes
 
 Beta.109 fixes the precise validation error revealed by the first beta.108
 rerun: Qwen omitted a supplied number from at least one weakness or returned an
@@ -21,8 +32,6 @@ matches with no supported aggregate weakness now state that explicitly instead
 of treating the death total as proof of positioning or survival trouble. This
 cleanup happens locally on the first response, preserving **Full Sensei**
 without another model call.
-
-## Previous completed changes
 
 Beta.108 fixes the remaining local-model fallback exposed by the first
 beta.107 test. The metric guard correctly rejected Qwen's contradictory report,
@@ -177,7 +186,12 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.109 on both PCs. First rerun Full Sensei on the same completed
+Install beta.110 on both PCs. In Ask Sensei, type for longer than the configured
+Riot-data refresh interval without submitting. Confirm the draft, focus, and
+cursor remain intact. Send the question and confirm it clears only after the
+answer appears; a failed request should retain the draft.
+
+Then rerun Full Sensei on the same completed
 Omen match that previously produced the 21/13 report. Confirm 1.62 K/D is not
 called low or poor, 157.7 ADR is not called low, 28.8% headshots are not called
 poor accuracy, and 3 first kills against 1 first death produce high entry. The

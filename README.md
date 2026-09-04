@@ -96,7 +96,11 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.109
+## Included in version 0.8.0-beta.110
+
+- Ask Sensei drafts are stored per selected match and survive Riot-data, remote-host, model-status, and VOD-progress refreshes
+- A focused Ask Sensei composer is no longer replaced by background report rendering, preserving typed text, keyboard focus, and cursor selection
+- Sending a question clears the draft only after a successful response; failures preserve and refocus it, and a response from a previously selected match cannot overwrite the current workspace
 
 - Missing Full Sensei citations are rebuilt deterministically from Riot's supplied K/D/A, K/D, ACS, ADR, headshot percentage, and opening-duel data instead of invalidating the entire model report
 - A numberless unsupported weakness is omitted and replaced with a grounded statistical fallback when necessary, so the exact beta.108 citation failure remains **Full Sensei** without another model request
@@ -366,10 +370,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.109`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.110`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.109`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.110`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -377,8 +381,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.109
-git push origin v0.8.0-beta.109
+git tag v0.8.0-beta.110
+git push origin v0.8.0-beta.110
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
