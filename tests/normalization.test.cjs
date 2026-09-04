@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -525,6 +525,32 @@ test('pregame roster excludes every opponent until the core game begins', () => 
     filterPregameRoster(players, 'self').map((player) => player.Subject),
     ['self', 'ally', 'party-without-team']
   );
+});
+
+test('pregame AllyTeam roster keeps all five teammates when Riot omits TeamID', () => {
+  const selected = selectLiveMatchPlayers({
+    AllyTeam: { Players: [
+      { Subject: 'self', CharacterID: 'agent-jett', CharacterSelectionState: 'locked', PlayerIdentity: { Incognito: false } },
+      { Subject: 'public-ally', CharacterID: 'agent-sova', CharacterSelectionState: 'selected', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1' },
+      { Subject: 'hidden-ally', CharacterID: 'agent-sova', CharacterSelectionState: 'locked', CompetitiveTier: 21, PlayerIdentity: { Incognito: true } }
+    ] },
+    EnemyTeam: { Players: [{ Subject: 'enemy', CharacterID: 'agent-jett' }] }
+  }, 'PREGAME');
+  const filtered = filterPregameRoster(selected, 'self');
+  const roster = normalizeLivePlayers(filtered, 'self', metadata(), {
+    self: 'MyName#NA1', 'public-ally': 'PublicAlly#NA1'
+  });
+
+  assert.deepEqual(filtered.map((player) => player.Subject), ['self', 'public-ally', 'hidden-ally']);
+  assert.equal(JSON.stringify(filtered).includes('enemy'), false);
+  assert.equal(roster[1].name, 'PublicAlly#NA1');
+  assert.equal(roster[1].agent, 'Selecting…');
+  assert.equal(roster[1].rank, 'Ascendant 1');
+  assert.equal(roster[1].peakRank, 'Immortal 1');
+  assert.equal(roster[2].name, '');
+  assert.equal(roster[2].agent, 'Sova');
+  assert.equal(roster[2].hidden, true);
+  assert.equal(roster[2].locked, true);
 });
 
 test('opponent rank hydration requires the active core-game opt-in', () => {

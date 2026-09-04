@@ -1,15 +1,32 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.103`.
+This package is the canonical source for `v0.8.0-beta.104`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.102`
-- Automated tests: `156 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.103`
+- Automated tests: `157 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.104 makes Agent Select show the complete allied roster, including random
+teammates outside the user's party. Riot supplies that roster through
+`AllyTeam.Players`, whose entries commonly omit `TeamID`; the previous generic
+pregame filter could not prove those entries were allies and retained only the
+signed-in player and known party members. The source collection is now marked
+as explicitly ally-scoped before filtering, while `EnemyTeam` is never merged
+and every opponent remains concealed until the active core game begins.
+
+Public teammate Riot IDs display when Riot returns them. Hidden or unresolved
+identities display the agent only, and a hovered or selected character remains
+**Selecting…** until `CharacterSelectionState` is actually locked. Pregame
+allies receive available current rank, all-time peak rank with Episode/Act, and
+account-level enrichment. Visible allied profiles remain inspectable; hidden
+identities do not become inspectable.
+
+## Previous completed changes
 
 Beta.103 fixes two Live Match fallbacks found during a real Competitive test.
 When Riot marks an identity as eligible but its name lookup returns no Riot ID,
@@ -24,8 +41,6 @@ only `BYAKUGANPartyMember`, discarded the already-resolved lobby level, and then
 left the card on **LVL SYNCING** when the separate account-XP enrichment was
 unavailable. Valid core-game levels still take precedence, while a hidden zero
 cannot overwrite a real lobby-visible level.
-
-## Previous completed change
 
 Beta.102 replaces VOD Vision's prompt-only coaching safeguards with enforced
 truthfulness validation after the completed 33:09 Adaptive test produced 39
@@ -96,7 +111,15 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.103 on both PCs. In Live Match, confirm the previously unresolved
+Install beta.104 on both PCs. During Agent Select, confirm the allied side shows
+all five teammates rather than only known party members. A public random
+teammate should show their Riot ID; a hidden or unresolved teammate should show
+their locked agent; and every unlocked teammate should remain **Selecting…**.
+Confirm current rank, peak rank, Episode/Act, and available account level load
+for the allied cards. The enemy side must remain five concealed placeholders
+with no names, agents, ranks, peaks, or levels until the active match begins.
+
+In Live Match, confirm the previously unresolved
 Fade-style card shows its agent rather than **Riot Player**. If Riot returns the
 public name later, confirm the card changes to that Riot ID. Hidden opponents
 must continue to show only their agent with **IDENTITY HIDDEN**. Confirm every

@@ -758,10 +758,29 @@ function filterPregameRoster(players, ownPuuid) {
   return players.filter((player) => {
     const subject = player.Subject || player.subject || player.puuid;
     if (subject === ownPuuid) return true;
+    // The pregame endpoint's AllyTeam.Players collection is already scoped to
+    // the signed-in player's team and commonly omits TeamID on every entry.
+    if (player.BYAKUGANPregameAlly === true) return true;
     const teamId = player.TeamID || player.teamId;
     if (ownTeam && teamId) return teamId === ownTeam;
     return isKnownPartyMember(player);
   });
+}
+
+function selectLiveMatchPlayers(match, loopState) {
+  const directPlayers = match?.Players || match?.players;
+  const allyPlayers = match?.AllyTeam?.Players || match?.allyTeam?.players;
+  const pregame = String(loopState || '').toUpperCase() === 'PREGAME';
+  const selected = Array.isArray(directPlayers) && directPlayers.length
+    ? directPlayers
+    : Array.isArray(allyPlayers) ? allyPlayers : [];
+  if (!pregame) return selected;
+  const allyScoped = selected === allyPlayers;
+  return selected.map((player) => ({
+    ...player,
+    BYAKUGANPregame: true,
+    BYAKUGANPregameAlly: allyScoped
+  }));
 }
 
 function shouldHydrateRosterTier(player, ownTeam, allowOpponentRanks = false) {
@@ -783,7 +802,9 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
     const friend = isKnownFriend(player);
     const canShowIdentity = !hidden;
     const resolvedName = String(names[subject] || '').trim();
-    const characterId = player.CharacterID || player.characterId;
+    const selectionState = String(player.CharacterSelectionState || player.characterSelectionState || '').toLowerCase();
+    const locked = selectionState === 'locked';
+    const characterId = player.BYAKUGANPregame && !locked ? '' : (player.CharacterID || player.characterId);
     const tierNumber = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
     const agent = resolveById(metadata.agents, characterId, {
       name: characterId ? 'Unknown agent' : 'Selecting…', role: 'Agent', image: '', color: '#7b67f6'
@@ -816,7 +837,7 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       peakRankImage: player.BYAKUGANPeakRankImage || '',
       peakEpisode: player.BYAKUGANPeakEpisode || '',
       peakAct: player.BYAKUGANPeakAct || '',
-      locked: Boolean(player.CharacterSelectionState === 'locked' || player.characterSelectionState === 'locked')
+      locked
     };
   });
 }
@@ -1626,7 +1647,7 @@ class RiotClientService extends EventEmitter {
 
     const mapId = match?.MapID || match?.mapId || session.map || session.MapID;
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
-    let players = match?.Players || match?.players || match?.AllyTeam?.Players || match?.allyTeam?.players || [];
+    let players = selectLiveMatchPlayers(match, loopState);
     const partyId = party.id;
     if (players.length && party.players.length) {
       // The core-game roster identifies party members but often omits their
@@ -1667,7 +1688,7 @@ class RiotClientService extends EventEmitter {
       rosterStatus: loopState === 'MENUS' && roster.length
         ? 'Party members and Riot friends can be inspected. Unknown private identities remain unavailable.'
         : loopState === 'PREGAME'
-        ? 'Enemy agents and ranks unlock only after the active match begins.'
+        ? 'Your full team is available during agent select; every opponent remains concealed until the active match begins.'
         : roster.length
           ? 'Active match roster: public Riot names are shown; hidden opponents remain agent-only, and enemy profiles stay unavailable.'
           : 'Waiting for Riot to expose the active roster.'
@@ -2420,6 +2441,7 @@ module.exports = {
   valorantPresenceAccountLevel,
   mergeLivePartyContext,
   visiblePlayerIds,
+  selectLiveMatchPlayers,
   filterPregameRoster,
   shouldHydrateRosterTier,
   normalizeLivePlayers,
