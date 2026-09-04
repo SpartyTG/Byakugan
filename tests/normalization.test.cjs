@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, isKnownBlocked, liveAccountLevel, livePartyId, partyMembershipId, buildLivePartyGroups, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, isKnownBlocked, liveAccountLevel, livePartyId, partyMembershipId, buildLivePartyGroups, partyHistoryObservation, normalizePartyHistory, mergePartyHistory, buildLikelyPartyGroups, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -474,18 +474,7 @@ test('live roster labels only confirmed queued groups without exposing Riot part
   assert.equal(JSON.stringify(roster).includes('private-enemy-id'), false);
 });
 
-test('experimental active-match lookup discovers other confirmed parties once and caches the result', async () => {
-  const service = new RiotClientService();
-  const calls = [];
-  const memberships = {
-    'ally-a': 'ally-duo', 'ally-b': 'ally-duo',
-    'enemy-a': 'enemy-duo', 'enemy-b': 'enemy-duo', solo: 'solo-party'
-  };
-  service.safeRemote = async (endpoint, target, options) => {
-    calls.push({ endpoint, target, options });
-    const subject = decodeURIComponent(endpoint.split('/').pop());
-    return { Subject: subject, CurrentPartyID: memberships[subject] };
-  };
+test('completed match party history infers likely live groups without exposing Riot party IDs', () => {
   const players = [
     { Subject: 'self', TeamID: 'Blue', BYAKUGANPartyID: 'own-duo', PlayerIdentity: { Incognito: false } },
     { Subject: 'friend', TeamID: 'Blue', BYAKUGANPartyID: 'own-duo', PlayerIdentity: { Incognito: false } },
@@ -495,39 +484,80 @@ test('experimental active-match lookup discovers other confirmed parties once an
     { Subject: 'enemy-a', TeamID: 'Red', PlayerIdentity: { Incognito: false } },
     { Subject: 'enemy-b', TeamID: 'Red', PlayerIdentity: { Incognito: false } }
   ];
-  const first = await service.hydrateLivePartyMemberships(players, 'match-1');
-  assert.equal(first.checked, 5);
-  assert.equal(first.resolved, 5);
-  assert.equal(first.unavailable, 0);
-  assert.equal(calls.length, 5);
-  assert.equal(calls.every((call) => call.target === 'glz'), true);
-  assert.equal(calls.every((call) => call.options.ignoredStatuses.includes(403)), true);
-  assert.equal(calls.every((call) => call.options.timeout === 2_500), true);
-  assert.equal(partyMembershipId({ CurrentPartyID: 'party-id' }), 'party-id');
-  const groups = buildLivePartyGroups(first.players, 'self');
-  assert.equal(groups.get('ally-a').label, 'PARTY B · DUO');
-  assert.equal(groups.get('enemy-a').label, 'PARTY A · DUO');
-  assert.equal(groups.has('solo'), false);
+  const history = [{
+    matchId: 'prior-match',
+    startedAt: 500,
+    groups: [['ally-a', 'ally-b'], ['enemy-a', 'enemy-b']]
+  }];
+  const confirmed = buildLivePartyGroups(players, 'self');
+  const likely = buildLikelyPartyGroups(players, 'self', history, confirmed);
+  assert.equal(likely.get('ally-a').label, 'LIKELY PARTY A · DUO');
+  assert.equal(likely.get('enemy-a').label, 'LIKELY PARTY A · DUO');
+  assert.equal(likely.has('solo'), false);
+  assert.equal(likely.has('self'), false);
 
-  const second = await service.hydrateLivePartyMemberships(players, 'match-1');
-  assert.equal(second.resolved, 5);
-  assert.equal(calls.length, 5);
-  const roster = normalizeLivePlayers(second.players, 'self', metadata(), Object.fromEntries(players.map((player) => [player.Subject, `${player.Subject}#NA1`])));
-  assert.equal(JSON.stringify(roster).includes('ally-duo'), false);
-  assert.equal(JSON.stringify(roster).includes('enemy-duo'), false);
+  const roster = normalizeLivePlayers(
+    players,
+    'self',
+    metadata(),
+    Object.fromEntries(players.map((player) => [player.Subject, `${player.Subject}#NA1`])),
+    history
+  );
+  assert.equal(roster.find((player) => player.name === 'ally-a#NA1').partyLabel, 'LIKELY PARTY A · DUO');
+  assert.equal(roster.find((player) => player.name === 'enemy-a#NA1').likelyParty, true);
+  assert.equal(JSON.stringify(roster).includes('prior-match'), false);
+  assert.equal(JSON.stringify(roster).includes('own-duo'), false);
 });
 
-test('experimental party lookup backs off when Riot withholds another membership', async () => {
-  const service = new RiotClientService();
-  let calls = 0;
-  service.safeRemote = async () => { calls += 1; return null; };
-  const players = [{ Subject: 'unknown-enemy', TeamID: 'Red', PlayerIdentity: { Incognito: true } }];
-  const first = await service.hydrateLivePartyMemberships(players, 'match-private');
-  const second = await service.hydrateLivePartyMemberships(players, 'match-private');
-  assert.equal(first.unavailable, 1);
-  assert.equal(second.unavailable, 1);
-  assert.equal(calls, 1);
-  assert.equal(first.players[0].BYAKUGANPartyID, undefined);
+test('party history extracts only confirmed groups and retains the latest 25 observed matches', () => {
+  const detail = {
+    MatchInfo: { MatchID: 'match-25', GameStartMillis: 25_000_000_000 },
+    Players: [
+      { Subject: 'a', TeamID: 'Blue', PartyID: 'private-party' },
+      { Subject: 'b', TeamID: 'Blue', PartyID: 'private-party' },
+      { Subject: 'solo', TeamID: 'Blue', PartyID: 'private-solo' },
+      { Subject: 'enemy', TeamID: 'Red', PartyID: 'private-party' }
+    ]
+  };
+  const observation = partyHistoryObservation(detail);
+  assert.deepEqual(observation, { matchId: 'match-25', startedAt: 25_000_000_000, groups: [['a', 'b']] });
+  const older = Array.from({ length: 25 }, (_, index) => ({
+    matchId: `match-${index}`,
+    startedAt: index * 1000,
+    groups: []
+  }));
+  const history = mergePartyHistory(older, observation);
+  assert.equal(history.length, 25);
+  assert.equal(history[0].matchId, 'match-25');
+  assert.equal(history.some((row) => row.matchId === 'match-0'), false);
+  assert.equal(JSON.stringify(history).includes('private-party'), false);
+  assert.equal(normalizePartyHistory([...history, history[0]]).length, 25);
+});
+
+test('party history persists per Riot account and restores confirmed pairings', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-party-history-'));
+  try {
+    const first = new RiotClientService({ cacheDirectory: directory });
+    first.identity = { puuid: 'account-a' };
+    first.loadPersistedPartyHistory();
+    first.rememberPartyDetails({
+      MatchInfo: { MatchID: 'saved-match', GameStartMillis: 1_700_000_000_000 },
+      Players: [
+        { Subject: 'one', TeamID: 'Blue', PartyID: 'private-id' },
+        { Subject: 'two', TeamID: 'Blue', PartyID: 'private-id' }
+      ]
+    });
+    const restored = new RiotClientService({ cacheDirectory: directory });
+    restored.identity = { puuid: 'account-a' };
+    assert.deepEqual(restored.loadPersistedPartyHistory(), [{
+      matchId: 'saved-match', startedAt: 1_700_000_000_000, groups: [['one', 'two']]
+    }]);
+    const other = new RiotClientService({ cacheDirectory: directory });
+    other.identity = { puuid: 'account-b' };
+    assert.deepEqual(other.loadPersistedPartyHistory(), []);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('public opponent name lookup unlocks only for the active core game', () => {
@@ -702,9 +732,9 @@ test('active core-game hydration resolves a missing enemy tier', async () => {
 test('completed match roster uses Career-visible names regardless of the live incognito flag', () => {
   const detail = {
     Players: [
-      { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
-      { Subject: 'visible-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakRankImage: 'immortal.png', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2', PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
-      { Subject: 'hidden-enemy', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } },
+      { Subject: 'self', TeamID: 'Blue', PartyID: 'own-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
+      { Subject: 'visible-enemy', TeamID: 'Red', PartyID: 'enemy-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakRankImage: 'immortal.png', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2', PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
+      { Subject: 'hidden-enemy', TeamID: 'Red', PartyID: 'enemy-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } },
       { Subject: 'hidden-friend', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true, PlayerStats: { Kills: 10, Deaths: 12, Assists: 4, Score: 2200 } }
     ],
     RoundResults: Array.from({ length: 20 }, () => ({}))
@@ -717,6 +747,9 @@ test('completed match roster uses Career-visible names regardless of the live in
   assert.equal(roster[1].peakRankImage, 'immortal.png');
   assert.equal(roster[1].peakEpisode, 'Episode 9');
   assert.equal(roster[1].peakAct, 'Act 2');
+  assert.equal(roster[1].partyLabel, 'PARTY A · DUO');
+  assert.equal(roster[2].partyLabel, 'PARTY A · DUO');
+  assert.equal(JSON.stringify(roster).includes('enemy-party'), false);
   assert.equal(roster[2].name, 'CareerName#NA1');
   assert.equal(roster[2].hidden, false);
   assert.equal(roster[2].inspectable, true);

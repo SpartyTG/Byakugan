@@ -889,6 +889,7 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .history-player-name strong, .history-player-name small, .history-player-performance small, .history-player-performance strong, .history-player-performance em, .history-player-rank small, .history-player-rank strong, .history-player-rank em, .history-player-rank b { display: block; }
 .history-player-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
 .history-player-name small, .history-player-performance small, .history-player-rank small { margin-top: 4px; color: var(--muted); font-size: 6px; letter-spacing: .06em; }
+.history-player-name .live-party-badge { display: inline-flex; margin-top: 6px; }
 .history-player-performance strong { font-size: 9px; }
 .history-player-performance em { margin-top: 3px; color: var(--violet-light); font-size: 7px; font-style: normal; }
 .history-player-rank { display: flex; align-items: center; gap: 7px; }

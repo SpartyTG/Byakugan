@@ -587,9 +587,12 @@ function historicalPlayerRow(player) {
   const clickable = Boolean(player.inspectable && player.profileId);
   const peakLabel = player.peakRank ? `PEAK ${player.peakRank}` : 'PEAK UNAVAILABLE';
   const peakContext = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ') || 'EPISODE / ACT UNAVAILABLE';
+  const partyBadge = player.partyLabel
+    ? `<span class="live-party-badge party-tone-${Math.max(0, Math.min(4, Number(player.partyTone) || 0))}" title="Confirmed by Riot's completed match data">${escapeHtml(player.partyLabel)}</span>`
+    : '';
   return `<div class="history-player ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${clickable ? 'inspectable' : ''}" ${clickable ? `data-player-id="${escapeHtml(player.profileId)}" role="button" tabindex="0"` : ''}>
     <div class="history-player-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
-    <div class="history-player-name"><strong>${escapeHtml(displayName)}</strong><small>${escapeHtml(detail)}</small></div>
+    <div class="history-player-name"><strong>${escapeHtml(displayName)}</strong><small>${escapeHtml(detail)}</small>${partyBadge}</div>
     <div class="history-player-performance"><small>THIS MATCH</small><strong>${escapeHtml(player.kills)} / ${escapeHtml(player.deaths)} / ${escapeHtml(player.assists)}</strong><em>${escapeHtml(player.acs || 0)} ACS</em></div>
     <div class="history-player-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>MATCH RANK</small><strong>${escapeHtml(player.rank)}</strong><em>${escapeHtml(peakLabel)}</em><b>${escapeHtml(peakContext)}</b></span></div>
   </div>`;
@@ -885,7 +888,7 @@ function livePlayerRow(player) {
   const levelIsHidden = Boolean(player.levelHidden && !player.partyMember);
   const levelLabel = hasLevel ? `LVL ${Math.floor(Number(player.level))}` : player.partyMember ? 'LVL SYNCING' : levelIsHidden ? 'LVL HIDDEN' : 'LVL PRIVATE';
   const partyBadge = player.partyLabel
-    ? `<span class="live-party-badge party-tone-${Math.max(0, Math.min(4, Number(player.partyTone) || 0))}" title="These players queued together">${escapeHtml(player.partyLabel)}</span>`
+    ? `<span class="live-party-badge party-tone-${Math.max(0, Math.min(4, Number(player.partyTone) || 0))}" title="${player.likelyParty ? `Inferred from ${Math.max(1, Number(player.partyEvidenceMatches) || 1)} previously confirmed shared ${Number(player.partyEvidenceMatches) === 1 ? 'match' : 'matches'}; not guaranteed` : 'These players queued together (confirmed)'}">${escapeHtml(player.partyLabel)}</span>`
     : '';
   const blockedBadge = player.blocked
     ? '<span class="live-blocked-badge" title="You previously blocked this Riot account">BLOCKED</span>'

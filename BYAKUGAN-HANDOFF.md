@@ -1,29 +1,38 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.111`.
+This package is the canonical source for `v0.8.0-beta.112`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.110`
-- Automated tests: `166 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.111`
+- Automated tests: `167 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
 
-Beta.111 experimentally attempts to identify parties outside the signed-in
-player's own group during an active match. For each roster PUUID whose party is
-not already known, BYAKUGAN makes a read-only Riot party-membership request.
-Only repeated confirmed IDs become matching party badges; unique, missing, or
-denied results are never guessed. The lookup is limited to four concurrent
-requests with a 2.5-second timeout, caches successful membership for the match,
-and backs off unavailable results for 10 minutes. Raw party IDs remain backend
-only. The roster status explains whether other groups were confirmed, all
-returned IDs were unique, or Riot withheld enough data that unmarked players
-remain unknown. The experiment runs only after the core game begins; Agent
-Select opponent concealment is unchanged.
+Beta.112 replaces beta.111's unsuccessful live membership probes with
+historical inference, matching Valorant Tracker's publicly documented model.
+Completed match details use Riot's real `PartyID` values to display confirmed
+party badges and save only opaque PUUID member groupings—never the raw party
+identifier—in a local per-account history. The history is capped to the latest
+25 locally observed completed matches.
+
+During a later active match, two or more same-side players found together in a
+previous confirmed group receive a matching **LIKELY PARTY A · DUO/TRIO/STACK**
+badge. The badge and roster status explicitly say the relationship is inferred
+and not guaranteed. A confirmed current **YOUR PARTY** badge always takes
+precedence, first-time groups can remain undetected, and unmarked players remain
+unknown rather than confirmed solo. No inference runs during Agent Select, so
+opponent concealment is unchanged. The denied per-player GLZ requests and their
+temporary cache were removed.
 
 ## Previous completed changes
+
+Beta.111 tested whether Riot's current-party membership endpoint would return
+other live-roster players' groups. The real dual-PC match test showed that Riot
+returned the signed-in party but withheld every outside membership. That result
+is preserved here as the reason beta.112 uses completed-match evidence instead.
 
 Beta.110 fixes Ask Sensei text being erased by background refreshes. The
 composer now saves a separate draft for each selected match. Background refresh
@@ -198,13 +207,14 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.111 on both PCs and inspect Live Match after the core game begins.
-If Riot allows the experimental membership endpoint for other players, members
-of the same external duo/trio/stack should receive matching **PARTY A/B**
-badges. Read the roster status: it distinguishes confirmed extra groups from
-withheld memberships. Unmarked players must not be presented as confirmed solo
-when Riot denied or omitted the lookup. Pregame opponents must remain fully
-concealed.
+Install beta.112 on both PCs and first open several recent completed matches.
+When Riot supplies party data, matching **YOUR PARTY** or **PARTY A/B** badges
+should appear on the completed roster. In a later active match, players whom
+BYAKUGAN previously observed in the same confirmed party should receive a
+matching **LIKELY PARTY A/B** badge. The roster status and badge tooltip must
+state that this is historical inference, not current proof. First-time groups
+may remain unmarked, and unmarked players must not be presented as confirmed
+solo. Pregame opponents must remain fully concealed.
 
 Also, in Ask Sensei, type for longer than the configured
 Riot-data refresh interval without submitting. Confirm the draft, focus, and

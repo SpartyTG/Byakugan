@@ -96,11 +96,13 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.111
+## Included in version 0.8.0-beta.112
 
-- Active Live Match now experimentally requests each unresolved roster player's read-only Riot party membership and groups players only when Riot returns the same confirmed party ID
-- Experimental membership results are limited to four concurrent requests, time out after 2.5 seconds, cache successes for the match, and back off unavailable/denied lookups for 10 minutes
-- Raw party identifiers never reach the renderer; Agent Select opponent concealment is unchanged, and the roster status explicitly distinguishes confirmed groups, confirmed unique IDs, and unavailable memberships
+- Completed match details now show confirmed queued groups with matching party badges whenever Riot supplies party membership
+- BYAKUGAN privately remembers confirmed group membership from up to the latest 25 locally observed matches and can label matching players in a later live roster as **LIKELY PARTY A · DUO/TRIO/STACK**
+- Likely party badges are explicitly presented as historical inference rather than current-match proof; first-time groups and players outside BYAKUGAN's locally observed history can remain unmarked
+- Beta.111's unsuccessful per-player live membership probes were removed, eliminating repeated requests to a Riot endpoint that withheld other players' current parties
+- Only opaque Riot participant identifiers grouped by completed match are stored locally; Riot party IDs never enter the history file or renderer, Agent Select opponent concealment remains unchanged, and unmarked players remain unknown rather than confirmed solo
 
 - Ask Sensei drafts are stored per selected match and survive Riot-data, remote-host, model-status, and VOD-progress refreshes
 - A focused Ask Sensei composer is no longer replaced by background report rendering, preserving typed text, keyboard focus, and cursor selection
@@ -374,10 +376,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.111`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.112`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.111`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.112`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -385,8 +387,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.111
-git push origin v0.8.0-beta.111
+git tag v0.8.0-beta.112
+git push origin v0.8.0-beta.112
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

@@ -740,6 +740,55 @@ function livePartySizeLabel(size) {
   return `${size}-STACK`;
 }
 
+const MAX_PARTY_HISTORY_MATCHES = 25;
+
+function partyHistoryObservation(detail) {
+  const info = detail?.MatchInfo || detail?.matchInfo || {};
+  const matchId = String(info.MatchID || info.matchId || detail?.MatchID || detail?.matchId || '').trim();
+  if (!matchId) return null;
+  const startedAt = timestampMillis(
+    info.GameStartMillis ?? info.gameStartMillis ?? info.GameStartTime ?? info.gameStartTime
+  );
+  const grouped = new Map();
+  for (const player of detail?.Players || detail?.players || []) {
+    const subject = String(player.Subject || player.subject || player.puuid || '').trim();
+    const teamId = String(player.TeamID || player.teamId || '').trim();
+    const partyId = livePartyId(player);
+    if (!subject || !teamId || !partyId) continue;
+    const key = `${teamId}:${partyId}`;
+    const members = grouped.get(key) || [];
+    if (!members.includes(subject)) members.push(subject);
+    grouped.set(key, members);
+  }
+  const groups = [...grouped.values()].filter((members) => members.length >= 2);
+  return { matchId, startedAt, groups };
+}
+
+function normalizePartyHistory(history) {
+  const unique = new Map();
+  for (const row of Array.isArray(history) ? history : []) {
+    const matchId = String(row?.matchId || '').trim();
+    if (!matchId || unique.has(matchId)) continue;
+    const groups = (Array.isArray(row?.groups) ? row.groups : []).map((members) => [...new Set(
+      (Array.isArray(members) ? members : []).map((subject) => String(subject || '').trim()).filter(Boolean)
+    )].slice(0, 5)).filter((members) => members.length >= 2);
+    unique.set(matchId, {
+      matchId,
+      startedAt: Math.max(0, Number(row?.startedAt) || 0),
+      groups
+    });
+  }
+  return [...unique.values()]
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, MAX_PARTY_HISTORY_MATCHES);
+}
+
+function mergePartyHistory(history, observations) {
+  const incoming = (Array.isArray(observations) ? observations : [observations]).filter(Boolean);
+  const replacedIds = new Set(incoming.map((row) => row.matchId));
+  return normalizePartyHistory([...incoming, ...(history || []).filter((row) => !replacedIds.has(row?.matchId))]);
+}
+
 function buildLivePartyGroups(players, ownPuuid) {
   const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
   const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId || 'Blue';
@@ -775,6 +824,65 @@ function buildLivePartyGroups(players, ownPuuid) {
         size: group.subjects.length,
         ownParty,
         tone: groupIndex % 5
+      });
+    }
+  }
+  return result;
+}
+
+function buildLikelyPartyGroups(players, ownPuuid, partyHistory = [], confirmedGroups = buildLivePartyGroups(players, ownPuuid)) {
+  const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
+  const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId || 'Blue';
+  const liveSides = new Map(players.map((player) => {
+    const subject = player.Subject || player.subject || player.puuid;
+    const teamId = player.TeamID || player.teamId || ownTeam;
+    return [subject, teamId === ownTeam ? 'ally' : 'enemy'];
+  }).filter(([subject]) => Boolean(subject)));
+  const occupied = new Set(confirmedGroups.keys());
+  const candidates = new Map();
+
+  for (const observation of normalizePartyHistory(partyHistory)) {
+    for (const historicalGroup of observation.groups) {
+      const current = historicalGroup.filter((subject) => liveSides.has(subject) && !occupied.has(subject));
+      if (current.length < 2) continue;
+      const side = liveSides.get(current[0]);
+      if (!current.every((subject) => liveSides.get(subject) === side)) continue;
+      const subjects = [...new Set(current)].sort();
+      const key = `${side}:${subjects.join(':')}`;
+      const existing = candidates.get(key) || { side, subjects, appearances: 0, latestAt: 0 };
+      existing.appearances += 1;
+      existing.latestAt = Math.max(existing.latestAt, Number(observation.startedAt) || 0);
+      candidates.set(key, existing);
+    }
+  }
+
+  const selected = [...candidates.values()].sort((a, b) =>
+    b.appearances - a.appearances || b.latestAt - a.latestAt || b.subjects.length - a.subjects.length
+  );
+  const sideIndexes = { ally: 0, enemy: 0 };
+  const confirmedSideCounts = { ally: 0, enemy: 0 };
+  const uniqueConfirmedGroups = new Map();
+  for (const [subject, group] of confirmedGroups) {
+    const side = liveSides.get(subject);
+    if (side) uniqueConfirmedGroups.set(`${side}:${group.label}`, { subject, group });
+  }
+  for (const group of uniqueConfirmedGroups.values()) {
+    const side = liveSides.get(group.subject);
+    if (side) confirmedSideCounts[side] += 1;
+  }
+  const result = new Map();
+  for (const candidate of selected) {
+    if (candidate.subjects.some((subject) => occupied.has(subject) || result.has(subject))) continue;
+    const groupIndex = sideIndexes[candidate.side]++;
+    const label = `LIKELY PARTY ${String.fromCharCode(65 + groupIndex)} · ${livePartySizeLabel(candidate.subjects.length)}`;
+    for (const subject of candidate.subjects) {
+      result.set(subject, {
+        label,
+        size: candidate.subjects.length,
+        ownParty: false,
+        likely: true,
+        evidenceMatches: candidate.appearances,
+        tone: (confirmedSideCounts[candidate.side] + groupIndex) % 5
       });
     }
   }
@@ -854,10 +962,11 @@ function shouldHydrateRosterTier(player, ownTeam, allowOpponentRanks = false) {
   return !isUnknownOpponent || allowOpponentRanks;
 }
 
-function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
+function normalizeLivePlayers(players, ownPuuid, metadata, names = {}, partyHistory = []) {
   const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
   const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId || 'Blue';
   const partyGroups = buildLivePartyGroups(players, ownPuuid);
+  const likelyPartyGroups = buildLikelyPartyGroups(players, ownPuuid, partyHistory, partyGroups);
 
   return players.map((player, index) => {
     const subject = player.Subject || player.subject || player.puuid;
@@ -879,7 +988,7 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       name: tierNumber ? `Competitive tier ${tierNumber}` : 'Unrated', image: '', color: '#60667b'
     };
     const accountLevel = liveAccountLevel(player);
-    const partyGroup = partyGroups.get(subject) || null;
+    const partyGroup = partyGroups.get(subject) || likelyPartyGroups.get(subject) || null;
 
     return {
       id: `player-${index}`,
@@ -896,6 +1005,8 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       partySize: partyGroup?.size || 1,
       partyTone: partyGroup?.tone ?? 0,
       ownParty: partyGroup?.ownParty === true,
+      likelyParty: partyGroup?.likely === true,
+      partyEvidenceMatches: partyGroup?.evidenceMatches || 0,
       teamId,
       agent: agent.name,
       agentImage: agent.image,
@@ -941,6 +1052,7 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
   const ownPlayer = players.find((player) => (player.Subject || player.subject || player.puuid) === ownPuuid);
   const ownTeam = ownPlayer?.TeamID || ownPlayer?.teamId;
   const roundCount = Math.max(1, (detail?.RoundResults || detail?.roundResults || []).length);
+  const partyGroups = buildLivePartyGroups(players, ownPuuid);
   return players.map((player) => {
     const subject = player.Subject || player.subject || player.puuid || '';
     const teamId = player.TeamID || player.teamId || '';
@@ -964,6 +1076,7 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
     const deaths = Number(stats.Deaths ?? stats.deaths ?? 0);
     const assists = Number(stats.Assists ?? stats.assists ?? 0);
     const score = Number(stats.Score ?? stats.score ?? 0);
+    const partyGroup = partyGroups.get(subject) || null;
     return {
       subject,
       name: isSelf ? 'You' : resolvedName,
@@ -984,6 +1097,11 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
       deaths,
       assists,
       acs: score ? Math.round(score / roundCount) : 0,
+      partyLabel: partyGroup?.label || '',
+      partySize: partyGroup?.size || 1,
+      partyTone: partyGroup?.tone ?? 0,
+      ownParty: partyGroup?.ownParty === true,
+      likelyParty: false,
       inspectable: Boolean(subject && !hidden)
     };
   });
@@ -1217,10 +1335,12 @@ class RiotClientService extends EventEmitter {
     this.nameCache = new Map();
     this.rankCache = new Map();
     this.levelCache = new Map();
-    this.livePartyMembershipCache = new Map();
     this.matchDetailCache = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
+    this.partyHistoryFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'party-history.json') : '';
     this.sessionStore = options.cacheDirectory ? new SessionStore(options.cacheDirectory) : null;
+    this.partyHistory = [];
+    this.partyHistoryLoadedFor = '';
     this.actStatsDiskLoadedFor = '';
     this.actStatsProgress = { loaded: 0, total: 0 };
     this.actStatsCache = null;
@@ -1255,6 +1375,49 @@ class RiotClientService extends EventEmitter {
     const accountId = this.identity?.puuid;
     if (!accountId || !this.sessionStore) return;
     this.sessionStore.save(accountId, this.session);
+  }
+
+  loadPersistedPartyHistory() {
+    const accountId = this.identity?.puuid || '';
+    if (!accountId || this.partyHistoryLoadedFor === accountId) return this.partyHistory;
+    this.partyHistoryLoadedFor = accountId;
+    this.partyHistory = [];
+    if (!this.partyHistoryFile) return this.partyHistory;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.partyHistoryFile, 'utf8'));
+      if (parsed?.schema === 1 && parsed.accounts && typeof parsed.accounts === 'object') {
+        this.partyHistory = normalizePartyHistory(parsed.accounts[accountId]);
+      }
+    } catch {}
+    return this.partyHistory;
+  }
+
+  persistPartyHistory() {
+    const accountId = this.identity?.puuid || '';
+    if (!accountId || !this.partyHistoryFile) return;
+    try {
+      let data = { schema: 1, accounts: {} };
+      try {
+        const parsed = JSON.parse(fs.readFileSync(this.partyHistoryFile, 'utf8'));
+        if (parsed?.schema === 1 && parsed.accounts && typeof parsed.accounts === 'object') data = parsed;
+      } catch {}
+      data.accounts[accountId] = normalizePartyHistory(this.partyHistory);
+      fs.mkdirSync(path.dirname(this.partyHistoryFile), { recursive: true });
+      const temporary = `${this.partyHistoryFile}.tmp`;
+      fs.writeFileSync(temporary, JSON.stringify(data, null, 2), 'utf8');
+      fs.renameSync(temporary, this.partyHistoryFile);
+    } catch {}
+  }
+
+  rememberPartyDetails(details) {
+    const observations = (Array.isArray(details) ? details : [details]).map(partyHistoryObservation).filter(Boolean);
+    if (!observations.length) return this.partyHistory;
+    const next = mergePartyHistory(this.partyHistory, observations);
+    if (JSON.stringify(next) !== JSON.stringify(this.partyHistory)) {
+      this.partyHistory = next;
+      this.persistPartyHistory();
+    }
+    return this.partyHistory;
   }
 
   localUrl(endpoint) {
@@ -1687,50 +1850,6 @@ class RiotClientService extends EventEmitter {
     };
   }
 
-  async hydrateLivePartyMemberships(players, matchId = '') {
-    const now = Date.now();
-    const matchKey = String(matchId || 'active-match');
-    let checked = 0;
-    let resolved = 0;
-    let unavailable = 0;
-    const hydrated = await mapWithConcurrency(players, 4, async (player) => {
-      const subject = player.Subject || player.subject || player.puuid;
-      if (!subject || livePartyId(player)) return player;
-      checked += 1;
-      const cacheKey = `${matchKey}:${subject}`;
-      const cached = this.livePartyMembershipCache.get(cacheKey);
-      let partyId = '';
-      let available = false;
-      if (cached?.expiresAt > now) {
-        partyId = cached.partyId;
-        available = cached.available;
-      } else {
-        const membership = await this.safeRemote(`/parties/v1/players/${encodeURIComponent(subject)}`, 'glz', {
-          ignoredStatuses: [400, 403, 404, 405, 429],
-          timeout: 2_500
-        });
-        partyId = partyMembershipId(membership);
-        available = Boolean(membership && partyId);
-        this.livePartyMembershipCache.set(cacheKey, {
-          partyId,
-          available,
-          // Party membership cannot change during an active match. Cache a
-          // success for the match and back off denied/unsupported probes.
-          expiresAt: now + (available ? 45 * 60_000 : 10 * 60_000)
-        });
-      }
-      if (available) resolved += 1;
-      else unavailable += 1;
-      return partyId ? { ...player, BYAKUGANPartyID: partyId } : player;
-    });
-    if (this.livePartyMembershipCache.size > 250) {
-      for (const [key, value] of this.livePartyMembershipCache) {
-        if (value.expiresAt <= now || !key.startsWith(`${matchKey}:`)) this.livePartyMembershipCache.delete(key);
-      }
-    }
-    return { players: hydrated, checked, resolved, unavailable };
-  }
-
   rememberInspectablePlayers(rawPlayers, roster, names) {
     this.inspectablePlayers.clear();
     roster.forEach((player, index) => {
@@ -1791,7 +1910,6 @@ class RiotClientService extends EventEmitter {
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
     let players = selectLiveMatchPlayers(match, loopState);
     const partyId = party.id;
-    let partyLookup = { checked: 0, resolved: 0, unavailable: 0 };
     if (players.length && party.players.length) {
       // The core-game roster identifies party members but often omits their
       // lobby-visible account level. Carry the value already resolved from the
@@ -1801,10 +1919,6 @@ class RiotClientService extends EventEmitter {
       players = party.players;
     }
     if (loopState === 'PREGAME') players = filterPregameRoster(players, puuid);
-    if (activeMatch && players.length) {
-      partyLookup = await this.hydrateLivePartyMemberships(players, matchId);
-      players = partyLookup.players;
-    }
     players = this.markKnownFriends(players);
     players = this.markKnownBlocked(players);
     const [names, rankedPlayers, leveledPlayers] = await Promise.all([
@@ -1817,8 +1931,15 @@ class RiotClientService extends EventEmitter {
       BYAKUGANAccountLevel: leveledPlayers[index]?.BYAKUGANAccountLevel ?? null,
       BYAKUGANLevelHidden: leveledPlayers[index]?.BYAKUGANLevelHidden === true
     }));
-    const roster = normalizeLivePlayers(hydratedPlayers, puuid, this.metadata || { agents: new Map(), tiers: new Map() }, names);
-    const otherPartyGroups = new Set(roster.filter((player) => player.partyLabel && !player.ownParty).map((player) => player.partyLabel)).size;
+    const roster = normalizeLivePlayers(
+      hydratedPlayers,
+      puuid,
+      this.metadata || { agents: new Map(), tiers: new Map() },
+      names,
+      activeMatch ? this.partyHistory : []
+    );
+    const likelyPartyGroups = new Set(roster.filter((player) => player.partyLabel && player.likelyParty).map((player) => player.partyLabel)).size;
+    const confirmedOtherGroups = new Set(roster.filter((player) => player.partyLabel && !player.ownParty && !player.likelyParty).map((player) => player.partyLabel)).size;
     this.rememberInspectablePlayers(hydratedPlayers, roster, names);
     const queueId = match?.MatchmakingData?.QueueID || match?.matchmakingData?.queueId || match?.QueueID || match?.queueId || session.queueId || session.QueueID || '';
     return {
@@ -1839,11 +1960,11 @@ class RiotClientService extends EventEmitter {
         : loopState === 'PREGAME'
         ? 'Your full team is available during agent select; every opponent remains concealed until the active match begins.'
         : roster.length
-          ? otherPartyGroups
-            ? `Experimental lookup confirmed ${otherPartyGroups} additional queued ${otherPartyGroups === 1 ? 'group' : 'groups'}; matching badges show who queued together. Hidden opponents remain agent-only.`
-            : partyLookup.checked && partyLookup.unavailable
-              ? 'Your party is confirmed. Riot did not expose other party memberships; unmarked players are unknown, not confirmed solo.'
-              : 'Experimental lookup found no repeated party IDs outside your party; unmarked players appear solo for this match.'
+          ? confirmedOtherGroups
+            ? `${confirmedOtherGroups} additional queued ${confirmedOtherGroups === 1 ? 'group was' : 'groups were'} confirmed from Riot match data. Hidden opponents remain agent-only.`
+            : likelyPartyGroups
+              ? `${likelyPartyGroups} likely queued ${likelyPartyGroups === 1 ? 'group was' : 'groups were'} inferred from confirmed pairings in up to ${MAX_PARTY_HISTORY_MATCHES} locally observed matches; not guaranteed.`
+              : 'Your party is confirmed. Other live party memberships are unavailable; unmarked players are unknown, not confirmed solo.'
           : 'Waiting for Riot to expose the active roster.'
     };
   }
@@ -1862,6 +1983,7 @@ class RiotClientService extends EventEmitter {
       return detail ? { detail, row, ratingUpdate: updatesByMatch.get(matchId) } : null;
     });
     const availableDetails = detailRows.filter(Boolean);
+    this.rememberPartyDetails(availableDetails.map(({ detail }) => detail));
     const visibleSubjects = availableDetails.flatMap(({ detail }) => (detail?.Players || detail?.players || [])
       .map((player) => player.Subject || player.subject || player.puuid)
       .filter(Boolean));
@@ -2083,15 +2205,17 @@ class RiotClientService extends EventEmitter {
       const batchResults = await mapWithConcurrency(batch, 20, async (row) => {
         const matchId = updateMatchId(row);
         const cachedMatch = cachedMatchesById.get(matchId);
-        if (cachedMatch) return { match: cachedMatch, observedProfiles: {}, cached: true };
+        if (cachedMatch) return { match: cachedMatch, observedProfiles: {}, partyDetail: null, cached: true };
         const detail = this.markKnownFriendsInDetail(await this.fetchMatchDetail(matchId));
         return detail ? {
           match: normalizeMatchDetail(detail, this.identity.puuid, this.metadata, {}, row),
           observedProfiles: normalizeObservedProfileMatches(detail, this.identity.puuid, this.metadata),
+          partyDetail: detail,
           cached: false
-        } : { match: null, observedProfiles: {}, cached: false };
+        } : { match: null, observedProfiles: {}, partyDetail: null, cached: false };
       });
       hydrated.push(...batchResults);
+      this.rememberPartyDetails(batchResults.map((row) => row.partyDetail).filter(Boolean));
 
       const processedMatches = hydrated.map((row, index) => row.match || normalizeRatingUpdate(updates[index], this.metadata));
       const processedIds = new Set(processedMatches.map((match) => match.id));
@@ -2410,6 +2534,7 @@ class RiotClientService extends EventEmitter {
     await Promise.all([this.obtainTokens(), this.fetchClientVersion()]);
     await this.bootstrapIdentityAndRegion();
     this.restorePersistedSession();
+    this.loadPersistedPartyHistory();
     this.lastSnapshot = await this.buildSnapshot();
     this.startPolling();
     return this.lastSnapshot;
@@ -2498,6 +2623,8 @@ class RiotClientService extends EventEmitter {
     this.rankCache.clear();
     this.levelCache.clear();
     this.matchDetailCache.clear();
+    this.partyHistory = [];
+    this.partyHistoryLoadedFor = '';
     this.actStatsCache = null;
     this.actStatsPromise = null;
     this.actStatsDiskLoadedFor = '';
@@ -2594,6 +2721,10 @@ module.exports = {
   livePartyId,
   partyMembershipId,
   buildLivePartyGroups,
+  partyHistoryObservation,
+  normalizePartyHistory,
+  mergePartyHistory,
+  buildLikelyPartyGroups,
   isKnownFriend,
   isKnownBlocked,
   liveAccountLevel,
