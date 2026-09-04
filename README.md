@@ -96,7 +96,11 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.108
+## Included in version 0.8.0-beta.109
+
+- Missing Full Sensei citations are rebuilt deterministically from Riot's supplied K/D/A, K/D, ACS, ADR, headshot percentage, and opening-duel data instead of invalidating the entire model report
+- A numberless unsupported weakness is omitted and replaced with a grounded statistical fallback when necessary, so the exact beta.108 citation failure remains **Full Sensei** without another model request
+- Strong matches with no supported aggregate weakness now say so explicitly instead of treating the raw death total as evidence of a positioning problem
 
 - Full Sensei's automatic repair retry now receives the authoritative match card, deterministic scorecard, metric bands, recent baselines, grounding rules, and safe drill patterns so Qwen can correct a rejected report without losing Full Sensei
 - If both model attempts still fail, the visible fallback banner now includes the last concise validation reason instead of only saying the report was invalid
@@ -362,10 +366,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.108`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.109`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.108`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.109`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -373,8 +377,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.108
-git push origin v0.8.0-beta.108
+git tag v0.8.0-beta.109
+git push origin v0.8.0-beta.109
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

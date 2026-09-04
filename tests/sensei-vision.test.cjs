@@ -220,6 +220,43 @@ test('Full Sensei repair receives the exact rubric after reversing strong Omen m
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
+test('Full Sensei deterministically repairs missing weakness numbers and evidence citations without falling back', async () => {
+  const strong = match('strong-omen-evidence', {
+    result: 'VICTORY', score: '13 – 9', kills: 21, deaths: 13, assists: 10, kd: 1.62,
+    acs: 269, adr: 157.7, shots: { headshots: 34, bodyshots: 80, legshots: 4 },
+    report: { openingKills: 3, openingDeaths: 1, rounds: [] }
+  });
+  const lite = liteReport(strong, buildContextPack(strong, []));
+  const incompleteEvidence = {
+    ...lite,
+    weaknesses: ['Review whether late-round utility could have created more team value.'],
+    citations: []
+  };
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: JSON.stringify(incompleteEvidence) }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({ match: strong, matches: [], tier: 'sensei', model: 'qwen3:8b' });
+    assert.equal(requests.length, 1);
+    assert.equal(result.tier, 'sensei');
+    assert.equal(result.notice, '');
+    assert.match(result.report.weaknesses.join(' '), /no clear statistical weakness/i);
+    assert.match(result.report.weaknesses.join(' '), /21\/13\/10/);
+    assert.match(result.report.citations.join(' '), /1\.62 K\/D/);
+    assert.match(result.report.citations.join(' '), /157\.7 ADR/);
+    assert.match(result.report.citations.join(' '), /28\.8% HS/);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
 test('Sensei settings are optional, allowlisted, and disabled by default', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-sensei-settings-'));
   try {

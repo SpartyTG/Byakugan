@@ -178,7 +178,7 @@ function liteReport(match, context) {
   if (Number.isFinite(hs) && hs < 18) weaknesses.push(`${hs}% headshots suggests first-bullet placement was inconsistent in this match.`);
   if (!won) weaknesses.push(`The ${card.score || 'loss'} was not converted; review the first decision after each advantage.`);
   if (!strengths.length) strengths.push(`${card.assists ?? 0} assists were your clearest measurable contribution.`);
-  if (!weaknesses.length) weaknesses.push(`${card.deaths ?? 0} deaths are the best review points for checking trade distance and cover.`);
+  if (!weaknesses.length) weaknesses.push(`No clear statistical weakness was supported by this match's ${card.kills ?? 0}/${card.deaths ?? 0}/${card.assists ?? 0} line; use VOD evidence for tactical review.`);
   return {
     verdict,
     scorecard: rubric.scorecard,
@@ -228,8 +228,29 @@ function validateReport(value) {
   };
 }
 
-function validateGroundedReport(value, matchCard = {}) {
-  const report = validateReport(value);
+function validateGroundedReport(value, matchCard = {}, fallbackReport = null) {
+  const groundedValue = value && typeof value === 'object' ? { ...value } : value;
+  if (groundedValue && Array.isArray(groundedValue.weaknesses)) {
+    const evidencedWeaknesses = groundedValue.weaknesses.filter((item) => /\d/.test(String(item)));
+    groundedValue.weaknesses = evidencedWeaknesses.length || !groundedValue.weaknesses.length
+      ? evidencedWeaknesses
+      : Array.isArray(fallbackReport?.weaknesses) ? fallbackReport.weaknesses : [];
+  }
+  if (groundedValue) {
+    const suppliedCitations = [
+      `${matchCard.kills ?? 0}/${matchCard.deaths ?? 0}/${matchCard.assists ?? 0} K/D/A`,
+      `${matchCard.firstKills ?? 0} FK and ${matchCard.firstDeaths ?? 0} FD`,
+      ...(Number.isFinite(Number(matchCard.kd)) ? [`${Number(matchCard.kd).toFixed(2)} K/D`] : []),
+      ...(Number.isFinite(Number(matchCard.acs)) ? [`${matchCard.acs} ACS`] : []),
+      ...(Number.isFinite(Number(matchCard.adr)) ? [`${matchCard.adr} ADR`] : []),
+      ...(Number.isFinite(Number(matchCard.hsPercent)) ? [`${matchCard.hsPercent}% HS`] : [])
+    ];
+    groundedValue.citations = [...new Set([
+      ...(Array.isArray(fallbackReport?.citations) ? fallbackReport.citations : []),
+      ...suppliedCitations
+    ].map((item) => String(item).trim()).filter(Boolean))];
+  }
+  const report = validateReport(groundedValue);
   const rubric = senseiMetricRubric(matchCard);
   const evaluativeText = [report.verdict, ...report.weaknesses].join(' ').toLowerCase();
   const contradictions = [];
@@ -955,12 +976,12 @@ class SenseiService {
     const contextPack = buildContextPack(match, matches);
     const lite = liteReport(match, contextPack);
     if (!matchCard.matchId || !['VICTORY', 'DEFEAT', 'DRAW'].includes(matchCard.result)) throw new Error('Sensei Vision can only analyze a completed match.');
-    if (tier === 'lite') return { report: validateGroundedReport(lite, matchCard), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
+    if (tier === 'lite') return { report: validateGroundedReport(lite, matchCard, lite), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
     if (!model) throw new Error('Choose an installed local Sensei model in Settings first.');
     try {
       const report = await generateStructured({
         endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack), schema: strictSchema(),
-        label: 'local model', validate: (value) => validateGroundedReport(value, matchCard), retries: 1,
+        label: 'local model', validate: (value) => validateGroundedReport(value, matchCard, lite), retries: 1,
         repairContext: {
           match: Object.fromEntries(Object.entries(matchCard).filter(([key]) => key !== 'roundTimeline')),
           requiredScorecard: senseiMetricRubric(matchCard).scorecard,
@@ -981,7 +1002,7 @@ class SenseiService {
       const fallbackReason = String(error?.message || 'The repaired report still failed validation.')
         .replace(/\s+/g, ' ').trim().slice(0, 260);
       return {
-        report: validateGroundedReport(lite, matchCard), matchCard, contextPack,
+        report: validateGroundedReport(lite, matchCard, lite), matchCard, contextPack,
         model: 'BYAKUGAN Lite Engine', tier: 'lite',
         notice: `The selected local model (${model}) could not produce a valid report after automatic repair, so BYAKUGAN safely used Sensei Lite for this match. Last validation issue: ${fallbackReason}`
       };

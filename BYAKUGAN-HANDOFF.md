@@ -1,15 +1,28 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.108`.
+This package is the canonical source for `v0.8.0-beta.109`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.107`
-- Automated tests: `162 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.108`
+- Automated tests: `163 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.109 fixes the precise validation error revealed by the first beta.108
+rerun: Qwen omitted a supplied number from at least one weakness or returned an
+empty evidence-citation array. BYAKUGAN now removes unsupported numberless
+weaknesses and rebuilds citations deterministically from Riot's supplied K/D/A,
+K/D, opening duels, ACS, ADR, and headshot percentage. When the removed item was
+the only proposed weakness, a grounded statistical fallback is used. Strong
+matches with no supported aggregate weakness now state that explicitly instead
+of treating the death total as proof of positioning or survival trouble. This
+cleanup happens locally on the first response, preserving **Full Sensei**
+without another model call.
+
+## Previous completed changes
 
 Beta.108 fixes the remaining local-model fallback exposed by the first
 beta.107 test. The metric guard correctly rejected Qwen's contradictory report,
@@ -20,8 +33,6 @@ metric bands, recent baselines, grounding rules, and safe drill patterns. A
 regression test rejects the original 1.62 K/D reversal, repairs it on the second
 model response, and preserves the **Full Sensei** tier. If both attempts still
 fail, the fallback banner now includes the last concise validation reason.
-
-## Previous completed changes
 
 Beta.107 prevents Full Sensei from reversing strong supplied statistics into
 negative coaching. Scorecard ratings are now computed by BYAKUGAN's
@@ -166,7 +177,7 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.108 on both PCs. First rerun Full Sensei on the same completed
+Install beta.109 on both PCs. First rerun Full Sensei on the same completed
 Omen match that previously produced the 21/13 report. Confirm 1.62 K/D is not
 called low or poor, 157.7 ADR is not called low, 28.8% headshots are not called
 poor accuracy, and 3 first kills against 1 first death produce high entry. The
