@@ -20,6 +20,11 @@ function normalizeVodFinding(value = {}) {
     round: Number.isFinite(Number(value.round)) ? Number(value.round) : null,
     category: cleanText(value.category || 'Decision', 80),
     outcome: ['positive', 'negative', 'neutral'].includes(value.outcome) ? value.outcome : 'neutral',
+    actor: ['self', 'teammate', 'uncertain'].includes(value.actor) ? value.actor : 'uncertain',
+    decisionVisible: value.decisionVisible === true,
+    consequenceVisible: value.consequenceVisible === true,
+    decision: cleanText(value.decision, 500),
+    consequence: cleanText(value.consequence, 500),
     observation: cleanText(value.observation, 700),
     evidence: cleanText(value.evidence, 500),
     coaching: cleanText(value.coaching, 700),
@@ -29,8 +34,14 @@ function normalizeVodFinding(value = {}) {
 
 function normalizeVodCheckpoint(value) {
   const version = Number(value?.version);
-  if (!value || typeof value !== 'object' || ![2, 3, 4].includes(version)) return null;
-  const mode = value.mode === 'adaptive' || version >= 3 ? 'adaptive' : 'exhaustive';
+  if (!value || typeof value !== 'object' || ![2, 3, 4, 5].includes(version)) return null;
+  const mode = value.mode === 'adaptive'
+    ? 'adaptive'
+    : value.mode === 'exhaustive'
+      ? 'exhaustive'
+      : version >= 3
+        ? 'adaptive'
+        : 'exhaustive';
   return {
     version,
     mode,
@@ -43,6 +54,14 @@ function normalizeVodCheckpoint(value) {
     gameplaySegments: Math.max(0, Math.floor(Number(value.gameplaySegments) || 0)),
     actionSegments: Math.max(0, Math.floor(Number(value.actionSegments) || 0)),
     invalidSegments: Math.max(0, Math.floor(Number(value.invalidSegments) || 0)),
+    candidateFindings: Math.max(0, Math.floor(Number(value.candidateFindings) || 0)),
+    rejectedFindings: Math.max(0, Math.floor(Number(value.rejectedFindings) || 0)),
+    spectatorSegments: Math.max(0, Math.floor(Number(value.spectatorSegments) || 0)),
+    nonCoachableSegments: Math.max(0, Math.floor(Number(value.nonCoachableSegments) || 0)),
+    playerAgent: cleanText(value.playerAgent, 80),
+    queue: cleanText(value.queue, 80),
+    oneLifePerRound: value.oneLifePerRound !== false,
+    roundCount: Math.max(0, Math.floor(Number(value.roundCount) || 0)),
     scanFps: mode === 'adaptive' ? Math.max(.25, Number(value.scanFps) || 1) : 0,
     scanSamples: mode === 'adaptive' ? Math.max(0, Math.floor(Number(value.scanSamples) || 0)) : 0,
     windows: mode === 'adaptive' ? (Array.isArray(value.windows) ? value.windows : []).slice(0, 1_000).map((window) => ({

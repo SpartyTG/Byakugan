@@ -96,9 +96,18 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.101
+## Included in version 0.8.0-beta.102
 
 - Original desktop dashboard and navigation
+- VOD Vision now grounds every review window to the one agent locked for the complete match; a changed agent portrait, ability bar, hands, or ability kit is classified as a spectated teammate and cannot be attributed to the reviewed player
+- Competitive, Unrated, Swiftplay, and Premier analyses enforce one life per round unless the frames visibly confirm a Sage resurrection or the reviewed player is Clove using **Not Dead Yet**; ordinary same-round respawns are rejected
+- Every detail window must classify player perspective and match phase before coaching; teammate spectating, Buy Phase, menus, round-end screens, uncertain perspectives, setup-only footage, and inactive windows return no findings
+- The vision schema is limited to one candidate per window and now requires a confirmed self actor, separately visible decision and consequence, ordered-frame evidence, a specific alternative, and average-or-high confidence
+- Semantic near-duplicate removal collapses overlapping windows, repeated-pattern cards require at least two separated and meaningfully similar observations, and vague one-off categories no longer become patterns
+- Round labels are shown only when a numeric round is directly visible, and all VOD round labels are removed when their chronology moves backward or claims one round spans more than six minutes
+- Visual limitations are restricted to real evidence constraints such as sampling, audio, occlusion, or invalid frames instead of repeating variations of “nothing tactical happened”
+- Completed reports disclose accepted model candidates, rejected candidates, non-coachable windows, and spectator windows; reports from the earlier VOD engine display a regeneration notice
+- Adaptive checkpoint version 5 and Exhaustive checkpoint version 3 prevent older, semantically incompatible findings from being resumed into the corrected truthfulness pipeline
 - Visible all-time peak rank context on every revealed Live Match card, including the Episode and Act shown directly beneath the peak instead of only in a hover tooltip
 - Completed Match History roster enrichment for every participant whose Riot MMR is available, showing all-time peak rank plus Episode and Act alongside that match's rank; unavailable values remain explicitly labeled rather than inferred
 - Five-at-a-time peak-rank hydration with the existing short-lived player cache to keep the expanded Match History lookup bounded, including in Dual PC Streaming Mode snapshots
@@ -337,10 +346,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.101`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.102`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.101`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.102`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -348,8 +357,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.101
-git push origin v0.8.0-beta.101
+git tag v0.8.0-beta.102
+git push origin v0.8.0-beta.102
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

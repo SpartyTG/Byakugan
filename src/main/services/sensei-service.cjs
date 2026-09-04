@@ -7,11 +7,11 @@ const { execFile, execFileSync, spawn } = require('node:child_process');
 
 const SCORE_VALUES = new Set(['high', 'average', 'low']);
 const SCORE_KEYS = ['impact', 'aim', 'entry', 'utility', 'econ'];
-const FULL_VOD_ANALYSIS_VERSION = 2;
+const FULL_VOD_ANALYSIS_VERSION = 3;
 const FULL_VOD_CHUNK_SECONDS = 4;
 const FULL_VOD_FRAME_RATE = 4;
 const FULL_VOD_FRAME_WIDTH = 768;
-const ADAPTIVE_VOD_ANALYSIS_VERSION = 4;
+const ADAPTIVE_VOD_ANALYSIS_VERSION = 5;
 const ADAPTIVE_VOD_SCAN_FPS = 1;
 const ADAPTIVE_VOD_WINDOW_SECONDS = 12;
 const ADAPTIVE_VOD_MAX_FRAMES = 16;
@@ -550,92 +550,247 @@ function scanVodActivity({ ffmpeg, source, durationSeconds, signal = null, onPro
 
 function fullVodSegmentSchema(maxFindings = 2) {
   return {
-    type: 'object', required: ['sceneType', 'activity', 'summary', 'findings', 'limitations'],
+    type: 'object', required: ['sceneType', 'perspective', 'phase', 'activity', 'roundNumberVisible', 'summary', 'findings', 'limitations'],
     properties: {
       sceneType: { type: 'string', enum: ['gameplay', 'menu', 'loading', 'round-transition', 'spectating', 'unknown'] },
+      perspective: { type: 'string', enum: ['self', 'teammate-spectating', 'uncertain'] },
+      phase: { type: 'string', enum: ['live-round', 'buy-phase', 'round-end', 'menu', 'unknown'] },
       activity: { type: 'string', enum: ['none', 'setup', 'rotation', 'combat', 'objective', 'death', 'spectating'] },
+      roundNumberVisible: { type: 'boolean' },
+      roundNumber: { type: 'integer' },
       summary: { type: 'string' },
-      findings: { type: 'array', maxItems: maxFindings, items: { type: 'object', required: ['timestamp', 'category', 'outcome', 'observation', 'evidence', 'coaching', 'confidence'], properties: {
-        timestamp: { type: 'string' }, round: { type: 'integer' }, category: { type: 'string' },
+      findings: { type: 'array', maxItems: maxFindings, items: { type: 'object', required: ['timestamp', 'category', 'outcome', 'actor', 'decisionVisible', 'consequenceVisible', 'decision', 'consequence', 'observation', 'evidence', 'coaching', 'confidence'], properties: {
+        timestamp: { type: 'string' }, category: { type: 'string' },
         outcome: { type: 'string', enum: ['positive', 'negative', 'neutral'] }, observation: { type: 'string' },
-        evidence: { type: 'string' }, coaching: { type: 'string' }, confidence: { type: 'string', enum: ['high', 'average', 'low'] }
+        actor: { type: 'string', enum: ['self', 'teammate', 'uncertain'] },
+        decisionVisible: { type: 'boolean' }, consequenceVisible: { type: 'boolean' },
+        decision: { type: 'string' }, consequence: { type: 'string' }, evidence: { type: 'string' },
+        coaching: { type: 'string' }, confidence: { type: 'string', enum: ['high', 'average', 'low'] }
       } } },
       limitations: { type: 'array', maxItems: 4, items: { type: 'string' } }
     }
   };
 }
 
-function isUsefulVodFinding(finding = {}) {
+const VAGUE_VOD_CATEGORIES = new Set([
+  'tactical', 'tactical event', 'tactical observation', 'tactical engagement', 'tactical inactivity',
+  'tactical decision', 'tactical inaction', 'player behavior', 'player status', 'game state', 'decision'
+]);
+
+const VOD_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'before', 'but', 'by', 'for', 'from', 'had', 'has', 'have', 'in',
+  'is', 'it', 'of', 'on', 'or', 'player', 'should', 'that', 'the', 'their', 'then', 'this', 'to', 'was', 'were', 'with'
+]);
+
+function vodWords(value = '') {
+  return new Set(String(value).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((word) => word.length > 2 && !VOD_STOP_WORDS.has(word)));
+}
+
+function wordSimilarity(left = '', right = '') {
+  const a = vodWords(left);
+  const b = vodWords(right);
+  if (!a.size || !b.size) return 0;
+  let overlap = 0;
+  for (const word of a) if (b.has(word)) overlap += 1;
+  return overlap / Math.min(a.size, b.size);
+}
+
+function canonicalVodCategory(finding = {}) {
+  const source = `${finding.category || ''} ${finding.decision || ''} ${finding.observation || ''} ${finding.coaching || ''}`.toLowerCase();
+  if (/\b(trade|trading|tradeable|teammate pressure)\b/.test(source)) return 'Trading';
+  if (/\b(spike|plant|defus|post[- ]plant|objective)\b/.test(source)) return 'Objective play';
+  if (/\b(utility|abilit|smoke|flash|blind|paranoia|teleport|molly|grenade|wall)\b/.test(source)) return 'Utility usage';
+  if (/\b(peek|angle|cover|expos|position|lane|corner|line of sight)\b/.test(source)) return 'Positioning';
+  if (/\b(rotate|rotation|reposition|movement|move|path|route)\b/.test(source)) return 'Movement and rotation';
+  if (/\b(crosshair|aim|burst|spray|shot|recoil)\b/.test(source)) return 'Aim mechanics';
+  if (/\b(econom|purchase|buy|credits|weapon choice)\b/.test(source)) return 'Economy';
+  return String(finding.category || 'Decision').trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
+function isUsefulVodFinding(finding = {}, context = {}) {
   const observation = String(finding.observation || '').trim();
   const evidence = String(finding.evidence || '').trim();
   const coaching = String(finding.coaching || '').trim();
+  const decision = String(finding.decision || '').trim();
+  const consequence = String(finding.consequence || '').trim();
   const category = String(finding.category || '').trim().toLowerCase();
   if (observation.length < 24 || evidence.length < 16 || coaching.length < 16) return false;
   if (['health', 'weapon', 'interface', 'webcam', 'overlay', 'hud'].includes(category)) return false;
-  const combined = `${observation} ${evidence} ${coaching}`.toLowerCase();
+  if (context.requireTruthFields) {
+    if (finding.actor !== 'self' || finding.decisionVisible !== true || finding.consequenceVisible !== true) return false;
+    if (finding.confidence === 'low' || finding.outcome === 'neutral' || decision.length < 12 || consequence.length < 12) return false;
+    if (VAGUE_VOD_CATEGORIES.has(category) && canonicalVodCategory(finding).toLowerCase() === category) return false;
+  }
+  const combined = `${decision} ${consequence} ${observation} ${evidence} ${coaching}`.toLowerCase();
   const filler = [
     /webcam (?:is |was )?(?:visible|present|shown|obstruct)/,
     /(?:health|health bar) (?:is |was )?(?:visible|shown|at \d+)/,
     /(?:holding|held|using) (?:a |the )?(?:green |purple |blue |red )?(?:weapon|gun|knife)/,
     /crosshair (?:is |was )?(?:visible|centered|at the center)/,
-    /(?:buy phase|won|lost|spike defused) (?:screen|text|overlay) (?:is |was )?visible/,
-    /first[- ]person (?:view|perspective) (?:is |was )?visible/
+    /(?:buy phase|won|lost|spike defused|match point) (?:screen|text|overlay|message) (?:is |was )?(?:visible|shown|displayed)/,
+    /first[- ]person (?:view|perspective) (?:is |was )?visible/,
+    /\b(?:no|not) (?:clear |visible |defensible )?(?:tactical|coachable) (?:decision|event|action|activity|consequence|evidence)/,
+    /\bno (?:visible )?(?:player )?(?:decision|consequence|adjustment|interaction)\b/,
+    /\bno (?:clear |visible )?(?:tactical )?(?:decision|consequence|adjustment)\b/,
+    /\b(?:is|was) not (?:making|engaging in|demonstrating) any tactical\b/,
+    /\bnot (?:actively )?(?:engaging|participating|influencing|controlling the game)\b/,
+    /\bnot (?:coach(?:able)?|indicative of (?:a )?tactical (?:mistake|success))\b/,
+    /\b(?:standard|routine) (?:mechanic|action|sequence).{0,80}(?:not|does not) (?:require|constitute|indicate)\b/,
+    /\b(?:standard|routine) (?:mechanic|action|sequence).{0,80}not (?:a )?tactical\b/,
+    /\b(?:simply|just) (?:standing|walking|watching|observing|spectating)\b/,
+    /\bplayer (?:is|was|remains) (?:simply )?(?:spectating|watching the round|watching the match|not actively playing)\b/,
+    /\bspectat(?:e|es|ed|ing|or|or's)\b/,
+    /\bbuy phase\b/,
+    /\bplayer (?:switches|switched|switching) to\b/,
+    /\b(?:switches|switched|switching) (?:to |between )?(?:another |a different )?(?:agent|character|player|perspective)/,
+    /\b(?:no coaching (?:is )?required|should (?:focus on |consider )?(?:make|making) tactical decisions|should (?:be actively )?(?:make|making|engage|engaging) tactical decisions|take control of (?:their|the) agent)\b/
   ];
-  return !filler.some((pattern) => pattern.test(combined));
+  if (filler.some((pattern) => pattern.test(combined))) return false;
+  if (context.requireTruthFields && !/(?:\bimages?\s*\d|\bframes?\s*\d|ordered (?:images|frames) (?:show|showed)|across (?:the )?(?:ordered )?(?:images|frames)|between (?:the )?(?:images|frames)|before[\s\S]{0,100}after|followed by|\bthen\b)/i.test(evidence)) return false;
+  const resurrectionVisible = /\b(?:sage.{0,40}resurrect|resurrect(?:ed|ion)? by sage)\b/.test(combined);
+  if (context.oneLifePerRound && /\brespawn(?:s|ed|ing)?\b/.test(combined)
+      && String(context.playerAgent || '').toLowerCase() !== 'clove' && !resurrectionVisible) return false;
+  return true;
 }
 
-function validateFullVodSegment(parsed, { startSeconds = 0, endSeconds = 0, frameCount = 0, maxFindings = 2 } = {}) {
+function validateFullVodSegment(parsed, { startSeconds = 0, endSeconds = 0, frameCount = 0, maxFindings = 1, playerAgent = '', queue = '', roundCount = 0 } = {}) {
   if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.findings) || !Array.isArray(parsed.limitations)) {
     throw new Error('The vision model returned an incomplete full-match segment.');
   }
   const allowedScenes = new Set(['gameplay', 'menu', 'loading', 'round-transition', 'spectating', 'unknown']);
+  const allowedPerspectives = new Set(['self', 'teammate-spectating', 'uncertain']);
+  const allowedPhases = new Set(['live-round', 'buy-phase', 'round-end', 'menu', 'unknown']);
   const allowedActivities = new Set(['none', 'setup', 'rotation', 'combat', 'objective', 'death', 'spectating']);
-  const findings = parsed.findings.slice(0, maxFindings).map((finding) => {
+  const sceneType = allowedScenes.has(parsed.sceneType) ? parsed.sceneType : 'unknown';
+  const perspective = allowedPerspectives.has(parsed.perspective) ? parsed.perspective : 'uncertain';
+  const phase = allowedPhases.has(parsed.phase) ? parsed.phase : 'unknown';
+  const activity = allowedActivities.has(parsed.activity) ? parsed.activity : 'none';
+  const visibleRound = parsed.roundNumberVisible === true && Number.isInteger(Number(parsed.roundNumber))
+    && Number(parsed.roundNumber) > 0 && (!roundCount || Number(parsed.roundNumber) <= roundCount)
+    ? Number(parsed.roundNumber)
+    : null;
+  const stateAllowsCoaching = sceneType === 'gameplay' && perspective === 'self' && phase === 'live-round'
+    && !['none', 'setup', 'spectating'].includes(activity);
+  const candidates = parsed.findings.slice(0, Math.max(1, maxFindings)).map((finding) => {
     const timestampText = String(finding?.timestamp || '').trim();
     const parts = timestampText.match(/^(\d+):([0-5]?\d)$/);
     const suppliedSeconds = parts ? Number(parts[1]) * 60 + Number(parts[2]) : startSeconds;
     const seconds = Math.max(startSeconds, Math.min(endSeconds || suppliedSeconds, suppliedSeconds));
     return {
       timestamp: vodTime(seconds), endTimestamp: vodTime(endSeconds), seconds,
-      round: Number.isFinite(Number(finding?.round)) ? Number(finding.round) : null,
-      category: String(finding?.category || 'Decision').trim().slice(0, 80),
+      round: visibleRound,
+      category: canonicalVodCategory(finding),
       outcome: ['positive', 'negative', 'neutral'].includes(finding?.outcome) ? finding.outcome : 'neutral',
+      actor: ['self', 'teammate', 'uncertain'].includes(finding?.actor) ? finding.actor : 'uncertain',
+      decisionVisible: finding?.decisionVisible === true,
+      consequenceVisible: finding?.consequenceVisible === true,
+      decision: String(finding?.decision || '').trim().slice(0, 500),
+      consequence: String(finding?.consequence || '').trim().slice(0, 500),
       observation: String(finding?.observation || '').trim().slice(0, 700),
       evidence: String(finding?.evidence || '').trim().slice(0, 500),
       coaching: String(finding?.coaching || '').trim().slice(0, 700),
       confidence: ['high', 'average', 'low'].includes(finding?.confidence) ? finding.confidence : 'low'
     };
-  }).filter(isUsefulVodFinding);
+  });
+  const findings = stateAllowsCoaching
+    ? candidates.filter((finding) => isUsefulVodFinding(finding, { requireTruthFields: true, playerAgent, oneLifePerRound: /competitive/i.test(queue) }))
+    : [];
   return {
-    sceneType: allowedScenes.has(parsed.sceneType) ? parsed.sceneType : 'unknown',
-    activity: allowedActivities.has(parsed.activity) ? parsed.activity : 'none',
+    sceneType, perspective, phase, activity, round: visibleRound,
     summary: String(parsed.summary || '').trim().slice(0, 700),
-    findings,
+    findings: findings.slice(0, 1),
+    candidateFindings: candidates.length,
+    rejectedFindings: Math.max(0, candidates.length - findings.length),
     limitations: parsed.limitations.slice(0, 4).map((item) => String(item).trim().slice(0, 400)).filter(Boolean),
     framesReviewed: Math.max(0, Number(frameCount) || 0)
   };
 }
 
-function deduplicateFullVodFindings(findings = []) {
+function deduplicateFullVodFindings(findings = [], context = {}) {
   const kept = [];
   for (const finding of findings.slice().sort((left, right) => Number(left.seconds) - Number(right.seconds))) {
-    if (!isUsefulVodFinding(finding)) continue;
-    const signature = `${finding.category} ${finding.observation}`.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').slice(0, 180);
-    const duplicate = kept.some((entry) => entry.signature === signature && Math.abs(entry.seconds - Number(finding.seconds)) < 20);
-    if (!duplicate) kept.push({ ...finding, signature, seconds: Number(finding.seconds) || 0 });
+    if (!isUsefulVodFinding(finding, { requireTruthFields: true, ...context })) continue;
+    const seconds = Number(finding.seconds) || 0;
+    const duplicateIndex = kept.findIndex((entry) => {
+      const distance = Math.abs(entry.seconds - seconds);
+      if (distance > 25) return false;
+      if (distance < 2) return true;
+      return entry.category === finding.category
+        && wordSimilarity(`${entry.decision} ${entry.observation} ${entry.coaching}`, `${finding.decision} ${finding.observation} ${finding.coaching}`) >= .34;
+    });
+    const candidate = { ...finding, seconds };
+    if (duplicateIndex < 0) kept.push(candidate);
+    else {
+      const confidence = { low: 0, average: 1, high: 2 };
+      const current = kept[duplicateIndex];
+      const candidateScore = (confidence[candidate.confidence] || 0) * 1_000 + candidate.evidence.length + candidate.decision.length + candidate.consequence.length;
+      const currentScore = (confidence[current.confidence] || 0) * 1_000 + current.evidence.length + current.decision.length + current.consequence.length;
+      if (candidateScore > currentScore) kept[duplicateIndex] = candidate;
+    }
   }
-  return kept.map(({ signature, ...finding }) => finding).slice(0, 1_000);
+  return kept.slice(0, 1_000);
+}
+
+function credibleFindingRounds(findings = []) {
+  const labeled = findings.filter((finding) => Number.isInteger(finding.round) && finding.round > 0);
+  let previousRound = 0;
+  let valid = true;
+  const spans = new Map();
+  for (const finding of labeled) {
+    if (finding.round < previousRound) valid = false;
+    previousRound = Math.max(previousRound, finding.round);
+    const range = spans.get(finding.round) || [finding.seconds, finding.seconds];
+    range[0] = Math.min(range[0], finding.seconds);
+    range[1] = Math.max(range[1], finding.seconds);
+    spans.set(finding.round, range);
+  }
+  if ([...spans.values()].some(([first, last]) => last - first > 360)) valid = false;
+  return valid ? findings : findings.map((finding) => ({ ...finding, round: null }));
+}
+
+function normalizeFullVodLimitations(limitations = []) {
+  const allowed = limitations.map((item) => String(item || '').trim()).filter((item) =>
+    item && /audio|communication|webcam|overlay|obstruct|occlu|sampling|between detail windows|could not be converted|unreadable|resolution|frame/i.test(item)
+  );
+  const kept = [];
+  for (const item of allowed) {
+    if (kept.some((existing) => wordSimilarity(existing, item) >= .55)) continue;
+    kept.push(item.slice(0, 400));
+  }
+  return kept.slice(0, 5);
+}
+
+function repeatedVodPatterns(findings = []) {
+  const negative = findings.filter((finding) => finding.outcome === 'negative');
+  const patterns = [];
+  for (const category of [...new Set(negative.map((finding) => finding.category))]) {
+    const categoryFindings = negative.filter((finding) => finding.category === category);
+    const used = new Set();
+    for (let index = 0; index < categoryFindings.length; index += 1) {
+      if (used.has(index)) continue;
+      const cluster = [categoryFindings[index]];
+      for (let compare = index + 1; compare < categoryFindings.length; compare += 1) {
+        if (used.has(compare) || Math.abs(categoryFindings[compare].seconds - categoryFindings[index].seconds) < 30) continue;
+        if (wordSimilarity(categoryFindings[index].coaching, categoryFindings[compare].coaching) >= .3) {
+          cluster.push(categoryFindings[compare]);
+          used.add(compare);
+        }
+      }
+      if (cluster.length >= 2) {
+        used.add(index);
+        patterns.push({ category, occurrences: cluster.length, coaching: cluster[0].coaching, timestamps: cluster.map((finding) => finding.timestamp).slice(0, 6) });
+      }
+    }
+  }
+  return patterns.sort((left, right) => right.occurrences - left.occurrences).slice(0, 5);
 }
 
 function finalizeFullVodReport(checkpoint = {}) {
-  const findings = deduplicateFullVodFindings(checkpoint.findings || []);
-  const negative = findings.filter((finding) => finding.outcome === 'negative');
-  const categoryCounts = new Map();
-  for (const finding of negative) categoryCounts.set(finding.category, (categoryCounts.get(finding.category) || 0) + 1);
-  const patterns = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([category, occurrences]) => {
-    const examples = negative.filter((finding) => finding.category === category).slice(0, 2);
-    return { category, occurrences, coaching: examples.map((finding) => finding.coaching).filter(Boolean).join(' ') };
-  });
+  const findings = credibleFindingRounds(deduplicateFullVodFindings(checkpoint.findings || [], {
+    oneLifePerRound: checkpoint.oneLifePerRound !== false,
+    playerAgent: checkpoint.playerAgent || ''
+  })).slice(0, 24);
+  const patterns = repeatedVodPatterns(findings);
   const durationSeconds = Math.max(0, Number(checkpoint.durationSeconds) || 0);
   const totalSegments = Math.max(0, Number(checkpoint.totalSegments) || 0);
   const completedSegments = Math.max(0, Number(checkpoint.completedSegments) || 0);
@@ -647,8 +802,10 @@ function finalizeFullVodReport(checkpoint = {}) {
   const reviewDescription = adaptive
     ? `Scanned ${vodTime(durationSeconds)} from beginning to end at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS, then completed ${completedSegments} adaptive detail windows covering ${vodTime(detailedSeconds)} at ${number(checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE, 2)} FPS and ${checkpoint.framesReviewed || 0} ordered frames.`
     : `Reviewed ${vodTime(durationSeconds)} from beginning to end across ${completedSegments} chronological segments and ${checkpoint.framesReviewed || 0} ordered frames.`;
+  const candidateFindings = Math.max(findings.length, Number(checkpoint.candidateFindings) || 0);
+  const rejectedFindings = Math.max(0, Number(checkpoint.rejectedFindings) || candidateFindings - findings.length);
   const summary = findings.length
-    ? `${reviewDescription} ${findings.length} coachable moment${findings.length === 1 ? '' : 's'} remained after removing HUD descriptions and unsupported observations.`
+    ? `${reviewDescription} ${findings.length} supported coaching moment${findings.length === 1 ? '' : 's'} remained from ${candidateFindings} model candidate${candidateFindings === 1 ? '' : 's'} after player-perspective, game-state, evidence, and duplication checks.`
     : `${reviewDescription} The local model did not return a defensible coachable moment, so BYAKUGAN did not manufacture advice.`;
   return {
     analysisVersion: Number(checkpoint.version) || FULL_VOD_ANALYSIS_VERSION,
@@ -663,14 +820,19 @@ function finalizeFullVodReport(checkpoint = {}) {
       } : {})
     },
     framesReviewed: Math.max(0, Number(checkpoint.framesReviewed) || 0),
-    limitations: [...new Set([
+    quality: {
+      candidateFindings, retainedFindings: findings.length, rejectedFindings,
+      spectatorWindows: Math.max(0, Number(checkpoint.spectatorSegments) || 0),
+      nonCoachableWindows: Math.max(0, Number(checkpoint.nonCoachableSegments) || 0)
+    },
+    limitations: normalizeFullVodLimitations([
       ...(checkpoint.limitations || []),
       adaptive
         ? `The full recording was scanned at ${checkpoint.scanFps || ADAPTIVE_VOD_SCAN_FPS} FPS for sustained visual activity; the vision model then reviewed selected activity windows and periodic quiet-play audits at ${number(checkpoint.frameRate || ADAPTIVE_VOD_FRAME_RATE, 2)} FPS with no more than ${ADAPTIVE_VOD_MAX_FRAMES} images per request. Events between detail windows may be missed.`
         : `Ordered visual frames were reviewed at ${checkpoint.frameRate || FULL_VOD_FRAME_RATE} FPS; actions shorter than the sampling interval may be missed.`,
       'Audio and communications were not analyzed.',
       ...(invalidSegments ? [`${invalidSegments} segment${invalidSegments === 1 ? '' : 's'} could not be converted into validated structured observations.`] : [])
-    ])].slice(0, 12)
+    ])
   };
 }
 
@@ -782,6 +944,11 @@ class SenseiService {
     model = '', repairModel = '', analysisMode = 'adaptive', signal = null, onProgress = () => {}, onCheckpoint = () => {}
   }) {
     if (!model) throw new Error('Choose an installed vision-capable Ollama model in Settings first.');
+    const matchCard = compactMatch(match);
+    const playerAgent = String(matchCard.agent || '').trim();
+    const queue = String(matchCard.queue || '').trim();
+    const oneLifePerRound = /competitive|unrated|swiftplay|premier/i.test(queue);
+    const roundCount = Array.isArray(match?.report?.rounds) ? match.report.rounds.length : 0;
     const durationSeconds = await probeVodDuration(ffmpeg, source, { signal });
     const mode = analysisMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
     const adaptive = mode === 'adaptive';
@@ -809,12 +976,15 @@ class SenseiService {
     const totalSegments = adaptive ? windows.length : expectedExhaustiveSegments;
     const progress = canResume ? {
       ...checkpoint,
+      playerAgent, queue, oneLifePerRound, roundCount,
       findings: Array.isArray(checkpoint.findings) ? checkpoint.findings : [],
       limitations: Array.isArray(checkpoint.limitations) ? checkpoint.limitations : [],
       ...(adaptive ? { windows } : {})
     } : {
       version, mode, durationSeconds, chunkSeconds, frameRate, totalSegments,
       completedSegments: 0, framesReviewed: 0, gameplaySegments: 0, actionSegments: 0, invalidSegments: 0,
+      candidateFindings: 0, rejectedFindings: 0, spectatorSegments: 0, nonCoachableSegments: 0,
+      playerAgent, queue, oneLifePerRound, roundCount,
       startedAt: Date.now(), updatedAt: Date.now(), findings: [], limitations: [],
       ...(adaptive ? { scanFps: ADAPTIVE_VOD_SCAN_FPS, scanSamples, windows } : {})
     };
@@ -858,32 +1028,50 @@ class SenseiService {
 
 ${selectionContext}
 
-Decide whether this section contains a defensible tactical event. Compare changes across the ordered images; do not describe isolated screenshots. A useful finding must identify a visible player decision, its visible consequence, concrete evidence across frames, and a specific adjustment or repeatable strength. Return at most ${adaptive ? 'three' : 'two'} findings.
+PLAYER IDENTITY GROUND TRUTH:
+- The reviewed player locked ${playerAgent || 'the MATCH CARD agent'} for the entire match and cannot switch agents.
+- The queue is ${queue || 'a standard VALORANT match'}${oneLifePerRound ? ', with one life per round except a visibly confirmed Sage resurrection or the reviewed player using Clove Not Dead Yet' : ''}.
+- If the viewpoint, portrait, ability bar, hands, or abilities belong to another agent, the reviewed player is dead and spectating a teammate. Set perspective to teammate-spectating and return zero findings.
+- Never attribute a spectated teammate's movement, utility, plant, kill, death, or positioning to the reviewed player. Never describe the reviewed player as switching agents or respawning without one of the visible exceptions above.
 
-NEVER create findings merely because the crosshair is centered, health/weapon/HUD is visible, a webcam or overlay exists, a Buy Phase/Won/Lost screen appears, or the player is standing/walking without a visible tactical consequence. Put obstructions in limitations. If there is no coachable evidence, return an empty findings array. Do not infer audio, communications, hidden enemies, intent, or activity between supplied frames. Return strict JSON only.
+First classify perspective and phase. Buy Phase, menus, round-end screens, dead/spectator views, and uncertain perspectives are never coaching events. Decide whether this section contains one defensible tactical event performed by the reviewed player. Compare changes across the ordered images; do not describe isolated screenshots. A useful finding must identify a visible player decision, its later visible consequence, exact supporting image/frame references, and one specific alternative or repeatable strength. Return at most one finding.
 
-MATCH CARD:${JSON.stringify(compactMatch(match))}
+Set roundNumberVisible to true only when a numeric round number is directly readable in these images; otherwise set it to false and omit roundNumber. NEVER estimate the round from the timestamp. Do not name an ability unless its identity is visually certain and compatible with ${playerAgent || 'the locked agent'}; say "utility" when uncertain.
+
+NEVER create findings merely because the crosshair is centered, health/weapon/HUD is visible, a webcam or overlay exists, a Buy Phase/Won/Lost/Match Point screen appears, the player is standing/walking, or nothing tactical happens. Never coach a dead or spectating player to participate. Put only actual visibility obstructions in limitations. If there is no coachable evidence, return an empty findings array. Do not infer audio, communications, hidden enemies, intent, causation from the final outcome alone, or activity between supplied frames. Mark actor self only when the action is unquestionably performed by the locked player. Mark decisionVisible and consequenceVisible true only when both are separately visible. Low-confidence candidates must not be returned. Return strict JSON only.
+
+MATCH CARD:${JSON.stringify(matchCard)}
 SAVED STATISTICAL REPORT:${JSON.stringify({ verdict: statisticalReport?.verdict, strengths: statisticalReport?.strengths, weaknesses: statisticalReport?.weaknesses, focusRule: statisticalReport?.focusRule })}`;
           report = await generateStructured({
-            endpoint: this.endpoint, model, repairModel, prompt, schema: fullVodSegmentSchema(adaptive ? 3 : 2),
+            endpoint: this.endpoint, model, repairModel, prompt, schema: fullVodSegmentSchema(1),
             images: extraction.files.map((file) => fs.readFileSync(file).toString('base64')),
             timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_000,
             onRepair: () => onProgress({ phase: 'full-analysis', stage: 'repairing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, mode, message: `Repairing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` }),
-            validate: (value) => validateFullVodSegment(value, { startSeconds, endSeconds, frameCount: extraction.files.length, maxFindings: adaptive ? 3 : 2 })
+            validate: (value) => validateFullVodSegment(value, {
+              startSeconds, endSeconds, frameCount: extraction.files.length, maxFindings: 1,
+              playerAgent, queue, roundCount
+            })
           });
         } catch (error) {
           if (error?.code === 'SENSEI_CANCELED' || /^Ollama returned HTTP/.test(error?.message || '') || /lost contact with Ollama|local model timed out/i.test(error?.message || '')) throw error;
           progress.invalidSegments += 1;
           progress.limitations.push(`The ${adaptive ? 'review window' : 'segment'} at ${vodTime(startSeconds)} could not be normalized and was omitted.`);
-          report = { sceneType: 'unknown', activity: 'none', findings: [], limitations: [], framesReviewed: extraction.files.length };
+          report = {
+            sceneType: 'unknown', perspective: 'uncertain', phase: 'unknown', activity: 'none', findings: [],
+            candidateFindings: 0, rejectedFindings: 0, limitations: [], framesReviewed: extraction.files.length
+          };
         }
         progress.completedSegments = index + 1;
         progress.framesReviewed += extraction.files.length;
         if (['gameplay', 'spectating'].includes(report.sceneType)) progress.gameplaySegments += 1;
         if (!['none', 'setup', 'spectating'].includes(report.activity) || report.findings.length) progress.actionSegments += 1;
+        if (report.perspective === 'teammate-spectating' || report.sceneType === 'spectating' || report.activity === 'spectating') progress.spectatorSegments += 1;
+        if (!report.findings.length) progress.nonCoachableSegments += 1;
+        progress.candidateFindings += Math.max(0, Number(report.candidateFindings) || 0);
+        progress.rejectedFindings += Math.max(0, Number(report.rejectedFindings) || 0);
         progress.findings.push(...report.findings);
-        progress.findings = deduplicateFullVodFindings(progress.findings);
-        progress.limitations = [...new Set([...progress.limitations, ...report.limitations])].slice(0, 20);
+        progress.findings = deduplicateFullVodFindings(progress.findings, { oneLifePerRound, playerAgent });
+        progress.limitations = normalizeFullVodLimitations([...progress.limitations, ...report.limitations]);
         progress.updatedAt = Date.now();
         progress.elapsedMs = accumulatedElapsedMs + (progress.updatedAt - analysisStartedAt);
         await onCheckpoint({ ...progress });

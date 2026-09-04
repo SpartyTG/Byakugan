@@ -184,6 +184,9 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(renderer, /mergeSenseiVodProgress\(state\.senseiVodProgress, progress\)/);
   assert.match(renderer, /senseiVodActiveMatchId/);
   assert.match(renderer, /renderSenseiVodGlobal/);
+  assert.match(renderer, /earlier VOD analysis engine/);
+  assert.match(renderer, /fixed-agent, spectator, round, evidence, and duplication safeguards/);
+  assert.match(renderer, /Accepted .* model candidates/);
   assert.match(html, /Enable Sensei Vision/);
   assert.match(html, /VOD VISION RUNNING/);
   assert.match(html, /No paid API and no live coaching/);
@@ -260,6 +263,9 @@ test('VOD Vision batches images, disables model thinking, and exposes actionable
   assert.match(service, /etaSeconds: estimatedEtaSeconds/);
   assert.match(service, /Ollama returned HTTP/);
   assert.match(service, /scale=640:-2/);
+  assert.match(service, /locked .* for the entire match/i);
+  assert.match(service, /teammate-spectating/);
+  assert.match(service, /Return at most one finding/);
   assert.match(preload, /onSenseiVodProgress/);
   assert.match(preload, /cancelSenseiVod/);
 });
@@ -346,22 +352,27 @@ test('VOD Vision locally normalizes usable malformed output after model repair f
 
 test('full-match VOD validation rejects HUD filler and keeps actionable temporal coaching', () => {
   const segment = validateFullVodSegment({
-    sceneType: 'gameplay', activity: 'combat', summary: 'One fight occurred.', limitations: [],
+    sceneType: 'gameplay', perspective: 'self', phase: 'live-round', activity: 'combat', roundNumberVisible: false,
+    summary: 'One fight occurred.', limitations: [],
     findings: [
       {
         timestamp: '10:04', category: 'crosshair', outcome: 'neutral', confidence: 'low',
+        actor: 'self', decisionVisible: false, consequenceVisible: false,
+        decision: 'The crosshair remained visible.', consequence: 'No consequence was visible.',
         observation: 'The crosshair is centered on the screen while the player is holding a weapon.',
         evidence: 'The crosshair and health bar are visible in every supplied image.',
         coaching: 'Keep the crosshair centered while playing the game.'
       },
       {
         timestamp: '10:06', category: 'Positioning', outcome: 'negative', confidence: 'average',
+        actor: 'self', decisionVisible: true, consequenceVisible: true,
+        decision: 'The player widened before clearing the close-left corner.', consequence: 'The player became exposed to a second angle and took damage.',
         observation: 'The player widened into a second angle before clearing the close-left corner.',
         evidence: 'Across images 8–12, the left corner remained uncleared while the player moved into the open and then took damage.',
         coaching: 'Clear the close-left corner from cover before widening far enough to expose the second angle.'
       }
     ]
-  }, { startSeconds: 600, endSeconds: 608, frameCount: 16 });
+  }, { startSeconds: 600, endSeconds: 608, frameCount: 16, maxFindings: 2, playerAgent: 'Omen', queue: 'Competitive', roundCount: 23 });
   assert.equal(segment.findings.length, 1);
   assert.equal(segment.findings[0].timestamp, '10:06');
   assert.match(segment.findings[0].coaching, /clear the close-left/i);
@@ -371,12 +382,16 @@ test('full-match VOD validation rejects HUD filler and keeps actionable temporal
 test('full-match report proves complete chronological coverage and groups repeated problems', () => {
   const finding = {
     timestamp: '1:02', endTimestamp: '1:08', seconds: 62, round: 2, category: 'Positioning', outcome: 'negative',
+    actor: 'self', decisionVisible: true, consequenceVisible: true,
+    decision: 'The player immediately re-peeked the same lane after taking damage.',
+    consequence: 'The unchanged re-peek exposed the player to the same opponent again.',
     observation: 'The player re-peeked the same exposed lane immediately after taking damage.',
     evidence: 'Ordered frames show damage, a retreat behind cover, and an immediate return to the unchanged lane.',
     coaching: 'After taking damage, break contact and re-peek from a different elevation or wait for teammate pressure.', confidence: 'average'
   };
   const report = finalizeFullVodReport({
-    version: 2, durationSeconds: 1_800, frameRate: 4, totalSegments: 450, completedSegments: 450,
+    version: 3, mode: 'exhaustive', playerAgent: 'Omen', oneLifePerRound: true,
+    durationSeconds: 1_800, frameRate: 4, totalSegments: 450, completedSegments: 450,
     framesReviewed: 7_200, invalidSegments: 0, findings: [finding, { ...finding, timestamp: '4:02', seconds: 242 }], limitations: []
   });
   assert.equal(report.mode, 'full-match');
@@ -385,6 +400,97 @@ test('full-match report proves complete chronological coverage and groups repeat
   assert.equal(report.findings.length, 2);
   assert.equal(report.patterns[0].occurrences, 2);
   assert.match(report.summary, /beginning to end/i);
+});
+
+test('full-match truthfulness rejects teammate POV, non-live phases, vague inactivity, and impossible Competitive respawns', () => {
+  const finding = {
+    timestamp: '20:04', category: 'Positioning', outcome: 'negative', confidence: 'average', actor: 'self',
+    decisionVisible: true, consequenceVisible: true,
+    decision: 'The player widened away from cover before clearing the close angle.',
+    consequence: 'The player became exposed to two angles and took damage.',
+    observation: 'The player widened into a second angle before clearing the close-left corner.',
+    evidence: 'Across ordered frames 4 through 12, the player leaves cover, exposes the second lane, and then takes damage.',
+    coaching: 'Clear the close-left corner from cover before widening far enough to expose the second angle.'
+  };
+  const options = { startSeconds: 1_200, endSeconds: 1_212, frameCount: 16, playerAgent: 'Omen', queue: 'Competitive', roundCount: 23 };
+  const base = { sceneType: 'gameplay', perspective: 'self', phase: 'live-round', activity: 'combat', roundNumberVisible: false, summary: 'One fight occurred.', findings: [finding], limitations: [] };
+  assert.equal(validateFullVodSegment(base, options).findings.length, 1);
+  assert.equal(validateFullVodSegment({ ...base, perspective: 'teammate-spectating', activity: 'spectating' }, options).findings.length, 0);
+  assert.equal(validateFullVodSegment({ ...base, phase: 'buy-phase', activity: 'setup' }, options).findings.length, 0);
+  assert.equal(validateFullVodSegment({ ...base, findings: [{ ...finding,
+    category: 'Tactical inactivity', decision: 'No tactical decision is visible.', consequence: 'No visible consequence occurs.',
+    observation: 'The player is simply spectating and does not make any visible tactical decision.',
+    evidence: 'Across the ordered frames, the player is simply watching the round.', coaching: 'The player should actively make tactical decisions.'
+  }] }, options).findings.length, 0);
+  assert.equal(validateFullVodSegment({ ...base, findings: [{ ...finding,
+    observation: 'Omen is killed and then respawns to re-engage in the same round.',
+    evidence: 'Ordered frames show Omen die, then respawn and continue the same round.'
+  }] }, options).findings.length, 0);
+});
+
+test('full-match truthfulness rejects the repetitive non-coaching language returned by the overnight test', () => {
+  const base = {
+    timestamp: '24:42', category: 'Positioning', outcome: 'negative', confidence: 'average', actor: 'self',
+    decisionVisible: true, consequenceVisible: true, decision: 'The player remains in the current position.',
+    consequence: 'No useful change is visible across the window.',
+    evidence: 'Across the ordered frames, the same state remains visible.',
+    coaching: 'The player should move to a different position before the next engagement.'
+  };
+  const context = { requireTruthFields: true, oneLifePerRound: true, playerAgent: 'Omen' };
+  const rejected = [
+    'The player is not making any tactical decisions during this window.',
+    'The player is simply spectating and watching the round unfold.',
+    'The player is in Buy Phase and does not engage in tactical activity.',
+    'Planting the spike is a routine action and not a tactical adjustment.',
+    'The player switches to Reyna after a teammate death.'
+  ];
+  for (const observation of rejected) assert.equal(isUsefulVodFinding({ ...base, observation }, context), false, observation);
+});
+
+test('full-match truthfulness keeps one supported event per window and never invents a round label', () => {
+  const finding = {
+    timestamp: '12:44', category: 'Positioning', outcome: 'negative', confidence: 'high', actor: 'self',
+    decisionVisible: true, consequenceVisible: true,
+    decision: 'The player cleared the exposed lane without cover.', consequence: 'The player took damage from the uncleared close angle.',
+    observation: 'The player exposed the close and far angles at the same time.',
+    evidence: 'Frames 3 through 10 show the player leave cover before the close angle fires and damage follows.',
+    coaching: 'Clear the close angle from cover before exposing the far lane.'
+  };
+  const segment = validateFullVodSegment({
+    sceneType: 'gameplay', perspective: 'self', phase: 'live-round', activity: 'combat', roundNumberVisible: false,
+    summary: 'One engagement occurred.', findings: [finding, { ...finding, category: 'Movement' }], limitations: []
+  }, { startSeconds: 764, endSeconds: 776, frameCount: 16, maxFindings: 3, playerAgent: 'Omen', queue: 'Competitive', roundCount: 23 });
+  assert.equal(segment.findings.length, 1);
+  assert.equal(segment.findings[0].round, null);
+});
+
+test('full-match report suppresses one-off patterns and clears contradictory round labels', () => {
+  const finding = {
+    endTimestamp: '1:12', category: 'Positioning', outcome: 'negative', confidence: 'average', actor: 'self',
+    decisionVisible: true, consequenceVisible: true,
+    decision: 'The player widened before clearing the close angle.', consequence: 'The player took damage from the second exposed angle.',
+    observation: 'The player exposed two angles while clearing the lane.',
+    evidence: 'Ordered frames show the player leave cover, expose the second lane, and then take damage.',
+    coaching: 'Clear the close angle from cover before widening into the far lane.'
+  };
+  const report = finalizeFullVodReport({
+    version: 5, mode: 'adaptive', playerAgent: 'Omen', oneLifePerRound: true, durationSeconds: 1_800,
+    scanFps: 1, scanSamples: 1_800, frameRate: ADAPTIVE_VOD_FRAME_RATE, totalSegments: 2, completedSegments: 2,
+    framesReviewed: 32, candidateFindings: 2, rejectedFindings: 0, windows: [
+      { startSeconds: 60, durationSeconds: 12 }, { startSeconds: 900, durationSeconds: 12 }
+    ], findings: [
+      { ...finding, timestamp: '1:02', seconds: 62, round: 1 },
+      { ...finding, timestamp: '15:02', seconds: 902, round: 1, category: 'Utility usage',
+        decision: 'The player used utility before confirming an enemy position.', consequence: 'The utility expired without changing the visible engagement.',
+        observation: 'The player used utility without a visible target or follow-up.', coaching: 'Confirm a target or teammate timing before committing the utility.' }
+    ], limitations: ['Insufficient data to determine tactical intent.', 'Audio and communications were not analyzed.']
+  });
+  assert.equal(report.patterns.length, 0);
+  assert.equal(report.findings.every((entry) => entry.round === null), true);
+  assert.equal(report.limitations.length, 2);
+  assert.match(report.limitations.join(' '), /audio and communications/i);
+  assert.match(report.limitations.join(' '), /events between detail windows may be missed/i);
+  assert.doesNotMatch(report.limitations.join(' '), /insufficient data to determine tactical intent/i);
 });
 
 test('full-match VOD checkpoints survive interruption and become resumable on startup', () => {
@@ -420,6 +526,16 @@ test('adaptive VOD checkpoints preserve their selected review plan', () => {
   assert.equal(entry.vod.checkpoint.scanSamples, 1_800);
   assert.equal(entry.vod.checkpoint.windows.length, 2);
   assert.equal(entry.vod.checkpoint.windows[1].kind, 'quiet-audit');
+});
+
+test('current Exhaustive checkpoints remain Exhaustive despite sharing version 3 with a legacy Adaptive checkpoint', () => {
+  const entry = normalizeEntry({ matchId: 'exhaustive-v3', vod: { path: 'C:\\recordings\\exhaustive.mkv', status: 'canceled', checkpoint: {
+    version: 3, mode: 'exhaustive', durationSeconds: 120, chunkSeconds: 4, frameRate: 4,
+    totalSegments: 30, completedSegments: 2, framesReviewed: 32, findings: []
+  } } });
+  assert.equal(entry.vod.checkpoint.version, 3);
+  assert.equal(entry.vod.checkpoint.mode, 'exhaustive');
+  assert.deepEqual(entry.vod.checkpoint.windows, []);
 });
 
 test('active full-match analysis preserves its elapsed-clock origin across navigation', () => {

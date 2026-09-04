@@ -32,7 +32,7 @@ const state = {
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const text = (selector, value) => { const element = $(selector); if (element) element.textContent = String(value ?? '—'); };
-const SENSEI_VOD_CHECKPOINT_VERSIONS = Object.freeze({ adaptive: 4, exhaustive: 2 });
+const SENSEI_VOD_CHECKPOINT_VERSIONS = Object.freeze({ adaptive: 5, exhaustive: 3 });
 const OVERLAY_DIMENSIONS = Object.freeze({
   rank: { width: 480, height: 190 },
   reactive: { width: 480, height: 190 },
@@ -678,6 +678,8 @@ function senseiVodMarkup(entry) {
   const selectedMode = state.settings?.senseiVodMode === 'exhaustive' ? 'exhaustive' : 'adaptive';
   const checkpointMode = vod?.checkpoint?.mode || (Number(vod?.checkpoint?.version) === 2 ? 'exhaustive' : '');
   const resumable = checkpointMode === selectedMode && Number(vod?.checkpoint?.version) === SENSEI_VOD_CHECKPOINT_VERSIONS[selectedMode] && Number(vod?.checkpoint?.completedSegments) > 0 && Number(vod?.checkpoint?.completedSegments) < Number(vod?.checkpoint?.totalSegments);
+  const reportMode = analyzed?.mode === 'adaptive-full-match' ? 'adaptive' : 'exhaustive';
+  const reportOutdated = analyzed && Number(analyzed.analysisVersion) !== SENSEI_VOD_CHECKPOINT_VERSIONS[reportMode];
   const modeLabel = selectedMode === 'adaptive' ? 'Adaptive Quality Test' : 'Exhaustive Comparison';
   const missing = state.senseiStatus?.vodMissing || ['Local setup check has not finished'];
   const ready = state.senseiStatus?.vodReady === true;
@@ -701,7 +703,11 @@ function senseiVodMarkup(entry) {
       ? `${escapeHtml(coverage.scanPercent || coverage.percent)}% FULL-VIDEO SCAN • ${escapeHtml(coverage.completedSegments)} / ${escapeHtml(coverage.totalSegments)} DETAIL WINDOWS • ${escapeHtml(coverage.detailedPercent)}% DEEP-REVIEW COVERAGE • ${escapeHtml(analyzed.framesReviewed || 0)} ORDERED FRAMES`
       : `${escapeHtml(coverage.percent)}% COVERAGE • ${escapeHtml(coverage.completedSegments)} / ${escapeHtml(coverage.totalSegments)} SEGMENTS • ${escapeHtml(analyzed.framesReviewed || 0)} ORDERED FRAMES`
     : `${escapeHtml(analyzed?.framesReviewed || 0)} FRAMES`;
-  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · ${escapeHtml(modeLabel)}</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p></div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
+  const outdatedMarkup = reportOutdated ? '<div class="sensei-error">This report was created by an earlier VOD analysis engine. Regenerate it to apply fixed-agent, spectator, round, evidence, and duplication safeguards.</div>' : '';
+  const qualityMarkup = analyzed?.quality
+    ? `<p class="muted">Accepted ${escapeHtml(analyzed.quality.retainedFindings || 0)} of ${escapeHtml(analyzed.quality.candidateFindings || 0)} model candidates • Ignored ${escapeHtml(analyzed.quality.nonCoachableWindows || 0)} non-coachable windows, including ${escapeHtml(analyzed.quality.spectatorWindows || 0)} spectator windows</p>`
+    : '';
+  return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · ${escapeHtml(modeLabel)}</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${outdatedMarkup}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p>${qualityMarkup}</div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
 }
 
 function renderSenseiPanel(entry, selector = '#senseiWorkspacePanel') {
