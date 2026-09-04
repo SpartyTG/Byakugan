@@ -1,15 +1,27 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.104`.
+This package is the canonical source for `v0.8.0-beta.105`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.103`
+- Previous canonical version: `v0.8.0-beta.104`
 - Automated tests: `157 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.105 corrects the hidden-allied identity presentation exposed by the first
+real beta.104 Agent Select test and confirmed again after the core game began.
+The full five-player allied roster, ranks, peaks, levels, and enemy concealment
+worked, but random teammates using hidden names produced a blank primary label
+because agent-only rendering was restricted to hidden enemies. Agent-only
+rendering now applies to every genuinely hidden identity: locked allies show
+their agent as the primary label, while unlocked hidden allies show
+**Selecting…**. Party members and Riot friends remain named, public players
+remain named, and the active enemy privacy boundary is unchanged.
+
+## Previous completed changes
 
 Beta.104 makes Agent Select show the complete allied roster, including random
 teammates outside the user's party. Riot supplies that roster through
@@ -25,8 +37,6 @@ identities display the agent only, and a hovered or selected character remains
 allies receive available current rank, all-time peak rank with Episode/Act, and
 account-level enrichment. Visible allied profiles remain inspectable; hidden
 identities do not become inspectable.
-
-## Previous completed changes
 
 Beta.103 fixes two Live Match fallbacks found during a real Competitive test.
 When Riot marks an identity as eligible but its name lookup returns no Riot ID,
@@ -111,13 +121,20 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.104 on both PCs. During Agent Select, confirm the allied side shows
+Install beta.105 on both PCs. During Agent Select, confirm the allied side shows
 all five teammates rather than only known party members. A public random
 teammate should show their Riot ID; a hidden or unresolved teammate should show
 their locked agent; and every unlocked teammate should remain **Selecting…**.
 Confirm current rank, peak rank, Episode/Act, and available account level load
 for the allied cards. The enemy side must remain five concealed placeholders
 with no names, agents, ranks, peaks, or levels until the active match begins.
+
+After the core-game transition, hidden allies must continue to show their agent
+as the primary identity instead of a blank line. In the first beta.104 live
+test, enemy identities resolved correctly but all five enemy ranks initially
+showed **UNRANKED / PEAK —**. Determine whether they populate within 30–60
+seconds. If they remain unresolved, treat that as a separate opponent-rank
+hydration issue rather than part of this label fix.
 
 In Live Match, confirm the previously unresolved
 Fade-style card shows its agent rather than **Riot Player**. If Riot returns the

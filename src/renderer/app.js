@@ -850,14 +850,14 @@ function livePlayerRow(player) {
   const hasLevel = player.level !== null && player.level !== undefined && Number.isFinite(Number(player.level));
   const levelIsHidden = Boolean(player.levelHidden && !player.partyMember);
   const levelLabel = hasLevel ? `LVL ${Math.floor(Number(player.level))}` : player.partyMember ? 'LVL SYNCING' : levelIsHidden ? 'LVL HIDDEN' : 'LVL PRIVATE';
-  const hiddenEnemy = player.side === 'enemy' && player.hidden;
+  const hiddenIdentity = Boolean(player.hidden);
   const unresolvedIdentity = Boolean(player.identityUnavailable || (!player.isSelf && !player.hidden && !player.name));
-  const agentOnly = hiddenEnemy || unresolvedIdentity;
+  const agentOnly = hiddenIdentity || unresolvedIdentity;
   const identityTitle = agentOnly
     ? `<strong>${escapeHtml(player.agent)}</strong>`
     : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : ''}${escapeHtml(player.name)}</strong>`;
-  const identityDetail = hiddenEnemy
-    ? `IDENTITY HIDDEN${player.locked ? ' • LOCKED' : ''}`
+  const identityDetail = hiddenIdentity
+    ? `IDENTITY HIDDEN${player.side === 'enemy' ? ' • ENEMY' : ''}${player.locked ? ' • LOCKED' : ''}`
     : unresolvedIdentity
       ? `RIOT NAME UNAVAILABLE${player.locked ? ' • LOCKED' : ''}`
     : `${escapeHtml(player.agent)}${player.side === 'enemy' ? ' • ENEMY' : player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}`;
