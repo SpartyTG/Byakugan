@@ -1,15 +1,38 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.106`.
+This package is the canonical source for `v0.8.0-beta.107`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.105`
-- Automated tests: `159 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.106`
+- Automated tests: `161 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.107 prevents Full Sensei from reversing strong supplied statistics into
+negative coaching. Scorecard ratings are now computed by BYAKUGAN's
+deterministic metric rubric rather than delegated to the language model. A
+1.20+ K/D, 240+ ACS, 25%+ headshot percentage, and positive opening-duel
+differential are high signals; ADR above 120 through 159.9 is not low. Aggregate
+assists and death totals do not establish utility timing, positioning,
+survival quality, or economy decisions, so utility and econ remain average
+without direct evidence.
+
+The grounded-report validator rejects verdicts and weaknesses that call
+average/high K/D, ACS, ADR, or headshot figures low, poor, weak, or inaccurate.
+It specifically covers the observed 21/13 Omen report with 1.62 K/D, 269 ACS,
+157.7 ADR, 28.8% headshots, and a 3-1 opening-duel record. The corrected
+scorecard is high impact, high aim, high entry, average utility, and average
+econ. Reports that still contradict the rubric are automatically repaired; if
+repair fails, BYAKUGAN uses its clearly labeled grounded Lite report.
+
+Drill validation also rejects the observed extreme 80-90% outcome targets and
+100-round timers. Full Sensei is instructed to use short practice blocks and
+countable repetitions instead of invented high-pressure simulations.
+
+## Previous completed changes
 
 Beta.106 adds two relationship signals to Live Match. Confirmed queued groups
 receive matching color-coded labels such as **YOUR PARTY · DUO**,
@@ -24,8 +47,6 @@ The local Riot block list is also loaded with the social roster. Any live
 player whose PUUID appears on that list receives a red **BLOCKED** badge. The
 relationship marker does not override name privacy: a blocked incognito player
 remains agent-only, and BYAKUGAN never substitutes the stored block-list name.
-
-## Previous completed changes
 
 Beta.105 corrects the hidden-allied identity presentation exposed by the first
 real beta.104 Agent Select test and confirmed again after the core game began.
@@ -135,7 +156,15 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.106 on both PCs. Queue with at least one friend and confirm every
+Install beta.107 on both PCs. First rerun Full Sensei on the same completed
+Omen match that previously produced the 21/13 report. Confirm 1.62 K/D is not
+called low or poor, 157.7 ADR is not called low, 28.8% headshots are not called
+poor accuracy, and 3 first kills against 1 first death produce high entry. The
+scorecard should read **HIGH impact**, **HIGH aim**, **HIGH entry**, **AVERAGE
+utility**, and **AVERAGE econ**. Drills must not use 100-round timers or extreme
+accuracy, kill-rate, or survival-rate targets.
+
+Then queue with at least one friend and confirm every
 member of the known party receives the same **YOUR PARTY** badge and correct
 duo/trio/stack size while solo teammates remain unmarked. If Riot supplies
 party identifiers for another allied or enemy premade, confirm its members

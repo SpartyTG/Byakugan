@@ -11,7 +11,7 @@ const {
   SenseiService, ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_FRAME_RATE, ADAPTIVE_VOD_MAX_FRAMES, ADAPTIVE_VOD_WINDOW_SECONDS,
   buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds,
   finalizeFullVodReport, isUsefulVodFinding, liteReport, parseStructuredJson, parseVodActivityScan,
-  validateFullVodSegment, validateReport
+  senseiMetricRubric, validateFullVodSegment, validateGroundedReport, validateReport
 } = require('../src/main/services/sensei-service.cjs');
 const { SettingsStore } = require('../src/main/settings-store.cjs');
 
@@ -139,6 +139,46 @@ test('Sensei verdicts stay specific and focus rules remain memorable', () => {
   const next = liteReport(match('long-focus'), buildContextPack(match('long-focus'), []));
   next.focusRule = Array.from({ length: 25 }, () => 'word').join(' ');
   assert.throws(() => validateReport(next), /24 words/i);
+});
+
+test('Sensei grounds a 21/13 Omen performance to the deterministic metric rubric', () => {
+  const strong = match('strong-omen', {
+    result: 'VICTORY', score: '13 – 9', kills: 21, deaths: 13, assists: 8, kd: 1.62,
+    acs: 269, adr: 157.7, shots: { headshots: 34, bodyshots: 80, legshots: 4 },
+    report: { openingKills: 3, openingDeaths: 1, rounds: [] }
+  });
+  const card = compactMatch(strong);
+  assert.equal(card.hsPercent, 28.8);
+  assert.deepEqual(senseiMetricRubric(card).scorecard, {
+    impact: 'high', aim: 'high', entry: 'high', utility: 'average', econ: 'average'
+  });
+  const safe = liteReport(strong, buildContextPack(strong, []));
+  assert.deepEqual(validateGroundedReport(safe, card).scorecard, {
+    impact: 'high', aim: 'high', entry: 'high', utility: 'average', econ: 'average'
+  });
+});
+
+test('Sensei rejects negative metric reversals and unrealistic drills from the reported Omen case', () => {
+  const strong = match('strong-omen-invalid', {
+    result: 'VICTORY', score: '13 – 9', kills: 21, deaths: 13, assists: 8, kd: 1.62,
+    acs: 269, adr: 157.7, shots: { headshots: 34, bodyshots: 80, legshots: 4 },
+    report: { openingKills: 3, openingDeaths: 1, rounds: [] }
+  });
+  const card = compactMatch(strong);
+  const contradicted = liteReport(strong, buildContextPack(strong, []));
+  contradicted.verdict = 'Your 21 kills and 269 ACS were high, but low ADR (157.7) and HS% (28.9) indicate poor damage output and shot accuracy. Your 13 deaths and 1.62 K/D suggest poor survival.';
+  contradicted.weaknesses = [
+    'Low ADR (157.7) and HS% (28.9) show poor damage output and accuracy.',
+    'High deaths (13) and 1.62 K/D suggest poor survival and positioning.'
+  ];
+  assert.throws(() => validateGroundedReport(contradicted, card), /contradicts.*K\/D|contradicts.*ADR/i);
+
+  const unrealistic = liteReport(strong, buildContextPack(strong, []));
+  unrealistic.drills[0] = {
+    name: 'Range Mechanics Drill', setup: 'Practice shooting from 10m to 30m for 100 rounds.',
+    success: 'Achieve 80% headshot accuracy and 90% body shot accuracy within 100 rounds.'
+  };
+  assert.throws(() => validateReport(unrealistic), /realistic short practice blocks/i);
 });
 
 test('Sensei settings are optional, allowlisted, and disabled by default', () => {

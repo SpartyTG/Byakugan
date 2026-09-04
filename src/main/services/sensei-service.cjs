@@ -113,8 +113,51 @@ function scoreLevel(value, high, low, inverse = false) {
   return value >= high ? 'high' : value <= low ? 'low' : 'average';
 }
 
+function senseiMetricRubric(matchCard = {}) {
+  const kd = Number(matchCard.kd);
+  const acs = Number(matchCard.acs);
+  const adr = Number(matchCard.adr);
+  const hs = Number(matchCard.hsPercent);
+  const assists = Number(matchCard.assists);
+  const openingDelta = (Number(matchCard.firstKills) || 0) - (Number(matchCard.firstDeaths) || 0);
+  const bands = {
+    kd: Number.isFinite(kd) ? scoreLevel(kd, 1.2, .85) : 'unavailable',
+    acs: Number.isFinite(acs) ? scoreLevel(acs, 240, 180) : 'unavailable',
+    adr: Number.isFinite(adr) ? scoreLevel(adr, 160, 120) : 'unavailable',
+    hsPercent: Number.isFinite(hs) ? scoreLevel(hs, 25, 17) : 'unavailable',
+    openingDelta: scoreLevel(openingDelta, 1, -1),
+    assists: Number.isFinite(assists) ? scoreLevel(assists, 8, 2) : 'unavailable'
+  };
+  const impactPoints = [
+    [bands.kd, 2], [bands.acs, 1], [bands.adr, 1]
+  ].reduce((total, [band, weight]) => total + (band === 'high' ? weight : band === 'low' ? -weight : 0), 0);
+  return {
+    bands,
+    scorecard: {
+      impact: impactPoints >= 1 ? 'high' : impactPoints <= -2 ? 'low' : 'average',
+      aim: bands.hsPercent === 'unavailable' ? 'average' : bands.hsPercent,
+      entry: bands.openingDelta,
+      // Aggregate assists do not prove ability timing or utility value.
+      utility: 'average',
+      // Riot's aggregate match payload does not provide enough context to
+      // judge purchase quality, saves, dropped weapons, or round-by-round value.
+      econ: 'average'
+    },
+    thresholds: {
+      kd: { high: '>= 1.20', low: '<= 0.85' },
+      acs: { high: '>= 240', low: '<= 180' },
+      adr: { high: '>= 160', low: '<= 120' },
+      hsPercent: { high: '>= 25%', low: '<= 17%' },
+      entry: { high: 'first kills exceed first deaths', low: 'first deaths exceed first kills' },
+      utility: 'Always average without direct ability-use evidence; assists alone are insufficient.',
+      econ: 'Always average unless future round-level economy evidence is added.'
+    }
+  };
+}
+
 function liteReport(match, context) {
   const card = compactMatch(match);
+  const rubric = senseiMetricRubric(card);
   const baseline = context.overall;
   const kd = Number(card.kd) || 0;
   const hs = card.hsPercent;
@@ -138,11 +181,7 @@ function liteReport(match, context) {
   if (!weaknesses.length) weaknesses.push(`${card.deaths ?? 0} deaths are the best review points for checking trade distance and cover.`);
   return {
     verdict,
-    scorecard: {
-      impact: scoreLevel(kd, 1.25, .85), aim: Number.isFinite(hs) ? scoreLevel(hs, 25, 17) : 'average',
-      entry: scoreLevel(openingDelta, 1, -1), utility: scoreLevel(Number(card.assists) || 0, 8, 3),
-      econ: 'average'
-    },
+    scorecard: rubric.scorecard,
     strengths: strengths.slice(0, 3), weaknesses: weaknesses.slice(0, 3),
     drills: [
       { name: 'First-Bullet Ladder', setup: 'Range: eliminate 50 stationary bots with single taps, then 50 with two-bullet bursts. Reset after every miss.', success: 'Finish both sets with at least 80 clean first-shot hits.' },
@@ -172,6 +211,11 @@ function validateReport(value) {
       || !normalizedDrills.some((drill) => /\b(deathmatch|dm)\b/.test(drill))) {
     throw new Error('The local model must return three distinct drills: one Range, one custom, and one Deathmatch drill.');
   }
+  const drillText = value.drills.map((drill) => `${drill.name} ${drill.setup} ${drill.success}`).join(' ');
+  if (/\b100[ -]?round(?:s)?\b/i.test(drillText)
+      || /\b(?:8\d|9\d|100)%\s+(?:headshot|body(?:shot)?|kill|survival|utility|assist)(?:\s+(?:accuracy|rate|score))?/i.test(drillText)) {
+    throw new Error('Sensei drills must use realistic short practice blocks and must not invent extreme percentage or 100-round targets.');
+  }
   const focusRule = typeof value.focusRule === 'string' ? value.focusRule.trim() : '';
   if (!focusRule) throw new Error('The local model report did not include a focus rule.');
   if (focusRule.split(/\s+/).length > 24 || (focusRule.match(/[.!?]/g) || []).length > 1) throw new Error('The local model focus rule must be one concise rule of 24 words or fewer.');
@@ -182,6 +226,40 @@ function validateReport(value) {
     drills: value.drills.slice(0, 3).map((drill) => ({ name: String(drill?.name || '').slice(0, 120), setup: String(drill?.setup || '').slice(0, 700), success: String(drill?.success || '').slice(0, 500) })),
     focusRule: focusRule.slice(0, 500), citations: value.citations.slice(0, 12).map((item) => String(item).slice(0, 240))
   };
+}
+
+function validateGroundedReport(value, matchCard = {}) {
+  const report = validateReport(value);
+  const rubric = senseiMetricRubric(matchCard);
+  const evaluativeText = [report.verdict, ...report.weaknesses].join(' ').toLowerCase();
+  const contradictions = [];
+  const rejectsNegativeMetric = (band, patterns, label) => {
+    if (band === 'low' || band === 'unavailable') return;
+    if (patterns.some((pattern) => pattern.test(evaluativeText))) contradictions.push(label);
+  };
+  rejectsNegativeMetric(rubric.bands.kd, [
+    /\blow\s+(?:[\d.]+\s+)?k\/?d\b/i,
+    /\bk\/?d\b[^.!?]{0,70}\b(?:poor|weak|low)\s+(?:survival|performance|impact|value)\b/i
+  ], 'K/D');
+  rejectsNegativeMetric(rubric.bands.acs, [
+    /\blow\s+(?:[\d.]+\s+)?acs\b/i,
+    /\bacs\b[^.!?]{0,50}\b(?:poor|weak|low)\s+(?:impact|performance|output)\b/i
+  ], 'ACS');
+  rejectsNegativeMetric(rubric.bands.adr, [
+    /\blow\s+(?:[\d.]+\s+)?adr\b/i,
+    /\badr\b[^.!?]{0,70}\b(?:poor|weak|low)\s+(?:damage|output|impact|performance)\b/i
+  ], 'ADR');
+  rejectsNegativeMetric(rubric.bands.hsPercent, [
+    /\blow\s+(?:[\d.]+\s+)?(?:hs%?|headshot(?:\s+percentage)?)\b/i,
+    /\b(?:hs%?|headshot(?:\s+percentage)?)\b[^.!?]{0,70}\b(?:poor|weak|low|inconsistent)\s+(?:aim|accuracy|placement)\b/i
+  ], 'headshot percentage');
+  if (rubric.bands.kd === 'high' && /\bpoor survival\b/i.test(evaluativeText)) contradictions.push('survival based on a high K/D');
+  if ((rubric.bands.acs === 'high' || rubric.bands.adr !== 'low') && /\bpoor damage output\b/i.test(evaluativeText)) contradictions.push('damage output');
+  if (rubric.bands.hsPercent === 'high' && /\bpoor (?:shot )?accuracy\b/i.test(evaluativeText)) contradictions.push('accuracy');
+  if (contradictions.length) {
+    throw new Error(`The report contradicts BYAKUGAN's supplied metric rubric for ${[...new Set(contradictions)].join(', ')}. Remove the unsupported negative claim.`);
+  }
+  return { ...report, scorecard: rubric.scorecard };
 }
 
 function parseStructuredJson(raw, label = 'local model') {
@@ -265,7 +343,8 @@ function strictSchema() {
 }
 
 function modelPrompt(matchCard, contextPack) {
-  return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines and reasonable role expectations. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}`;
+  const rubric = senseiMetricRubric(matchCard);
+  return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines. BYAKUGAN has already classified the metrics and scorecard using a deterministic rubric; copy the supplied scorecard exactly and never describe an average or high metric as low, poor, weak, or inaccurate. A below-baseline match can still have objectively strong statistics. Do not infer poor survival or positioning from total deaths when K/D is high, and do not infer utility or economy quality without direct supporting data. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number and must remain compatible with the rubric. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Use short, realistic practice blocks with countable repetitions; never prescribe 100-round timers, simulated high-pressure rounds, or extreme percentage targets. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nDETERMINISTIC METRIC RUBRIC:\n${JSON.stringify(rubric)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}`;
 }
 
 async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {} }) {
@@ -872,18 +951,18 @@ class SenseiService {
     const matchCard = compactMatch(match);
     const contextPack = buildContextPack(match, matches);
     if (!matchCard.matchId || !['VICTORY', 'DEFEAT', 'DRAW'].includes(matchCard.result)) throw new Error('Sensei Vision can only analyze a completed match.');
-    if (tier === 'lite') return { report: validateReport(liteReport(match, contextPack)), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
+    if (tier === 'lite') return { report: validateGroundedReport(liteReport(match, contextPack), matchCard), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
     if (!model) throw new Error('Choose an installed local Sensei model in Settings first.');
     try {
       const report = await generateStructured({
         endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack), schema: strictSchema(),
-        label: 'local model', validate: validateReport, retries: 1
+        label: 'local model', validate: (value) => validateGroundedReport(value, matchCard), retries: 1
       });
       return { report, matchCard, contextPack, model, tier: 'sensei', notice: '' };
     } catch (error) {
       if (error?.code !== 'SENSEI_STRUCTURED_OUTPUT') throw error;
       return {
-        report: validateReport(liteReport(match, contextPack)), matchCard, contextPack,
+        report: validateGroundedReport(liteReport(match, contextPack), matchCard), matchCard, contextPack,
         model: 'BYAKUGAN Lite Engine', tier: 'lite',
         notice: `The selected local model (${model}) could not produce a valid report after automatic repair, so BYAKUGAN safely used Sensei Lite for this match.`
       };
@@ -1180,6 +1259,6 @@ module.exports = {
   ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_SCAN_FPS, ADAPTIVE_VOD_WINDOW_SECONDS, ADAPTIVE_VOD_MAX_FRAMES, ADAPTIVE_VOD_FRAME_RATE,
   SenseiService, buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds, detectFfmpeg, detectFfprobe,
   extractVodFrames, extractVodSegmentFrames, finalizeFullVodReport, parseVodActivityScan, scanVodActivity,
-  headshotPercent, isUsefulVodFinding, liteReport, parseStructuredJson, probeVodDuration, strictSchema, summarizeMatches,
-  validateFullVodSegment, validateReport, validateVodReport, vodTime
+  headshotPercent, isUsefulVodFinding, liteReport, parseStructuredJson, probeVodDuration, senseiMetricRubric, strictSchema, summarizeMatches,
+  validateFullVodSegment, validateGroundedReport, validateReport, validateVodReport, vodTime
 };

@@ -96,7 +96,12 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.106
+## Included in version 0.8.0-beta.107
+
+- Full Sensei scorecards now use a deterministic metric rubric instead of allowing the local language model to freely label supplied match statistics; a 1.20+ K/D, 240+ ACS, 25%+ headshot percentage, or positive opening-duel differential cannot be reversed into a LOW rating
+- Sensei rejects reports that describe average/high K/D, ACS, ADR, or headshot values as low or poor, and it cannot infer poor survival, positioning, damage output, or accuracy from contradictory aggregate evidence
+- Utility and economy remain **AVERAGE** unless direct ability-use or round-level economy evidence exists; total assists and deaths alone are not treated as proof of tactical quality
+- Generated drills must use realistic short practice blocks and countable repetitions; extreme percentage goals and 100-round timers are rejected and automatically repaired or replaced by the grounded Lite report
 
 - Live Match now assigns matching color-coded badges to confirmed queued groups—such as **YOUR PARTY · DUO**, **PARTY A · TRIO**, or **PARTY B · DUO**—while leaving solo and unconfirmed players unmarked; raw Riot party identifiers never reach the interface
 - Players on the signed-in account's Riot block list now receive a red **BLOCKED** badge in Live Match without allowing the stored block-list name to reveal a hidden identity
@@ -354,7 +359,7 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.106`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.107`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
 example `0.8.0-beta.107`, before rebuilding and uploading all three artifacts.
@@ -365,8 +370,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.106
-git push origin v0.8.0-beta.106
+git tag v0.8.0-beta.107
+git push origin v0.8.0-beta.107
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
