@@ -347,7 +347,7 @@ function modelPrompt(matchCard, contextPack) {
   return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines. BYAKUGAN has already classified the metrics and scorecard using a deterministic rubric; copy the supplied scorecard exactly and never describe an average or high metric as low, poor, weak, or inaccurate. A below-baseline match can still have objectively strong statistics. Do not infer poor survival or positioning from total deaths when K/D is high, and do not infer utility or economy quality without direct supporting data. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number and must remain compatible with the rubric. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Use short, realistic practice blocks with countable repetitions; never prescribe 100-round timers, simulated high-pressure rounds, or extreme percentage targets. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nDETERMINISTIC METRIC RUBRIC:\n${JSON.stringify(rubric)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}`;
 }
 
-async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {} }) {
+async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {}, repairContext = null }) {
   let lastError;
   let candidate = '';
   const candidates = [];
@@ -355,7 +355,10 @@ async function generateStructured({ endpoint, model, repairModel = '', prompt, s
     if (signal?.aborted) throw canceledError();
     try {
       if (attempt) onRepair(lastError);
-      const repairPrompt = `Convert the candidate below into exactly one valid JSON object matching the supplied schema. Preserve only claims already present. Do not add commentary, markdown, or new facts. If a field is incomplete, use the smallest conservative value allowed by the schema. Correct this validation problem: ${lastError?.message || 'invalid JSON'}.\nSCHEMA:${JSON.stringify(schema)}\nCANDIDATE:${candidate.slice(0, 18_000)}`;
+      const grounding = repairContext
+        ? `\nGROUNDING CONTEXT (authoritative; use these supplied facts and rules to replace invalid claims):${JSON.stringify(repairContext)}`
+        : '';
+      const repairPrompt = `Convert the candidate below into exactly one valid JSON object matching the supplied schema. Preserve valid candidate claims, but remove or replace anything identified by the validation problem. Do not add commentary, markdown, or invented facts. When GROUNDING CONTEXT is supplied, it is authoritative: copy its required scorecard exactly and use only its facts, rules, baselines, and safe drill patterns. If a field is incomplete, use the smallest conservative value allowed by the schema. Correct this validation problem: ${lastError?.message || 'invalid JSON'}.\nSCHEMA:${JSON.stringify(schema)}${grounding}\nCANDIDATE:${candidate.slice(0, 16_000)}`;
       const response = await requestJson(`${endpoint}/api/generate`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -950,21 +953,37 @@ class SenseiService {
   async analyze({ match, matches, tier = 'lite', model = '' }) {
     const matchCard = compactMatch(match);
     const contextPack = buildContextPack(match, matches);
+    const lite = liteReport(match, contextPack);
     if (!matchCard.matchId || !['VICTORY', 'DEFEAT', 'DRAW'].includes(matchCard.result)) throw new Error('Sensei Vision can only analyze a completed match.');
-    if (tier === 'lite') return { report: validateGroundedReport(liteReport(match, contextPack), matchCard), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
+    if (tier === 'lite') return { report: validateGroundedReport(lite, matchCard), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
     if (!model) throw new Error('Choose an installed local Sensei model in Settings first.');
     try {
       const report = await generateStructured({
         endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack), schema: strictSchema(),
-        label: 'local model', validate: (value) => validateGroundedReport(value, matchCard), retries: 1
+        label: 'local model', validate: (value) => validateGroundedReport(value, matchCard), retries: 1,
+        repairContext: {
+          match: Object.fromEntries(Object.entries(matchCard).filter(([key]) => key !== 'roundTimeline')),
+          requiredScorecard: senseiMetricRubric(matchCard).scorecard,
+          metricRubric: senseiMetricRubric(matchCard),
+          recentBaselines: contextPack,
+          rules: [
+            'Never call an average or high metric low, poor, weak, or inaccurate.',
+            'Do not infer poor survival or positioning from total deaths when K/D is high.',
+            'Do not infer utility quality from assists or economy quality without direct evidence.',
+            'Use realistic short drills with countable repetitions; no 100-round timers or extreme percentage goals.'
+          ],
+          safeDrillPatterns: lite.drills
+        }
       });
       return { report, matchCard, contextPack, model, tier: 'sensei', notice: '' };
     } catch (error) {
       if (error?.code !== 'SENSEI_STRUCTURED_OUTPUT') throw error;
+      const fallbackReason = String(error?.message || 'The repaired report still failed validation.')
+        .replace(/\s+/g, ' ').trim().slice(0, 260);
       return {
-        report: validateGroundedReport(liteReport(match, contextPack), matchCard), matchCard, contextPack,
+        report: validateGroundedReport(lite, matchCard), matchCard, contextPack,
         model: 'BYAKUGAN Lite Engine', tier: 'lite',
-        notice: `The selected local model (${model}) could not produce a valid report after automatic repair, so BYAKUGAN safely used Sensei Lite for this match.`
+        notice: `The selected local model (${model}) could not produce a valid report after automatic repair, so BYAKUGAN safely used Sensei Lite for this match. Last validation issue: ${fallbackReason}`
       };
     }
   }

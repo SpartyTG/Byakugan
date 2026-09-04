@@ -105,6 +105,8 @@ test('Full Sensei repairs malformed model output with broadly compatible JSON mo
     assert.equal(typeof requests[0].format, 'object');
     assert.equal(requests[1].format, 'json');
     assert.match(requests[1].prompt, /validation problem/i);
+    assert.match(requests[1].prompt, /GROUNDING CONTEXT/);
+    assert.match(requests[1].prompt, /requiredScorecard/);
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
@@ -179,6 +181,43 @@ test('Sensei rejects negative metric reversals and unrealistic drills from the r
     success: 'Achieve 80% headshot accuracy and 90% body shot accuracy within 100 rounds.'
   };
   assert.throws(() => validateReport(unrealistic), /realistic short practice blocks/i);
+});
+
+test('Full Sensei repair receives the exact rubric after reversing strong Omen metrics', async () => {
+  const strong = match('strong-omen-repair', {
+    result: 'VICTORY', score: '13 – 9', kills: 21, deaths: 13, assists: 10, kd: 1.62,
+    acs: 269, adr: 157.7, shots: { headshots: 34, bodyshots: 80, legshots: 4 },
+    report: { openingKills: 3, openingDeaths: 1, rounds: [] }
+  });
+  const context = buildContextPack(strong, []);
+  const invalid = liteReport(strong, context);
+  invalid.verdict = 'Your 21 kills and 269 ACS were high, but low ADR (157.7) and HS% (28.8) indicate poor damage output. Your 13 deaths and 1.62 K/D suggest poor survival.';
+  invalid.weaknesses = ['Low ADR (157.7) and HS% (28.8) show poor damage output and accuracy.'];
+  const repaired = liteReport(strong, context);
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: JSON.stringify(requests.length === 1 ? invalid : repaired) }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({ match: strong, matches: [], tier: 'sensei', model: 'qwen3:8b' });
+    assert.equal(requests.length, 2);
+    assert.equal(result.tier, 'sensei');
+    assert.equal(result.notice, '');
+    assert.deepEqual(result.report.scorecard, {
+      impact: 'high', aim: 'high', entry: 'high', utility: 'average', econ: 'average'
+    });
+    assert.match(requests[1].prompt, /1\.62/);
+    assert.match(requests[1].prompt, /requiredScorecard/);
+    assert.match(requests[1].prompt, /poor survival/);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
 test('Sensei settings are optional, allowlisted, and disabled by default', () => {

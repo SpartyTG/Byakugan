@@ -96,7 +96,10 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.107
+## Included in version 0.8.0-beta.108
+
+- Full Sensei's automatic repair retry now receives the authoritative match card, deterministic scorecard, metric bands, recent baselines, grounding rules, and safe drill patterns so Qwen can correct a rejected report without losing Full Sensei
+- If both model attempts still fail, the visible fallback banner now includes the last concise validation reason instead of only saying the report was invalid
 
 - Full Sensei scorecards now use a deterministic metric rubric instead of allowing the local language model to freely label supplied match statistics; a 1.20+ K/D, 240+ ACS, 25%+ headshot percentage, or positive opening-duel differential cannot be reversed into a LOW rating
 - Sensei rejects reports that describe average/high K/D, ACS, ADR, or headshot values as low or poor, and it cannot infer poor survival, positioning, damage output, or accuracy from contradictory aggregate evidence
@@ -359,10 +362,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.107`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.108`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.107`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.108`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -370,8 +373,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.107
-git push origin v0.8.0-beta.107
+git tag v0.8.0-beta.108
+git push origin v0.8.0-beta.108
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
