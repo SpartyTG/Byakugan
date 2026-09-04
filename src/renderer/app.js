@@ -851,11 +851,15 @@ function livePlayerRow(player) {
   const levelIsHidden = Boolean(player.levelHidden && !player.partyMember);
   const levelLabel = hasLevel ? `LVL ${Math.floor(Number(player.level))}` : player.partyMember ? 'LVL SYNCING' : levelIsHidden ? 'LVL HIDDEN' : 'LVL PRIVATE';
   const hiddenEnemy = player.side === 'enemy' && player.hidden;
-  const identityTitle = hiddenEnemy
+  const unresolvedIdentity = Boolean(player.identityUnavailable || (!player.isSelf && !player.hidden && !player.name));
+  const agentOnly = hiddenEnemy || unresolvedIdentity;
+  const identityTitle = agentOnly
     ? `<strong>${escapeHtml(player.agent)}</strong>`
-    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : ''}${escapeHtml(player.name || 'Riot Player')}</strong>`;
+    : `<strong class="live-player-name">${player.partyMember ? '◆ ' : player.friend ? '● ' : ''}${escapeHtml(player.name)}</strong>`;
   const identityDetail = hiddenEnemy
     ? `IDENTITY HIDDEN${player.locked ? ' • LOCKED' : ''}`
+    : unresolvedIdentity
+      ? `RIOT NAME UNAVAILABLE${player.locked ? ' • LOCKED' : ''}`
     : `${escapeHtml(player.agent)}${player.side === 'enemy' ? ' • ENEMY' : player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}`;
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>

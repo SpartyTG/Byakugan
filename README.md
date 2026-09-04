@@ -96,8 +96,10 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.102
+## Included in version 0.8.0-beta.103
 
+- Live Match now shows the locked agent instead of the generic **Riot Player** placeholder whenever Riot marks a name as display-eligible but does not return the Riot ID; truly hidden opponents retain the separate **IDENTITY HIDDEN** state, and a public name can replace the agent automatically on a later refresh
+- Party-member account levels resolved from the party or VALORANT presence payload now carry into the active core-game roster instead of being discarded when the app merges party membership, preventing lobby-visible levels from remaining stuck on **LVL SYNCING**
 - Original desktop dashboard and navigation
 - VOD Vision now grounds every review window to the one agent locked for the complete match; a changed agent portrait, ability bar, hands, or ability kit is classified as a spectated teammate and cannot be attributed to the reviewed player
 - Competitive, Unrated, Swiftplay, and Premier analyses enforce one life per round unless the frames visibly confirm a Sage resurrection or the reviewed player is Clove using **Not Dead Yet**; ordinary same-round respawns are rejected
@@ -346,10 +348,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.102`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.103`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.102`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.103`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -357,8 +359,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.102
-git push origin v0.8.0-beta.102
+git tag v0.8.0-beta.103
+git push origin v0.8.0-beta.103
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

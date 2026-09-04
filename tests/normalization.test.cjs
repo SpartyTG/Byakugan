@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, valorantPresenceAccountLevel, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -393,6 +393,35 @@ test('live roster shows public opponent names without exposing hidden identities
   assert.equal(JSON.stringify(roster).includes('MustNotAppear'), false);
   assert.equal(JSON.stringify(roster).includes('PublicEnemy#NA1'), true);
   assert.equal(JSON.stringify(roster).includes('unknown-privacy'), false);
+});
+
+test('live roster falls back to the agent when an eligible Riot name is unavailable', () => {
+  const roster = normalizeLivePlayers([
+    { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerIdentity: { Incognito: false } },
+    { Subject: 'unresolved-ally', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerIdentity: { Incognito: false } }
+  ], 'self', metadata(), { self: 'MyName#NA1' });
+
+  assert.equal(roster[1].name, '');
+  assert.equal(roster[1].hidden, false);
+  assert.equal(roster[1].identityUnavailable, true);
+  assert.equal(roster[1].agent, 'Jett');
+  assert.equal(JSON.stringify(roster).includes('Riot Player'), false);
+});
+
+test('core-game roster inherits a party member level resolved from lobby presence', () => {
+  const merged = mergeLivePartyContext([
+    { Subject: 'self', TeamID: 'Blue', PlayerIdentity: { AccountLevel: 272 } },
+    { Subject: 'party-friend', TeamID: 'Blue', PlayerIdentity: { AccountLevel: 0, HideAccountLevel: true } },
+    { Subject: 'random-ally', TeamID: 'Blue', PlayerIdentity: {} }
+  ], [
+    { Subject: 'self', BYAKUGANAccountLevel: 272, BYAKUGANPartyMember: true },
+    { Subject: 'party-friend', BYAKUGANAccountLevel: 355, BYAKUGANPartyMember: true }
+  ]);
+
+  assert.equal(merged[0].BYAKUGANAccountLevel, 272);
+  assert.equal(merged[1].BYAKUGANAccountLevel, 355);
+  assert.equal(merged[1].BYAKUGANPartyMember, true);
+  assert.equal(merged[2].BYAKUGANPartyMember, undefined);
 });
 
 test('public opponent name lookup unlocks only for the active core game', () => {

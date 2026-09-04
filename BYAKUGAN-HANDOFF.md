@@ -1,15 +1,31 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.102`.
+This package is the canonical source for `v0.8.0-beta.103`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.101`
-- Automated tests: `153 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.102`
+- Automated tests: `156 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.103 fixes two Live Match fallbacks found during a real Competitive test.
+When Riot marks an identity as eligible but its name lookup returns no Riot ID,
+the card now shows the locked agent with **RIOT NAME UNAVAILABLE** instead of the
+generic **Riot Player** placeholder. A later successful lookup automatically
+restores the public Riot ID. Genuinely incognito opponents remain agent-only and
+retain the distinct **IDENTITY HIDDEN** label.
+
+Party account levels resolved from the party or VALORANT presence payload are
+now merged into the active core-game roster. Previously the live merge copied
+only `BYAKUGANPartyMember`, discarded the already-resolved lobby level, and then
+left the card on **LVL SYNCING** when the separate account-XP enrichment was
+unavailable. Valid core-game levels still take precedence, while a hidden zero
+cannot overwrite a real lobby-visible level.
+
+## Previous completed change
 
 Beta.102 replaces VOD Vision's prompt-only coaching safeguards with enforced
 truthfulness validation after the completed 33:09 Adaptive test produced 39
@@ -80,7 +96,14 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.102 on both PCs. The existing beta.101 VOD report should display an
+Install beta.103 on both PCs. In Live Match, confirm the previously unresolved
+Fade-style card shows its agent rather than **Riot Player**. If Riot returns the
+public name later, confirm the card changes to that Riot ID. Hidden opponents
+must continue to show only their agent with **IDENTITY HIDDEN**. Confirm every
+queued party member whose level is visible in the Riot lobby now shows the same
+number in BYAKUGAN instead of remaining on **LVL SYNCING**.
+
+The existing beta.101 VOD report should display an
 earlier-engine notice. Regenerate the same 33:09 Competitive Omen recording in
 Adaptive mode with `qwen3:8b` for text and `qwen3-vl:8b-instruct` for vision.
 The replacement report must not attribute Reyna's spectated POV to Omen, invent

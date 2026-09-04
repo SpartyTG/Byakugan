@@ -46,7 +46,9 @@ test('Live Match renders an account-level badge for every revealed roster card',
   assert.match(app, /class="live-player-level/);
   assert.match(app, /Level, agent, and ranks reveal after the match begins/);
   assert.match(app, /const hiddenEnemy = player\.side === 'enemy' && player\.hidden/);
-  assert.match(app, /player\.name \|\| 'Riot Player'/);
+  assert.match(app, /const unresolvedIdentity = Boolean/);
+  assert.match(app, /RIOT NAME UNAVAILABLE/);
+  assert.doesNotMatch(app, /escapeHtml\(player\.name \|\| 'Riot Player'\)/);
   assert.match(app, /IDENTITY HIDDEN/);
 });
 

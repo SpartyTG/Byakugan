@@ -782,6 +782,7 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
     const isAlly = teamId === ownTeam;
     const friend = isKnownFriend(player);
     const canShowIdentity = !hidden;
+    const resolvedName = String(names[subject] || '').trim();
     const characterId = player.CharacterID || player.characterId;
     const tierNumber = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
     const agent = resolveById(metadata.agents, characterId, {
@@ -794,7 +795,8 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
 
     return {
       id: `player-${index}`,
-      name: canShowIdentity ? (isSelf ? 'You' : (names[subject] || 'Riot Player')) : '',
+      name: canShowIdentity ? (isSelf ? 'You' : resolvedName) : '',
+      identityUnavailable: Boolean(canShowIdentity && !isSelf && !resolvedName),
       hidden,
       isSelf,
       side: isAlly ? 'ally' : 'enemy',
@@ -815,6 +817,27 @@ function normalizeLivePlayers(players, ownPuuid, metadata, names = {}) {
       peakEpisode: player.BYAKUGANPeakEpisode || '',
       peakAct: player.BYAKUGANPeakAct || '',
       locked: Boolean(player.CharacterSelectionState === 'locked' || player.characterSelectionState === 'locked')
+    };
+  });
+}
+
+function mergeLivePartyContext(players, partyPlayers = []) {
+  const partyBySubject = new Map(partyPlayers.map((player) => [
+    player.Subject || player.subject || player.puuid,
+    player
+  ]).filter(([subject]) => Boolean(subject)));
+  return players.map((player) => {
+    const subject = player.Subject || player.subject || player.puuid;
+    const partyPlayer = partyBySubject.get(subject);
+    if (!partyPlayer) return player;
+    const accountLevel = normalizeAccountLevel(
+      liveAccountLevel(player).level,
+      liveAccountLevel(partyPlayer).level
+    );
+    return {
+      ...player,
+      BYAKUGANPartyMember: true,
+      BYAKUGANAccountLevel: accountLevel
     };
   });
 }
@@ -1605,12 +1628,11 @@ class RiotClientService extends EventEmitter {
     const map = resolveById(this.metadata?.maps || new Map(), mapId, { name: mapId ? 'Unknown map' : 'Detecting…' });
     let players = match?.Players || match?.players || match?.AllyTeam?.Players || match?.allyTeam?.players || [];
     const partyId = party.id;
-    const partyIds = new Set(party.players.map((player) => player.Subject));
-    if (players.length && partyIds.size) {
-      players = players.map((player) => ({
-        ...player,
-        BYAKUGANPartyMember: partyIds.has(player.Subject || player.subject || player.puuid)
-      }));
+    if (players.length && party.players.length) {
+      // The core-game roster identifies party members but often omits their
+      // lobby-visible account level. Carry the value already resolved from the
+      // party/presence payload into the active roster before XP hydration.
+      players = mergeLivePartyContext(players, party.players);
     } else if (!players.length && loopState === 'MENUS') {
       players = party.players;
     }
@@ -2396,6 +2418,7 @@ module.exports = {
   isKnownFriend,
   liveAccountLevel,
   valorantPresenceAccountLevel,
+  mergeLivePartyContext,
   visiblePlayerIds,
   filterPregameRoster,
   shouldHydrateRosterTier,
