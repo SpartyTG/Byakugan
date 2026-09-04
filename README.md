@@ -91,9 +91,12 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.96
+## Included in version 0.8.0-beta.98
 
 - Original desktop dashboard and navigation
+- A dedicated **Sensei** navigation tab that explains each coaching tier, presents local readiness in context, and keeps report generation out of the general match-details modal
+- A compact completed-match selector and saved coaching library inside Sensei, without duplicating the full Match History table
+- A current **Next-match focus** card on Overview plus **Open in Sensei** routing from completed match details
 - Optional manual **Sensei Vision** post-match coaching with disabled-by-default settings, independent per-match reports, strict structured output, saved-report reuse, recoverable failures, and no automatic or live execution
 - **Sensei Lite** built into BYAKUGAN for evidence-based statistical coaching without a model download, cloud service, API key, subscription, or per-use fee
 - Optional full **Sensei** through a user-installed local Ollama text model, including recent-overall, same-agent, and same-map baseline comparisons plus match-scoped Ask Sensei follow-ups
@@ -103,6 +106,9 @@ registered trademarks of Riot Games, Inc.
 - Continuous start-to-finish review in consecutive four-second sections at four ordered frames per second, producing roughly 7,200 chronologically ordered frames for a 30-minute match instead of the former 24-screenshot scan
 - Immediate overnight-analysis progress with elapsed time, video timestamp, completed section count, rolling estimated time remaining, and a safe Pause action that never removes the original recording
 - An analysis clock anchored to the persisted background job so navigating away from the match and returning does not reset the displayed elapsed time
+- A persistent full-match ETA that remains visible through extracting, reviewing, and JSON-repair progress events instead of flashing briefly after each completed segment and returning to **Estimating remaining time**
+- Accumulated active-analysis timing stored in VOD checkpoints, so **Pause safely** and Resume continue the elapsed timer without counting the time spent paused
+- A persistent top-bar **VOD VISION RUNNING** indicator with segment progress, ETA, elapsed time, and one-click return to the analyzed match after navigating elsewhere in BYAKUGAN
 - Per-section persistence and automatic interrupted-job recovery so completed work can resume after a pause, model failure, application close, or PC restart
 - A Windows app-suspension blocker during analysis so an unattended overnight job can continue while the display turns off normally
 - Tactical findings that require a visible decision, visible consequence, multi-frame evidence, and a specific adjustment or repeatable strength; generic webcam, HUD, weapon, health, and centered-crosshair descriptions are rejected
@@ -287,7 +293,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.96-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.98-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -316,10 +322,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.96`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.98`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.96`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.98`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -327,8 +333,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.96
-git push origin v0.8.0-beta.96
+git tag v0.8.0-beta.98
+git push origin v0.8.0-beta.98
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

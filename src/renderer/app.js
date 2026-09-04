@@ -20,10 +20,13 @@ const state = {
   senseiStatus: null,
   senseiBusy: false,
   senseiEntry: null,
+  senseiSelectedMatchId: '',
+  senseiReportsByMatch: {},
   senseiVodProgress: null,
   senseiVodStartedAt: 0,
   senseiVodTimer: null,
-  senseiVodRequestActive: false
+  senseiVodRequestActive: false,
+  senseiVodActiveMatchId: ''
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -112,6 +115,38 @@ function formatEta(seconds) {
   return hours ? `Approximately ${hours}h ${minutes}m remaining` : `Approximately ${Math.max(1, minutes)}m remaining`;
 }
 
+function mergeSenseiVodProgress(previous, next) {
+  const latest = next && typeof next === 'object' ? next : {};
+  const latestEta = Math.max(0, Number(latest.etaSeconds) || 0);
+  const previousEta = Math.max(0, Number(previous?.etaSeconds) || 0);
+  if (latestEta > 0 || previousEta <= 0 || ['complete', 'failed', 'canceled'].includes(latest.phase)) return { ...latest };
+  return { ...latest, etaSeconds: previousEta };
+}
+
+function renderSenseiVodGlobal() {
+  const indicator = $('#senseiVodGlobal');
+  if (!indicator) return;
+  const progress = state.senseiVodProgress;
+  const active = Boolean(state.senseiVodActiveMatchId && progress && !['complete', 'failed', 'canceled'].includes(progress.phase));
+  indicator.hidden = !active;
+  const navBadge = $('#senseiNavBadge');
+  if (navBadge) navBadge.hidden = !active;
+  const hubCard = $('#senseiHubActive');
+  if (hubCard) hubCard.hidden = !active;
+  if (!active) return;
+  const completed = Math.max(0, Number(progress.current) || 0);
+  const total = Math.max(0, Number(progress.total) || 0);
+  const count = total ? `${completed} / ${total} segments` : 'Preparing segments';
+  const detail = `${count} • ${formatEta(progress.etaSeconds)}`;
+  const elapsed = formatElapsed(Date.now() - (state.senseiVodStartedAt || Date.now()));
+  const match = findMatchById(state.senseiVodActiveMatchId);
+  text('#senseiVodGlobalDetail', detail);
+  text('#senseiVodGlobalElapsed', elapsed);
+  text('#senseiHubActiveTitle', match ? `${match.map || 'Match'} • ${match.agent || 'Agent unavailable'}` : 'Reviewing match');
+  text('#senseiHubActiveDetail', `${progress.message || 'Reviewing chronological frames'} • ${detail}`);
+  text('#senseiHubActiveElapsed', elapsed);
+}
+
 function senseiProgressPercent(progress = {}) {
   const ratio = Number(progress.total) > 0 ? Math.max(0, Math.min(1, Number(progress.current) / Number(progress.total))) : 0;
   if (progress.phase === 'full-analysis') return Math.max(1, Math.round(ratio * 96));
@@ -127,6 +162,7 @@ function senseiProgressPercent(progress = {}) {
 function updateSenseiVodElapsed() {
   const element = $('#senseiVodElapsed');
   if (element && state.senseiVodStartedAt) element.textContent = formatElapsed(Date.now() - state.senseiVodStartedAt);
+  renderSenseiVodGlobal();
 }
 
 function startSenseiVodTimer() {
@@ -395,6 +431,84 @@ function findMatchById(matchId) {
     .find((match) => match.id === matchId);
 }
 
+function completedSenseiMatches() {
+  return (state.snapshot?.matches || [])
+    .filter((match) => match?.id && ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result))
+    .slice(0, 20);
+}
+
+function senseiEntryLabel(entry) {
+  if (entry?.vod?.status === 'analyzed' && entry.vod.report) return 'VOD READY';
+  if (entry?.vod?.checkpoint && ['canceled', 'failed'].includes(entry.vod.status)) return 'VOD PAUSED';
+  if (entry?.vod?.status === 'analyzing') return 'VOD RUNNING';
+  if (entry?.status === 'ready' && entry.report) return entry.tier === 'sensei' ? 'FULL SENSEI' : 'SENSEI LITE';
+  if (entry?.status === 'failed') return 'RETRY';
+  return 'NOT ANALYZED';
+}
+
+function renderOverviewSenseiFocus() {
+  const entries = Object.values(state.senseiReportsByMatch || {});
+  const selected = state.senseiReportsByMatch[state.senseiSelectedMatchId];
+  const entry = selected?.report ? selected : entries.find((candidate) => candidate?.status === 'ready' && candidate.report);
+  const target = $('#senseiFocusMini');
+  if (!target) return;
+  if (!entry?.report?.focusRule) {
+    target.innerHTML = `<div><p class="eyebrow">CURRENT COACHING FOCUS</p><h2>No Sensei report selected</h2><p>Analyze a completed match to place its next-match focus here.</p></div><button class="text-button" data-sensei-overview-open>Open Sensei <span>→</span></button>`;
+  } else {
+    target.innerHTML = `<div><p class="eyebrow">CURRENT COACHING FOCUS</p><h2>${escapeHtml(entry.report.focusRule)}</h2><p>${escapeHtml(entry.tier === 'sensei' ? 'Full Sensei report' : 'Sensei Lite report')} • Open the workspace for drills and evidence.</p></div><button class="text-button" data-sensei-overview-open>Open Sensei <span>→</span></button>`;
+  }
+}
+
+function renderSenseiHubLists() {
+  const matches = completedSenseiMatches();
+  const picker = $('#senseiMatchPicker');
+  if (!picker) return;
+  picker.innerHTML = matches.map((match) => {
+    const entry = state.senseiReportsByMatch[match.id];
+    return `<button type="button" class="sensei-match-option ${String(match.result).toLowerCase()} ${state.senseiSelectedMatchId === match.id ? 'active' : ''}" data-sensei-match-id="${escapeHtml(match.id)}"><span>${escapeHtml(match.result)}</span><span><strong>${escapeHtml(match.map || 'Unknown map')} • ${escapeHtml(match.agent || 'Agent unavailable')}</strong><small>${escapeHtml(match.score || 'Score unavailable')} • ${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)} • ${escapeHtml(match.ago || 'Recent match')}</small></span><em>${escapeHtml(senseiEntryLabel(entry))}</em></button>`;
+  }).join('') || '<div class="empty-state">No completed matches are available. Refresh BYAKUGAN after finishing a match.</div>';
+  const reports = matches.filter((match) => {
+    const entry = state.senseiReportsByMatch[match.id];
+    return entry?.status === 'ready' || entry?.vod?.path || entry?.vod?.checkpoint || entry?.vod?.report;
+  });
+  $('#senseiRecentReports').innerHTML = reports.map((match) => {
+    const entry = state.senseiReportsByMatch[match.id];
+    return `<button type="button" class="sensei-report-option ${String(match.result).toLowerCase()}" data-sensei-match-id="${escapeHtml(match.id)}"><span>${escapeHtml(match.result)}</span><span><strong>${escapeHtml(match.map || 'Unknown map')} • ${escapeHtml(match.agent || 'Agent unavailable')}</strong><small>${escapeHtml(entry?.report?.focusRule || match.ago || 'Saved coaching report')}</small></span><em>${escapeHtml(senseiEntryLabel(entry))}</em></button>`;
+  }).join('') || '<div class="empty-state">Completed Sensei reports will appear here.</div>';
+  text('#senseiReportCount', `${reports.length} ${reports.length === 1 ? 'report' : 'reports'}`);
+  renderOverviewSenseiFocus();
+}
+
+async function selectSenseiMatch(matchId) {
+  const id = String(matchId || '');
+  if (!findMatchById(id)) return;
+  state.senseiSelectedMatchId = id;
+  state.senseiEntry = state.senseiReportsByMatch[id] || null;
+  renderSenseiHubLists();
+  const panel = $('#senseiWorkspacePanel');
+  if (panel) panel.innerHTML = '<div class="sensei-empty"><strong>Loading saved Sensei workspace…</strong><span>Opening this match does not start a new analysis.</span></div>';
+  await hydrateSenseiPanel(id);
+  if (state.senseiEntry) state.senseiReportsByMatch[id] = state.senseiEntry;
+  renderSenseiHubLists();
+  requestAnimationFrame(() => $('#senseiWorkspacePanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
+async function hydrateSenseiHub() {
+  const matches = completedSenseiMatches();
+  renderSenseiHubLists();
+  const token = Date.now();
+  state.senseiHubLoadToken = token;
+  const entries = await Promise.all(matches.map(async (match) => [match.id, await window.companion.getSenseiReport(match.id).catch(() => null)]));
+  if (state.senseiHubLoadToken !== token) return;
+  for (const [matchId, entry] of entries) if (entry) state.senseiReportsByMatch[matchId] = entry;
+  if (!matches.some((match) => match.id === state.senseiSelectedMatchId)) {
+    state.senseiSelectedMatchId = matches.find((match) => state.senseiReportsByMatch[match.id]?.status === 'ready')?.id || matches[0]?.id || '';
+  }
+  renderSenseiHubLists();
+  if (state.senseiSelectedMatchId) await hydrateSenseiPanel(state.senseiSelectedMatchId);
+  refreshSenseiStatus();
+}
+
 function synergyMatchRow(match) {
   const defeat = match.result === 'DEFEAT';
   const rr = Number(match.rr) || 0;
@@ -575,8 +689,8 @@ function senseiVodMarkup(entry) {
   return `<div class="sensei-vod-card"><div class="sensei-vod-head"><div><h3>VOD Vision · Full Match</h3><p>${escapeHtml(file)}${vod?.status === 'deleted' ? ' • Source moved to Recycle Bin; report retained' : ' • Designed for extended or overnight local analysis'}</p></div><div class="sensei-panel-actions">${actions}</div></div>${progressMarkup}${readinessMarkup}${vod?.error && !analyzing ? `<div class="sensei-error">${escapeHtml(vod.error)}</div>` : ''}${analyzed ? `<div class="sensei-verdict"><small>FULL VISUAL DEBRIEF • ${escapeHtml(analyzed.confidence || 'low')} CONFIDENCE • ${coverageLabel}</small><p>${escapeHtml(analyzed.summary)}</p></div>${patterns ? `<div class="sensei-vod-patterns"><h3>Repeated patterns</h3><div>${patterns}</div></div>` : ''}<div class="sensei-vod-findings">${findings || '<div class="empty-state">The full recording was reviewed, but no defensible coachable moment was returned. BYAKUGAN did not manufacture advice.</div>'}</div>${analyzed.limitations?.length ? `<div class="sensei-section-card"><h3>Visual limitations</h3>${senseiList(analyzed.limitations)}</div>` : ''}` : ''}</div>`;
 }
 
-function renderSenseiPanel(entry) {
-  const panel = $('#senseiPanel');
+function renderSenseiPanel(entry, selector = '#senseiWorkspacePanel') {
+  const panel = $(selector);
   if (!panel) return;
   if (entry) state.senseiEntry = entry;
   if (!state.settings?.senseiEnabled) {
@@ -607,27 +721,25 @@ function renderSenseiPanel(entry) {
 async function hydrateSenseiPanel(matchId) {
   try {
     const entry = await window.companion.getSenseiReport(matchId);
-    if (state.openMatchId === matchId) {
+    if (state.senseiSelectedMatchId === matchId) {
       if (entry?.vod?.status === 'analyzing') state.senseiVodStartedAt = Number(entry.vod.analysisStartedAt) || Date.now();
       renderSenseiPanel(entry);
       if (entry?.vod?.status === 'analyzing') { state.senseiBusy = true; startSenseiVodTimer(); }
       if (state.settings?.senseiVodEnabled) refreshSenseiStatus();
     }
   } catch (error) {
-    if (state.openMatchId === matchId) renderSenseiPanel({ status: 'failed', error: error.message });
+    if (state.senseiSelectedMatchId === matchId) renderSenseiPanel({ status: 'failed', error: error.message });
   }
+}
+
+function senseiMatchLinkMarkup(matchId) {
+  return `<section class="sensei-match-link"><div><p class="eyebrow">SENSEI</p><h2>Post-match coaching</h2><p>Statistical coaching, saved reports, Ask Sensei, and optional full-match VOD analysis now live in the dedicated Sensei workspace.</p></div><button class="primary-button" data-open-sensei-match="${escapeHtml(matchId)}">Open in Sensei</button></section>`;
 }
 
 function openMatchAutopsy(matchId) {
   const match = findMatchById(matchId);
   if (!match) return;
-  if (state.openMatchId !== matchId) {
-    state.autopsyRound = 'ALL';
-    state.senseiEntry = null;
-    state.senseiVodProgress = null;
-    state.senseiVodStartedAt = 0;
-    stopSenseiVodTimer();
-  }
+  if (state.openMatchId !== matchId) state.autopsyRound = 'ALL';
   state.openMatchId = matchId;
   const [verdictTitle, verdictBody] = matchVerdict(match);
   const report = match.report || {};
@@ -643,19 +755,14 @@ function openMatchAutopsy(matchId) {
   const rosterMarkup = roster.length ? `<div class="postmatch-roster"><section><div class="postmatch-team-title"><span>YOUR TEAM</span><small>${escapeHtml(allies.length)} PLAYERS</small></div>${allies.map(historicalPlayerRow).join('')}</section><section><div class="postmatch-team-title enemy"><span>OPPONENTS</span><small>${escapeHtml(enemies.length)} PLAYERS</small></div>${enemies.map(historicalPlayerRow).join('')}</section></div>` : '<div class="empty-state">Riot did not return the roster for this match.</div>';
   const tacticalMarkup = tacticalMapMarkup(match, state.autopsyRound);
   const coachingMarkup = iglReviewMarkup(match, state.autopsyRound);
-  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">Select a round to focus the review</span></div><div class="round-timeline">${rounds.map((round) => `<button type="button" data-tactical-round="${escapeHtml(round.round)}" class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''} ${state.autopsyRound === String(round.round) ? 'active' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></button>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div>${tacticalMarkup}${coachingMarkup}${senseiPanelShell()}<div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
+  $('#matchAutopsyContent').innerHTML = `<div class="autopsy-hero">${safeImage(match.mapImage) ? `<img src="${safeImage(match.mapImage)}" alt="">` : ''}<div class="autopsy-hero-content"><div><p class="eyebrow">MATCH AUTOPSY • ${escapeHtml(match.result)}</p><h1 id="autopsyTitle">${escapeHtml(match.map)}</h1><p>${escapeHtml(match.agent)} • ${escapeHtml(context)} • ${escapeHtml(match.ago)}</p></div><div class="autopsy-score">${escapeHtml(match.score)}</div></div></div><div class="autopsy-body"><div class="autopsy-metrics"><div><small>K / D / A</small><strong>${escapeHtml(match.kills)} / ${escapeHtml(match.deaths)} / ${escapeHtml(match.assists)}</strong></div><div><small>K/D</small><strong>${escapeHtml(match.kd)}</strong></div><div><small>${competitive ? 'RR' : 'PLAYLIST'}</small><strong>${escapeHtml(ratingValue)}</strong></div><div><small>OPENING KILLS</small><strong>${escapeHtml(report.openingKills || 0)}</strong></div><div><small>OPENING DEATHS</small><strong>${escapeHtml(report.openingDeaths || 0)}</strong></div><div><small>MULTIKILL ROUNDS</small><strong>${escapeHtml(report.multikillRounds || 0)}</strong></div></div><div class="autopsy-verdict"><h3>${escapeHtml(verdictTitle)}</h3><p>${escapeHtml(verdictBody)}</p></div><div class="panel-heading"><div><p class="eyebrow">ROUND SIGNAL</p><h2>Personal impact timeline</h2></div><span class="muted">Select a round to focus the review</span></div><div class="round-timeline">${rounds.map((round) => `<button type="button" data-tactical-round="${escapeHtml(round.round)}" class="round-chip ${String(round.result).toLowerCase()} ${round.opening === 'KILL' ? 'opening-kill' : round.opening === 'DEATH' ? 'opening-death' : ''} ${state.autopsyRound === String(round.round) ? 'active' : ''}"><small>R${escapeHtml(round.round)}</small><strong>${escapeHtml(round.kills)}K / ${escapeHtml(round.deaths)}D</strong></button>`).join('') || '<div class="empty-state">Round detail was not returned for this match.</div>'}</div>${tacticalMarkup}${coachingMarkup}${senseiMatchLinkMarkup(matchId)}<div class="panel-heading postmatch-heading"><div><p class="eyebrow">MATCH ROSTER</p><h2>Players & performance</h2></div><span class="muted">Select a visible player to inspect</span></div>${rosterMarkup}</div>`;
   $('#matchModal').hidden = false;
-  hydrateSenseiPanel(matchId);
 }
 
 function closeMatchAutopsy() {
   $('#matchModal').hidden = true;
   state.openMatchId = '';
   state.autopsyRound = 'ALL';
-  state.senseiEntry = null;
-  state.senseiVodProgress = null;
-  state.senseiVodStartedAt = 0;
-  stopSenseiVodTimer();
 }
 
 function exportMatchRecap() {
@@ -857,6 +964,8 @@ function renderSnapshot(snapshot) {
   renderServers();
   renderLiveMatch();
   renderDiagnostics();
+  renderSenseiHubLists();
+  if (state.currentView === 'sensei' || !Object.keys(state.senseiReportsByMatch).length) hydrateSenseiHub();
   applyPrivacy();
 }
 
@@ -878,6 +987,7 @@ function applyPrivacy() {
 
 const viewMeta = {
   dashboard: ['COMMAND CENTER', 'Overview'], live: ['ACTIVE SESSION', 'Live match'], matches: ['PERFORMANCE', 'Match history'],
+  sensei: ['POST-MATCH COACH', 'Sensei'],
   journey: ['ACT SIGNAL', 'Act journey'], insights: ['ENHANCED VISION', 'Insights & goals'],
   loadout: ['COLLECTION', 'Loadout'], agents: ['AGENT LAB', 'Agent performance'], maps: ['MAP LAB', 'Map performance'],
   servers: ['NETWORK PROFILE', 'Server performance'],
@@ -894,12 +1004,15 @@ function navigate(view) {
   $('.main').scrollTo({ top: 0, behavior: 'smooth' });
   if (view === 'stream' && state.settings?.streamOverlayLayout === 'custom') requestAnimationFrame(renderCustomOverlayBuilder);
   if (view === 'settings') refreshSenseiStatus();
+  if (view === 'sensei') hydrateSenseiHub();
 }
 
 async function refreshSenseiStatus() {
   const container = $('#senseiSystemStatus');
+  const hubContainer = $('#senseiHubSystemStatus');
   if (!container) return;
   container.innerHTML = '<span>Checking local setup…</span>';
+  if (hubContainer) hubContainer.innerHTML = '<span>Checking local setup…</span>';
   try {
     const status = await window.companion.getSenseiStatus();
     state.senseiStatus = status;
@@ -908,7 +1021,7 @@ async function refreshSenseiStatus() {
     const card = (title, detail, condition, optional = false) => `<span class="sensei-check-card ${optional ? 'optional' : condition ? 'ready' : 'missing'}"><i>${optional ? '•' : condition ? '✓' : '!'}</i><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>`;
     const textRequired = state.settings?.senseiTier === 'sensei';
     const vodRequired = state.settings?.senseiVodEnabled === true;
-    container.innerHTML = [
+    const statusMarkup = [
       card('OLLAMA', status.connected ? 'Running locally' : 'Not running', status.connected),
       card('SENSEI TEXT MODEL', textRequired ? (status.textModel?.installed ? status.textModel.name : status.textModel?.name ? `${status.textModel.name} not installed` : 'No model selected') : 'Sensei Lite selected — not required', !textRequired || status.textModel?.installed, !textRequired),
       card('VISION MODEL', vodRequired ? (status.visionModel?.installed ? `${status.visionModel.name}${status.visionModel.visionCapable ? ' • vision ready' : ' • no vision support'}` : status.visionModel?.name ? `${status.visionModel.name} not installed` : 'No model selected') : 'VOD Vision disabled — not required', !vodRequired || (status.visionModel?.installed && status.visionModel?.visionCapable), !vodRequired),
@@ -916,9 +1029,13 @@ async function refreshSenseiStatus() {
       card('FFPROBE', status.ffprobeAvailable ? 'Detected and ready' : 'Not detected — install complete FFmpeg package', status.ffprobeAvailable),
       card('STORAGE', `${formatBytes(status.freeStorage)} free`, status.storageReady)
     ].join('');
-    if (state.openMatchId && state.senseiEntry) renderSenseiPanel(state.senseiEntry);
+    container.innerHTML = statusMarkup;
+    if (hubContainer) hubContainer.innerHTML = statusMarkup;
+    if (state.senseiSelectedMatchId && state.senseiEntry) renderSenseiPanel(state.senseiEntry);
   } catch (error) {
-    container.innerHTML = `<span><strong>SETUP CHECK FAILED</strong>${escapeHtml(error.message || 'Local setup could not be checked.')}</span>`;
+    const errorMarkup = `<span><strong>SETUP CHECK FAILED</strong>${escapeHtml(error.message || 'Local setup could not be checked.')}</span>`;
+    container.innerHTML = errorMarkup;
+    if (hubContainer) hubContainer.innerHTML = errorMarkup;
   }
 }
 
@@ -1490,33 +1607,42 @@ async function saveSettingsPatch(patch, feedback = true) {
 }
 
 async function runSenseiForOpenMatch(regenerate = false) {
-  if (state.senseiBusy || !state.openMatchId) return;
+  const matchId = state.senseiSelectedMatchId;
+  if (state.senseiBusy || !matchId) return;
   if (regenerate && !window.confirm('Regenerate Sensei Vision for this match? The saved report and its Ask Sensei thread will be replaced.')) return;
   state.senseiBusy = true;
   renderSenseiPanel({ status: 'analyzing' });
   try {
-    const entry = await window.companion.runSensei({ matchId: state.openMatchId, regenerate });
+    const entry = await window.companion.runSensei({ matchId, regenerate });
+    state.senseiReportsByMatch[matchId] = entry;
     renderSenseiPanel(entry);
+    renderSenseiHubLists();
     toast('Sensei Vision ready', 'The report was saved to this completed match.');
   } catch (error) {
-    const entry = await window.companion.getSenseiReport(state.openMatchId).catch(() => ({ status: 'failed', error: error.message }));
+    const entry = await window.companion.getSenseiReport(matchId).catch(() => ({ status: 'failed', error: error.message }));
+    state.senseiReportsByMatch[matchId] = entry;
     renderSenseiPanel(entry);
+    renderSenseiHubLists();
     toast('Sensei analysis failed', error.message || 'Review Sensei Settings and try again.', 'error');
   } finally { state.senseiBusy = false; }
 }
 
 async function importSenseiVod() {
-  if (state.senseiBusy || !state.openMatchId) return;
+  const matchId = state.senseiSelectedMatchId;
+  if (state.senseiBusy || !matchId) return;
   try {
-    const entry = await window.companion.importSenseiVod(state.openMatchId);
+    const entry = await window.companion.importSenseiVod(matchId);
     if (entry?.canceled) return;
+    state.senseiReportsByMatch[matchId] = entry;
     renderSenseiPanel(entry);
+    renderSenseiHubLists();
     toast('VOD attached', 'Confirm this recording matches the selected match, then run VOD analysis.');
   } catch (error) { toast('VOD import failed', error.message, 'error'); }
 }
 
 async function analyzeSenseiVod() {
-  if (state.senseiBusy || !state.openMatchId) return;
+  if (state.senseiBusy || !state.senseiSelectedMatchId) return;
+  const matchId = state.senseiSelectedMatchId;
   if (!state.senseiStatus?.vodReady) await refreshSenseiStatus();
   if (!state.senseiStatus?.vodReady) {
     toast('VOD setup is incomplete', (state.senseiStatus?.vodMissing || ['Run Check local setup in Settings']).join('; '), 'error');
@@ -1529,50 +1655,68 @@ async function analyzeSenseiVod() {
   if (!window.confirm(`${resumeText}\n\nFull-match analysis may run for several hours and can use substantial CPU/GPU and memory. It is intended for an extended break or overnight use. Avoid running it during a live stream unless the streaming PC has adequate headroom.`)) return;
   state.senseiBusy = true;
   state.senseiVodRequestActive = true;
-  state.senseiVodStartedAt = Date.now();
-  state.senseiVodProgress = { phase: 'preparing', current: checkpoint?.completedSegments || 0, total: checkpoint?.totalSegments || 0, message: checkpoint ? 'Preparing saved checkpoint' : 'Preparing full-match analysis' };
-  const existing = state.senseiEntry || await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
-  if (existing) renderSenseiPanel({ ...existing, vod: { ...existing.vod, status: 'analyzing', error: '' } });
+  state.senseiVodActiveMatchId = matchId;
+  const savedElapsedMs = Math.max(0, Number(checkpoint?.elapsedMs) || 0);
+  const legacyElapsedMs = savedElapsedMs ? 0 : Math.max(0, Number(checkpoint?.updatedAt || 0) - Number(checkpoint?.startedAt || 0));
+  state.senseiVodStartedAt = Date.now() - (savedElapsedMs || legacyElapsedMs);
+  state.senseiVodProgress = { matchId, phase: 'preparing', current: checkpoint?.completedSegments || 0, total: checkpoint?.totalSegments || 0, message: checkpoint ? 'Preparing saved checkpoint' : 'Preparing full-match analysis' };
+  renderSenseiVodGlobal();
+  const existing = state.senseiEntry || await window.companion.getSenseiReport(matchId).catch(() => null);
+  if (existing && state.senseiSelectedMatchId === matchId) renderSenseiPanel({ ...existing, vod: { ...existing.vod, status: 'analyzing', error: '' } });
   startSenseiVodTimer();
   try {
-    const entry = await window.companion.analyzeSenseiVod(state.openMatchId);
-    state.senseiEntry = entry;
-    renderSenseiPanel(entry);
+    const entry = await window.companion.analyzeSenseiVod(matchId);
+    state.senseiReportsByMatch[matchId] = entry;
+    if (state.senseiSelectedMatchId === matchId) {
+      state.senseiEntry = entry;
+      renderSenseiPanel(entry);
+    }
+    renderSenseiHubLists();
     toast('Full-match analysis ready', state.settings.senseiOfferVodCleanup ? 'Read the report, then use “I’ve read it — remove VOD” to reclaim storage.' : 'The complete chronological review was saved to this match.');
   } catch (error) {
-    const entry = await window.companion.getSenseiReport(state.openMatchId).catch(() => null);
-    if (entry) renderSenseiPanel(entry);
+    const entry = await window.companion.getSenseiReport(matchId).catch(() => null);
+    if (entry) state.senseiReportsByMatch[matchId] = entry;
+    if (entry && state.senseiSelectedMatchId === matchId) renderSenseiPanel(entry);
+    renderSenseiHubLists();
     const paused = /canceled|paused/i.test(error?.message || '');
     toast(paused ? 'Full-match analysis paused' : 'VOD analysis failed', paused ? 'Completed sections were checkpointed. Use Resume full analysis whenever you are ready.' : error.message, paused ? '' : 'error');
   } finally {
     state.senseiBusy = false;
     state.senseiVodRequestActive = false;
-    state.senseiVodProgress = null;
-    state.senseiVodStartedAt = 0;
-    stopSenseiVodTimer();
+    if (state.senseiVodActiveMatchId === matchId) {
+      state.senseiVodActiveMatchId = '';
+      state.senseiVodProgress = null;
+      state.senseiVodStartedAt = 0;
+      stopSenseiVodTimer();
+      renderSenseiVodGlobal();
+    }
   }
 }
 
 async function cancelSenseiVod() {
-  if (!state.openMatchId || !state.senseiBusy) return;
+  const matchId = state.senseiVodActiveMatchId || state.senseiSelectedMatchId;
+  if (!matchId || !state.senseiBusy) return;
   const button = $('[data-sensei-vod-cancel]');
   if (button) { button.disabled = true; button.textContent = 'Pausing safely…'; }
   try {
-    const result = await window.companion.cancelSenseiVod(state.openMatchId);
+    const result = await window.companion.cancelSenseiVod(matchId);
     if (!result?.ok) toast('Nothing to cancel', result?.message || 'The analysis already stopped.');
   } catch (error) { toast('Could not cancel analysis', error.message, 'error'); }
 }
 
 async function deleteSenseiVod() {
-  if (state.senseiBusy || !state.openMatchId) return;
-  const entry = await window.companion.getSenseiReport(state.openMatchId);
+  const matchId = state.senseiSelectedMatchId;
+  if (state.senseiBusy || !matchId) return;
+  const entry = await window.companion.getSenseiReport(matchId);
   const vod = entry?.vod;
   if (!vod?.path) return;
   const confirmed = window.confirm(`You confirmed that you have read the saved VOD report. Move this original recording to the Windows Recycle Bin?\n\n${vod.path}\n${formatBytes(vod.size)}\n\nThe written report remains available, but visual analysis cannot be regenerated without reimporting a video.`);
   if (!confirmed) return;
   try {
-    const next = await window.companion.deleteSenseiVod({ matchId: state.openMatchId, confirmed: true });
+    const next = await window.companion.deleteSenseiVod({ matchId, confirmed: true });
+    state.senseiReportsByMatch[matchId] = next;
     renderSenseiPanel(next);
+    renderSenseiHubLists();
     toast('VOD moved to Recycle Bin', 'The complete saved Sensei report remains attached to this match.');
   } catch (error) { toast('VOD could not be removed', error.message, 'error'); }
 }
@@ -1580,8 +1724,16 @@ async function deleteSenseiVod() {
 function bindEvents() {
   $$('.nav-item').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.view)));
   $$('[data-jump]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.jump)));
+  $('#senseiVodGlobal').addEventListener('click', () => {
+    if (state.senseiVodActiveMatchId) { navigate('sensei'); selectSenseiMatch(state.senseiVodActiveMatchId); }
+  });
+  $('#senseiHubReturn').addEventListener('click', () => {
+    if (state.senseiVodActiveMatchId) selectSenseiMatch(state.senseiVodActiveMatchId);
+  });
   document.body.addEventListener('click', (event) => {
     if (event.target.closest('[data-manage-session]')) openSessionManager();
+    if (event.target.closest('[data-sensei-overview-open]')) navigate('sensei');
+    if (event.target.closest('[data-sensei-hub-settings]')) navigate('settings');
   });
   $('#sidebarRefresh').addEventListener('click', () => refresh(true));
   $('#connectButton').addEventListener('click', () => reconnect(true));
@@ -1604,13 +1756,8 @@ function bindEvents() {
   $('#shareMatch').addEventListener('click', exportMatchRecap);
   $('#matchModal').addEventListener('click', (event) => { if (event.target === $('#matchModal')) closeMatchAutopsy(); });
   $('#matchAutopsyContent').addEventListener('click', (event) => {
-    if (event.target.closest('[data-sensei-settings]')) { closeMatchAutopsy(); navigate('settings'); return; }
-    const runSensei = event.target.closest('[data-sensei-run]');
-    if (runSensei) { runSenseiForOpenMatch(runSensei.dataset.regenerate === 'true'); return; }
-    if (event.target.closest('[data-sensei-vod-import]')) { importSenseiVod(); return; }
-    if (event.target.closest('[data-sensei-vod-analyze]')) { analyzeSenseiVod(); return; }
-    if (event.target.closest('[data-sensei-vod-cancel]')) { cancelSenseiVod(); return; }
-    if (event.target.closest('[data-sensei-vod-delete]')) { deleteSenseiVod(); return; }
+    const openSensei = event.target.closest('[data-open-sensei-match]');
+    if (openSensei) { const matchId = openSensei.dataset.openSenseiMatch; closeMatchAutopsy(); navigate('sensei'); selectSenseiMatch(matchId); return; }
     const round = event.target.closest('[data-tactical-round]');
     if (round) {
       state.autopsyRound = String(round.dataset.tacticalRound || 'ALL');
@@ -1629,7 +1776,20 @@ function bindEvents() {
   $('#matchAutopsyContent').addEventListener('mouseout', (event) => hideTacticalTooltip(event.target, event.relatedTarget));
   $('#matchAutopsyContent').addEventListener('focusin', (event) => showTacticalTooltip(event.target));
   $('#matchAutopsyContent').addEventListener('focusout', (event) => hideTacticalTooltip(event.target, event.relatedTarget));
-  $('#matchAutopsyContent').addEventListener('submit', async (event) => {
+  ['#senseiMatchPicker', '#senseiRecentReports'].forEach((selector) => $(selector).addEventListener('click', (event) => {
+    const option = event.target.closest('[data-sensei-match-id]');
+    if (option) selectSenseiMatch(option.dataset.senseiMatchId);
+  }));
+  $('#senseiWorkspacePanel').addEventListener('click', (event) => {
+    if (event.target.closest('[data-sensei-settings]')) { navigate('settings'); return; }
+    const runSensei = event.target.closest('[data-sensei-run]');
+    if (runSensei) { runSenseiForOpenMatch(runSensei.dataset.regenerate === 'true'); return; }
+    if (event.target.closest('[data-sensei-vod-import]')) { importSenseiVod(); return; }
+    if (event.target.closest('[data-sensei-vod-analyze]')) { analyzeSenseiVod(); return; }
+    if (event.target.closest('[data-sensei-vod-cancel]')) { cancelSenseiVod(); return; }
+    if (event.target.closest('[data-sensei-vod-delete]')) deleteSenseiVod();
+  });
+  $('#senseiWorkspacePanel').addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-sensei-chat]');
     if (!form) return;
     event.preventDefault();
@@ -1639,7 +1799,8 @@ function bindEvents() {
     state.senseiBusy = true;
     input.disabled = true;
     try {
-      const entry = await window.companion.askSensei({ matchId: state.openMatchId, question });
+      const entry = await window.companion.askSensei({ matchId: state.senseiSelectedMatchId, question });
+      state.senseiReportsByMatch[state.senseiSelectedMatchId] = entry;
       renderSenseiPanel(entry);
     } catch (error) { toast('Ask Sensei failed', error.message, 'error'); }
     finally { state.senseiBusy = false; }
@@ -1997,20 +2158,27 @@ function bindEvents() {
     }
   });
   window.companion.onSenseiVodProgress(async (progress) => {
-    if (!progress || String(progress.matchId || '') !== String(state.openMatchId || '')) return;
-    state.senseiVodProgress = progress;
+    const matchId = String(progress?.matchId || '');
+    if (!matchId || (state.senseiVodActiveMatchId && state.senseiVodActiveMatchId !== matchId)) return;
+    state.senseiVodActiveMatchId = matchId;
+    state.senseiVodProgress = mergeSenseiVodProgress(state.senseiVodProgress, progress);
     if (Number(progress.analysisStartedAt) > 0) state.senseiVodStartedAt = Number(progress.analysisStartedAt);
     else if (!state.senseiVodStartedAt) state.senseiVodStartedAt = Date.now();
+    renderSenseiVodGlobal();
     if (!['complete', 'failed', 'canceled'].includes(progress.phase)) {
       startSenseiVodTimer();
-      if (state.senseiEntry) renderSenseiPanel({ ...state.senseiEntry, vod: { ...state.senseiEntry.vod, status: 'analyzing', error: '' } });
+      if (state.senseiSelectedMatchId === matchId && state.senseiEntry) renderSenseiPanel({ ...state.senseiEntry, vod: { ...state.senseiEntry.vod, status: 'analyzing', error: '' } });
     } else if (!state.senseiVodRequestActive) {
       state.senseiBusy = false;
+      state.senseiVodActiveMatchId = '';
       state.senseiVodProgress = null;
       state.senseiVodStartedAt = 0;
       stopSenseiVodTimer();
-      const entry = await window.companion.getSenseiReport(progress.matchId).catch(() => null);
-      if (entry && String(progress.matchId) === String(state.openMatchId)) renderSenseiPanel(entry);
+      renderSenseiVodGlobal();
+      const entry = await window.companion.getSenseiReport(matchId).catch(() => null);
+      if (entry) state.senseiReportsByMatch[matchId] = entry;
+      if (entry && matchId === String(state.senseiSelectedMatchId)) renderSenseiPanel(entry);
+      renderSenseiHubLists();
     }
   });
   window.companion.onWarning((message) => toast('Connector notice', message, 'error'));

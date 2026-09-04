@@ -72,6 +72,15 @@ button { color: inherit; }
 .topbar h1 { margin: 2px 0 0; font-size: 27px; letter-spacing: -.025em; }
 .eyebrow { margin: 0; color: var(--violet-light); font-size: 9px; letter-spacing: .19em; font-weight: 850; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
+.sensei-vod-global { display: flex; align-items: center; gap: 9px; min-width: 255px; max-width: 360px; height: 48px; padding: 0 12px; border: 1px solid rgba(35,212,184,.32); border-radius: 12px; background: linear-gradient(110deg, rgba(35,212,184,.1), rgba(123,103,246,.1)); color: var(--text); cursor: pointer; text-align: left; }
+.sensei-vod-global[hidden] { display: none; }
+.sensei-vod-global:hover { border-color: rgba(35,212,184,.62); background: linear-gradient(110deg, rgba(35,212,184,.15), rgba(123,103,246,.14)); }
+.sensei-vod-global > span:nth-child(2) { min-width: 0; flex: 1; }
+.sensei-vod-global strong, .sensei-vod-global small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sensei-vod-global strong { color: var(--teal); font-size: 9px; letter-spacing: .11em; }
+.sensei-vod-global small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.sensei-vod-global time { color: var(--violet-light); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sensei-vod-global-orbit { width: 15px; height: 15px; flex: 0 0 auto; border: 2px solid var(--teal); border-top-color: transparent; border-radius: 50%; animation: update-spin 1.4s linear infinite; }
 .status-pill { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); background: rgba(15, 18, 29, .9); border-radius: 12px; height: 48px; padding: 0 15px; min-width: 165px; }
 .status-pill strong, .status-pill small { display: block; }
 .status-pill strong { font-size: 11px; }
@@ -660,7 +669,7 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .insight-orbit span { position: absolute; width: 19px; height: 19px; inset: 9px auto auto 19px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 14px var(--violet); }
 .insight-orbit i { position: absolute; inset: -10px; border: 1px solid rgba(194,180,255,.18); border-radius: 50%; animation: iris-pulse 2.6s ease-in-out infinite; }
 @keyframes iris-pulse { 50% { transform: scale(1.12); opacity: .35; } }
-.trajectory-card, .session-mini { min-height: 150px; border-radius: var(--radius); padding: 18px; }
+.trajectory-card, .session-mini, .sensei-focus-mini { min-height: 150px; border-radius: var(--radius); padding: 18px; }
 .trajectory-card .panel-heading { margin-bottom: 8px; }
 .trajectory-card .panel-heading > strong { color: var(--teal); font-size: 11px; }
 .mini-trajectory { height: 77px; }
@@ -678,6 +687,9 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .session-mini-grid small, .session-mini-grid strong { display: block; }
 .session-mini-grid small { color: var(--muted); font-size: 7px; letter-spacing: .1em; }
 .session-mini-grid strong { margin-top: 4px; font-size: 11px; }
+.sensei-focus-mini { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 104px; background: radial-gradient(circle at 4% 50%, rgba(123,103,246,.14), transparent 32%), rgba(12,14,25,.88); }
+.sensei-focus-mini h2 { margin: 6px 0 5px; font-size: 16px; }
+.sensei-focus-mini p:last-child { margin: 0; color: var(--muted); font-size: 9px; }
 
 .journey-intro { background: radial-gradient(circle at 82% 50%, rgba(139,108,255,.18), transparent 30%), linear-gradient(120deg, rgba(20,22,40,.94), rgba(10,12,23,.88)); }
 .journey-current { display: flex; align-items: center; gap: 13px; text-align: right; }
@@ -974,6 +986,21 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 }
 
 /* Sensei Vision is deliberately isolated from the existing dashboard tokens. */
+.sensei-hub-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 160px; padding: 28px; background: radial-gradient(circle at 8% 50%, rgba(123,103,246,.2), transparent 34%), radial-gradient(circle at 92% 20%, rgba(35,212,184,.1), transparent 28%), rgba(11,13,23,.9); }
+.sensei-hub-hero h2 { margin: 6px 0 8px; font-size: 30px; }.sensei-hub-hero p:last-child { max-width: 760px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.sensei-hub-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }.sensei-hub-badges span { padding: 8px 10px; border: 1px solid rgba(35,212,184,.22); border-radius: 999px; background: rgba(35,212,184,.065); color: var(--teal); font-size: 7px; font-weight: 900; letter-spacing: .1em; white-space: nowrap; }
+.sensei-hub-active { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 15px; margin-top: 15px; padding: 17px; border-color: rgba(35,212,184,.3); background: linear-gradient(110deg,rgba(35,212,184,.09),rgba(123,103,246,.07)); }.sensei-hub-active[hidden] { display: none; }.sensei-hub-active h2 { margin: 4px 0; font-size: 15px; }.sensei-hub-active p { margin: 0; color: var(--muted); font-size: 9px; }.sensei-hub-active time { color: var(--violet-light); font-size: 14px; font-weight: 850; font-variant-numeric: tabular-nums; }
+.sensei-hub-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 15px; margin-top: 15px; }.sensei-hub-grid .panel { margin: 0; }.sensei-hub-copy { margin: -2px 0 12px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.sensei-match-picker, .sensei-report-list { display: grid; gap: 7px; max-height: 390px; overflow-y: auto; padding-right: 3px; }
+.sensei-match-option, .sensei-report-option { display: grid; grid-template-columns: 66px minmax(0,1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 62px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255,255,255,.018); color: var(--text); cursor: pointer; text-align: left; }.sensei-match-option:hover, .sensei-report-option:hover, .sensei-match-option.active { border-color: rgba(159,141,255,.38); background: rgba(123,103,246,.07); }
+.sensei-match-option > span:first-child, .sensei-report-option > span:first-child { font-size: 8px; font-weight: 900; letter-spacing: .06em; }.sensei-match-option.victory > span:first-child, .sensei-report-option.victory > span:first-child { color: var(--teal); }.sensei-match-option.defeat > span:first-child, .sensei-report-option.defeat > span:first-child { color: var(--red); }
+.sensei-match-option strong, .sensei-match-option small, .sensei-report-option strong, .sensei-report-option small { display: block; }.sensei-match-option strong, .sensei-report-option strong { font-size: 10px; }.sensei-match-option small, .sensei-report-option small { margin-top: 4px; color: var(--muted); font-size: 8px; }.sensei-match-option em, .sensei-report-option em { padding: 5px 7px; border-radius: 999px; background: rgba(159,141,255,.09); color: var(--violet-light); font-size: 7px; font-style: normal; font-weight: 850; white-space: nowrap; }
+.sensei-workspace-panel { margin: 18px 0 0; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius); background: rgba(11,13,23,.76); }
+.sensei-match-link { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin: 22px 0; padding: 18px; border: 1px solid rgba(159,141,255,.25); border-radius: 14px; background: linear-gradient(115deg,rgba(123,103,246,.1),rgba(35,212,184,.045)); }
+.sensei-match-link h2 { margin: 5px 0 6px; font-size: 15px; }.sensei-match-link p:last-child { max-width: 720px; margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }.sensei-match-link .primary-button { flex: 0 0 auto; }
+.sensei-hub-setup { margin-top: 15px; padding: 18px; }.sensei-hub-setup .panel-heading { margin-bottom: 10px; }
+.sensei-explainer-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 15px; }.sensei-explainer-grid article { padding: 18px; }.sensei-explainer-grid small { color: var(--teal); font-size: 7px; font-weight: 900; letter-spacing: .13em; }.sensei-explainer-grid h3 { margin: 7px 0 6px; font-size: 12px; }.sensei-explainer-grid p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.sensei-expectations { display: grid; grid-template-columns: minmax(220px,.7fr) minmax(340px,1.3fr) auto; align-items: center; gap: 22px; margin-top: 15px; padding: 20px; }.sensei-expectations h2 { margin: 6px 0 0; font-size: 16px; }.sensei-expectations ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 9px; line-height: 1.65; }
 .sensei-settings-card { grid-column: 1 / -1; }
 .sensei-settings-card .settings-heading { align-items: center; }
 .sensei-settings-card .settings-heading > div { flex: 1; }
@@ -1020,6 +1047,10 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .sensei-readiness-blocked { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; padding: 11px 13px; border: 1px solid rgba(238,92,120,.25); border-radius: 9px; background: rgba(238,92,120,.055); }.sensei-readiness-blocked strong { color: #ff9daf; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }.sensei-readiness-blocked span { color: var(--muted); font-size: 9px; line-height: 1.5; }
 .sensei-chat-log { max-height: 230px; overflow-y: auto; display: grid; gap: 7px; margin-bottom: 10px; }.sensei-chat-message { padding: 9px 11px; border-radius: 9px; background: rgba(255,255,255,.025); color: var(--muted); font-size: 9px; line-height: 1.5; }.sensei-chat-message.assistant { border-left: 2px solid var(--violet-light); }.sensei-chat-message.user { border-left: 2px solid var(--teal); }.sensei-chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }.sensei-chat-form input { min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 9px; background: #090c15; color: var(--text); }
 @media (max-width: 920px) {
+  .sensei-hub-hero, .sensei-focus-mini { align-items: flex-start; flex-direction: column; }.sensei-hub-badges { justify-content: flex-start; }
+  .sensei-match-link { align-items: flex-start; flex-direction: column; }
+  .sensei-hub-grid, .sensei-explainer-grid, .sensei-expectations { grid-template-columns: 1fr; }
+  .sensei-hub-active { grid-template-columns: auto 1fr; }.sensei-hub-active time, .sensei-hub-active button { grid-column: 2; }
   .sensei-model-row { grid-template-columns: 1fr; padding: 10px 0; gap: 8px; }
   .sensei-system-status, .sensei-scorecard { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .sensei-columns, .sensei-drills { grid-template-columns: 1fr; }

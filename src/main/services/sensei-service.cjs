@@ -634,8 +634,10 @@ class SenseiService {
       completedSegments: 0, framesReviewed: 0, gameplaySegments: 0, actionSegments: 0, invalidSegments: 0,
       startedAt: Date.now(), updatedAt: Date.now(), findings: [], limitations: []
     };
+    const accumulatedElapsedMs = Math.max(0, Number(progress.elapsedMs) || 0);
     const analysisStartedAt = Date.now();
     const resumedAt = Math.max(0, Number(progress.completedSegments) || 0);
+    let estimatedEtaSeconds = 0;
     for (let index = resumedAt; index < totalSegments; index += 1) {
       if (signal?.aborted) throw canceledError();
       const startSeconds = index * chunkSeconds;
@@ -644,9 +646,9 @@ class SenseiService {
       const segmentDirectory = path.join(outputDirectory, `segment-${String(index + 1).padStart(5, '0')}`);
       let extraction;
       try {
-        onProgress({ phase: 'full-analysis', stage: 'extracting', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, message: `Extracting ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
+        onProgress({ phase: 'full-analysis', stage: 'extracting', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, message: `Extracting ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
         extraction = await extractVodSegmentFrames({ ffmpeg, source, outputDirectory: segmentDirectory, startSeconds, durationSeconds: segmentDuration, frameRate, signal });
-        onProgress({ phase: 'full-analysis', stage: 'reviewing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, message: `Reviewing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
+        onProgress({ phase: 'full-analysis', stage: 'reviewing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, message: `Reviewing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` });
         let report = null;
         try {
           const timestamps = extraction.files.map((_, frameIndex) => startSeconds + (frameIndex / frameRate));
@@ -663,7 +665,7 @@ SAVED STATISTICAL REPORT:${JSON.stringify({ verdict: statisticalReport?.verdict,
             endpoint: this.endpoint, model, repairModel, prompt, schema: fullVodSegmentSchema(),
             images: extraction.files.map((file) => fs.readFileSync(file).toString('base64')),
             timeoutMs: 20 * 60_000, signal, label: 'vision model', retries: 1, numPredict: 1_000,
-            onRepair: () => onProgress({ phase: 'full-analysis', stage: 'repairing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, message: `Repairing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` }),
+            onRepair: () => onProgress({ phase: 'full-analysis', stage: 'repairing', current: index, total: totalSegments, mediaSeconds: startSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, message: `Repairing ${vodTime(startSeconds)}–${vodTime(endSeconds)}` }),
             validate: (value) => validateFullVodSegment(value, { startSeconds, endSeconds, frameCount: extraction.files.length })
           });
         } catch (error) {
@@ -680,13 +682,14 @@ SAVED STATISTICAL REPORT:${JSON.stringify({ verdict: statisticalReport?.verdict,
         progress.findings = deduplicateFullVodFindings(progress.findings);
         progress.limitations = [...new Set([...progress.limitations, ...report.limitations])].slice(0, 20);
         progress.updatedAt = Date.now();
+        progress.elapsedMs = accumulatedElapsedMs + (progress.updatedAt - analysisStartedAt);
         await onCheckpoint({ ...progress });
         const completedThisRun = progress.completedSegments - resumedAt;
         const averageMs = completedThisRun ? (Date.now() - analysisStartedAt) / completedThisRun : 0;
-        const etaSeconds = Math.round((totalSegments - progress.completedSegments) * averageMs / 1_000);
+        estimatedEtaSeconds = Math.round((totalSegments - progress.completedSegments) * averageMs / 1_000);
         onProgress({
           phase: 'full-analysis', stage: 'complete-segment', current: progress.completedSegments, total: totalSegments,
-          mediaSeconds: endSeconds, durationSeconds, etaSeconds, resumed: resumedAt > 0,
+          mediaSeconds: endSeconds, durationSeconds, etaSeconds: estimatedEtaSeconds, resumed: resumedAt > 0,
           message: `Reviewed ${vodTime(endSeconds)} of ${vodTime(durationSeconds)}`
         });
       } finally {

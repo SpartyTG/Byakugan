@@ -33,6 +33,7 @@
         <button class="nav-item active" data-view="dashboard"><i>⌂</i><span>Overview</span></button>
         <button class="nav-item" data-view="live"><i>◈</i><span>Live match</span><b id="liveBadge">LIVE</b></button>
         <button class="nav-item" data-view="matches"><i>◫</i><span>Match history</span></button>
+        <button class="nav-item" data-view="sensei"><i>眼</i><span>Sensei</span><b id="senseiNavBadge" hidden>RUN</b></button>
         <button class="nav-item" data-view="journey"><i>⌁</i><span>Act journey</span></button>
         <button class="nav-item" data-view="insights"><i>◎</i><span>Insights & goals</span></button>
         <button class="nav-item" data-view="loadout"><i>◇</i><span>Loadout</span></button>
@@ -64,6 +65,11 @@
           <h1 id="pageTitle">Overview</h1>
         </div>
         <div class="topbar-actions">
+          <button type="button" class="sensei-vod-global" id="senseiVodGlobal" hidden title="Return to the match being analyzed">
+            <span class="sensei-vod-global-orbit"></span>
+            <span><strong>VOD VISION RUNNING</strong><small id="senseiVodGlobalDetail">Preparing analysis…</small></span>
+            <time id="senseiVodGlobalElapsed">0:00</time>
+          </button>
           <div class="status-pill" id="statusPill">
             <span class="pulse-dot"></span>
             <div><strong id="statusText">Connecting</strong><small id="statusSubtext">Please wait</small></div>
@@ -131,6 +137,10 @@
             <div class="mini-trajectory" id="miniTrajectory"></div>
           </article>
           <article class="glass session-mini" id="sessionMini"></article>
+          <article class="glass sensei-focus-mini" id="senseiFocusMini">
+            <div><p class="eyebrow">CURRENT COACHING FOCUS</p><h2>No Sensei report selected</h2><p>Analyze a completed match to place its next-match focus here.</p></div>
+            <button class="text-button" data-jump="sensei">Open Sensei <span>→</span></button>
+          </article>
         </div>
 
         <div class="dashboard-grid">
@@ -193,6 +203,33 @@
           <div class="match-table-head"><span>Result</span><span>Map / agent</span><span>Score</span><span>K / D / A</span><span>K/D</span><span>Rating</span><span>Played</span></div>
           <div id="fullMatchList"></div>
         </div>
+      </section>
+
+      <section class="view" id="view-sensei">
+        <article class="sensei-hub-hero glass">
+          <div><p class="eyebrow">POST-MATCH COACHING WORKSPACE</p><h2>Sensei</h2><p>Turn completed-match statistics and optional clean gameplay recordings into evidence-based coaching. Everything runs only when requested and remains local to this computer.</p></div>
+          <div class="sensei-hub-badges"><span>POST-MATCH ONLY</span><span>LOCAL PROCESSING</span><span>NO PAID API</span></div>
+        </article>
+
+        <article class="sensei-hub-active glass" id="senseiHubActive" hidden>
+          <div class="sensei-vod-global-orbit"></div><div><p class="eyebrow">ACTIVE VOD ANALYSIS</p><h2 id="senseiHubActiveTitle">Reviewing match</h2><p id="senseiHubActiveDetail">Preparing chronological segments…</p></div><time id="senseiHubActiveElapsed">0:00</time><button class="primary-button" id="senseiHubReturn">Open progress</button>
+        </article>
+
+        <div class="sensei-hub-grid">
+          <article class="glass panel sensei-hub-picker"><div class="panel-heading"><div><p class="eyebrow">ANALYZE A MATCH</p><h2>Recent completed matches</h2></div><span class="muted">Coaching-focused selector</span></div><p class="sensei-hub-copy">Choose a match to generate or reopen its report. Full match statistics remain in Match History.</p><div class="sensei-match-picker" id="senseiMatchPicker"><div class="empty-state">Loading completed matches…</div></div></article>
+          <article class="glass panel sensei-hub-reports"><div class="panel-heading"><div><p class="eyebrow">COACHING LIBRARY</p><h2>Recent Sensei reports</h2></div><span class="muted" id="senseiReportCount">0 reports</span></div><div class="sensei-report-list" id="senseiRecentReports"><div class="empty-state">Completed reports will appear here.</div></div></article>
+        </div>
+
+        <section class="sensei-panel sensei-workspace-panel" id="senseiWorkspacePanel"><div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Select a match to begin</h2></div><span class="sensei-status-chip">READY</span></div><div class="sensei-empty"><strong>Choose a completed match above</strong><span>Sensei Lite is nearly instant. Full Sensei uses your local text model. VOD Vision reviews every consecutive section and may run for several hours.</span></div></section>
+
+        <article class="sensei-hub-setup glass"><div class="panel-heading"><div><p class="eyebrow">LOCAL SETUP</p><h2>Sensei readiness</h2></div><button class="ghost-button" data-sensei-hub-settings>Open settings</button></div><div class="sensei-system-status" id="senseiHubSystemStatus"><span>Checking Ollama, models, FFmpeg, and storage…</span></div></article>
+
+        <div class="sensei-explainer-grid">
+          <article class="glass"><small>SENSEI LITE</small><h3>Instant statistical coaching</h3><p>Uses BYAKUGAN’s built-in evidence rules with negligible resource usage and no model download.</p></article>
+          <article class="glass"><small>FULL SENSEI</small><h3>Deeper local debrief</h3><p>Uses your selected Ollama text model to compare the match with recent overall, agent, and map baselines.</p></article>
+          <article class="glass"><small>VOD VISION</small><h3>Complete visual review</h3><p>Reviews ordered frames throughout the attached recording, checkpoints completed work, and rejects unsupported observations.</p></article>
+        </div>
+        <article class="sensei-expectations glass"><div><p class="eyebrow">WHAT TO EXPECT</p><h2>Local, deliberate, and post-match</h2></div><ul><li>Sensei never runs automatically or during a live match.</li><li>VOD analysis can take several hours depending on recording length and hardware.</li><li>Pause safely stores completed sections and accumulated active-analysis time.</li><li>Audio, communications, intent, and off-screen events are not inferred.</li><li>Your original recording is not removed without explicit confirmation.</li></ul><button class="ghost-button" data-sensei-hub-settings>Review local setup</button></article>
       </section>
 
       <section class="view" id="view-journey">

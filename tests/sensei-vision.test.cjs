@@ -164,6 +164,8 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(main, /ipcMain\.handle\('sensei:vod-cancel'/);
   assert.match(main, /sensei:vod-progress/);
   assert.match(main, /analysisStartedAt/);
+  assert.match(main, /checkpointElapsedMs/);
+  assert.match(main, /Date\.now\(\) - analysisStartedAt/);
   assert.match(main, /powerSaveBlocker\.start\('prevent-app-suspension'\)/);
   assert.match(main, /visionCapable/);
   assert.match(renderer, /Run Sensei Vision/);
@@ -173,10 +175,30 @@ test('Sensei is manual-only in IPC and the match panel exposes persisted reports
   assert.match(renderer, /Resume full analysis/);
   assert.match(renderer, /LOCAL MODEL FALLBACK/);
   assert.match(renderer, /Number\(entry\.vod\.analysisStartedAt\)/);
+  assert.match(renderer, /mergeSenseiVodProgress\(state\.senseiVodProgress, progress\)/);
+  assert.match(renderer, /senseiVodActiveMatchId/);
+  assert.match(renderer, /renderSenseiVodGlobal/);
   assert.match(html, /Enable Sensei Vision/);
+  assert.match(html, /VOD VISION RUNNING/);
   assert.match(html, /No paid API and no live coaching/);
   assert.match(html, /Source Record plugin/);
   assert.match(html, /FFprobe/);
+});
+
+test('Sensei owns a dedicated coaching workspace without duplicating full match history', () => {
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/index.html'), 'utf8');
+  assert.match(html, /data-view="sensei"/);
+  assert.match(html, /id="view-sensei"/);
+  assert.match(html, /POST-MATCH COACHING WORKSPACE/);
+  assert.match(html, /id="senseiMatchPicker"/);
+  assert.match(html, /id="senseiRecentReports"/);
+  assert.match(html, /id="senseiWorkspacePanel"/);
+  assert.match(html, /CURRENT COACHING FOCUS/);
+  assert.match(renderer, /data-open-sensei-match/);
+  assert.match(renderer, /Open in Sensei/);
+  assert.match(renderer, /hydrateSenseiHub/);
+  assert.match(renderer, /senseiVodActiveMatchId/);
 });
 
 test('VOD Vision batches images, disables model thinking, and exposes actionable Ollama errors', () => {
@@ -186,6 +208,7 @@ test('VOD Vision batches images, disables model thinking, and exposes actionable
   assert.match(service, /think: false/);
   assert.match(service, /repairModel \|\| model/);
   assert.match(service, /Reviewing frames/);
+  assert.match(service, /etaSeconds: estimatedEtaSeconds/);
   assert.match(service, /Ollama returned HTTP/);
   assert.match(service, /scale=640:-2/);
   assert.match(preload, /onSenseiVodProgress/);
@@ -321,12 +344,13 @@ test('full-match VOD checkpoints survive interruption and become resumable on st
     const store = new SenseiStore(directory);
     store.save('player', 'match', { vod: {
       path: 'C:\\recordings\\match.mkv', name: 'match.mkv', size: 100, status: 'analyzing',
-      checkpoint: { version: 2, durationSeconds: 1_800, chunkSeconds: 4, frameRate: 4, totalSegments: 450, completedSegments: 47, framesReviewed: 752, findings: [] }
+      checkpoint: { version: 2, durationSeconds: 1_800, chunkSeconds: 4, frameRate: 4, totalSegments: 450, completedSegments: 47, framesReviewed: 752, elapsedMs: 654_321, findings: [] }
     } });
     assert.equal(store.recoverInterruptedVodAnalyses(), true);
     const recovered = store.get('player', 'match');
     assert.equal(recovered.vod.status, 'failed');
     assert.equal(recovered.vod.checkpoint.completedSegments, 47);
+    assert.equal(recovered.vod.checkpoint.elapsedMs, 654_321);
     assert.match(recovered.vod.error, /resume/i);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });

@@ -42,6 +42,7 @@ function normalizeVodCheckpoint(value) {
     invalidSegments: Math.max(0, Math.floor(Number(value.invalidSegments) || 0)),
     startedAt: Number(value.startedAt) || 0,
     updatedAt: Number(value.updatedAt) || 0,
+    elapsedMs: Math.max(0, Number(value.elapsedMs) || 0),
     findings: (Array.isArray(value.findings) ? value.findings : []).slice(-MAX_VOD_FINDINGS).map(normalizeVodFinding),
     limitations: (Array.isArray(value.limitations) ? value.limitations : []).slice(0, 20).map((item) => cleanText(item, 400))
   };

@@ -479,7 +479,10 @@ function registerIpc() {
     if (senseiVodJobs.has(jobKey)) throw new Error('VOD analysis is already running for this match.');
     const controller = new AbortController();
     senseiVodJobs.set(jobKey, controller);
-    const analysisStartedAt = Date.now();
+    const checkpointElapsedMs = Math.max(0, Number(existing.vod.checkpoint?.elapsedMs) || 0);
+    const legacyElapsedMs = checkpointElapsedMs ? 0 : Math.max(0,
+      Number(existing.vod.checkpoint?.updatedAt || 0) - Number(existing.vod.checkpoint?.startedAt || 0));
+    const analysisStartedAt = Date.now() - (checkpointElapsedMs || legacyElapsedMs);
     let powerBlockerId = null;
     try { powerBlockerId = powerSaveBlocker.start('prevent-app-suspension'); } catch {}
     const progress = (payload) => {
@@ -515,7 +518,10 @@ function registerIpc() {
       const canceled = error?.code === 'SENSEI_CANCELED' || controller.signal.aborted;
       const message = canceled ? 'Full-match analysis paused safely. Resume it later from the saved checkpoint.' : error.message || 'VOD analysis failed.';
       const latestVod = senseiEntry(matchId)?.vod || vodState;
-      senseiStore.save(senseiAccountId(), matchId, { vod: { ...latestVod, status: canceled ? 'canceled' : 'failed', error: message } });
+      const checkpoint = latestVod.checkpoint
+        ? { ...latestVod.checkpoint, elapsedMs: Math.max(Number(latestVod.checkpoint.elapsedMs) || 0, Date.now() - analysisStartedAt), updatedAt: Date.now() }
+        : null;
+      senseiStore.save(senseiAccountId(), matchId, { vod: { ...latestVod, checkpoint, status: canceled ? 'canceled' : 'failed', error: message } });
       progress({ phase: canceled ? 'canceled' : 'failed', current: 0, total: 0, message });
       throw error;
     } finally {

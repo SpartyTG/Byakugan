@@ -1,21 +1,27 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.96`.
+This package is the canonical source for `v0.8.0-beta.98`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.95`
-- Automated tests: `144 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.96` (`v0.8.0-beta.97` was folded into this release before publication)
+- Automated tests: `145 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
 
-Sensei's local-model repair pass now uses Ollama's broadly supported JSON mode
-and supplies the exact validation problem. If both the original response and
-repair remain unusable, the statistical report completes through a clearly
-labeled Sensei Lite fallback rather than showing a failed panel. Connectivity,
-timeout, and missing-model errors are not hidden by the fallback.
+Sensei now owns a dedicated navigation workspace with an explanation of Sensei
+Lite, Full Sensei, and VOD Vision; a compact completed-match selector; a saved
+coaching library; local readiness; and the complete report and VOD controls.
+Match History remains the full statistical record and routes into Sensei instead
+of duplicating coaching UI. Overview displays the current next-match focus.
+
+The unreleased beta.97 VOD fixes are included here: the latest calculated ETA
+survives extracting, reviewing, and repair events; Pause and Resume preserve
+accumulated active-analysis time without counting the pause; and a persistent
+top-bar, navigation, and Sensei-workspace indicator shows progress even after
+leaving the report.
 
 ## Preserved identity boundaries
 
@@ -30,12 +36,14 @@ timeout, and missing-model errors are not hidden by the fallback.
 
 ## Next verification
 
-Publish beta.96 and rerun Sensei Vision on the match that previously failed.
-Confirm it produces a Full Sensei report when the selected model's repaired JSON
-passes validation, or a clearly labeled Sensei Lite fallback when it does not.
-An 8B model should generally improve report quality and instruction-following,
-but the 4B model must no longer leave the match report in a failed state solely
-because of malformed structured output.
+Publish beta.98 and run or resume a full-match VOD analysis. The display may say
+`Estimating remaining time` while the first segment is processed; after the
+first completed segment it must show an approximate ETA continuously. Pause and
+resume once to confirm the elapsed timer continues from its saved value without
+counting paused time. Navigate between Overview, Match History, and Sensei while
+it runs; confirm the global indicator remains visible and opens the correct
+Sensei workspace. Confirm completed match details use **Open in Sensei** and
+Overview shows the selected report's next-match focus.
 
 ## New-chat recovery
 
