@@ -291,6 +291,13 @@ button { color: inherit; }
 .live-player-heading strong { min-width: 0; }
 .live-player-level { flex: 0 0 auto; padding: 3px 6px; border: 1px solid rgba(56,230,193,.22); border-radius: 999px; background: rgba(56,230,193,.08); color: var(--teal); font-size: 7px; font-weight: 900; letter-spacing: .06em; white-space: nowrap; }
 .live-player-level.hidden { border-color: rgba(146,152,176,.18); background: rgba(146,152,176,.07); color: var(--muted-2); }
+.live-party-badge { flex: 0 0 auto; padding: 3px 6px; border: 1px solid color-mix(in srgb, var(--party-color) 42%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--party-color) 12%, transparent); color: var(--party-color); font-size: 6px; font-weight: 900; letter-spacing: .05em; white-space: nowrap; }
+.live-party-badge.party-tone-0 { --party-color: #c2b4ff; }
+.live-party-badge.party-tone-1 { --party-color: #38e6c1; }
+.live-party-badge.party-tone-2 { --party-color: #ff6688; }
+.live-party-badge.party-tone-3 { --party-color: #68b8ff; }
+.live-party-badge.party-tone-4 { --party-color: #ffc861; }
+.live-blocked-badge { flex: 0 0 auto; padding: 3px 6px; border: 1px solid rgba(255,87,121,.42); border-radius: 999px; background: rgba(255,87,121,.12); color: #ff6688; font-size: 6px; font-weight: 900; letter-spacing: .06em; white-space: nowrap; }
 .live-player-identity strong { font-size: 10px; }
 .live-player-identity small { color: var(--muted); font-size: 8px; margin-top: 4px; }
 .live-rank { display: flex; align-items: center; gap: 7px; text-align: right; }

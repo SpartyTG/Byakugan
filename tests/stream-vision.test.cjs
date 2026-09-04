@@ -51,6 +51,10 @@ test('Live Match renders an account-level badge for every revealed roster card',
   assert.match(app, /RIOT NAME UNAVAILABLE/);
   assert.doesNotMatch(app, /escapeHtml\(player\.name \|\| 'Riot Player'\)/);
   assert.match(app, /IDENTITY HIDDEN/);
+  assert.match(app, /class="live-party-badge party-tone-/);
+  assert.match(app, /These players queued together/);
+  assert.match(app, /class="live-blocked-badge"/);
+  assert.match(app, /You previously blocked this Riot account/);
 });
 
 test('Live Match and completed rosters visibly include peak Episode and Act context', () => {

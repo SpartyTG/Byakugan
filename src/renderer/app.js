@@ -850,6 +850,12 @@ function livePlayerRow(player) {
   const hasLevel = player.level !== null && player.level !== undefined && Number.isFinite(Number(player.level));
   const levelIsHidden = Boolean(player.levelHidden && !player.partyMember);
   const levelLabel = hasLevel ? `LVL ${Math.floor(Number(player.level))}` : player.partyMember ? 'LVL SYNCING' : levelIsHidden ? 'LVL HIDDEN' : 'LVL PRIVATE';
+  const partyBadge = player.partyLabel
+    ? `<span class="live-party-badge party-tone-${Math.max(0, Math.min(4, Number(player.partyTone) || 0))}" title="These players queued together">${escapeHtml(player.partyLabel)}</span>`
+    : '';
+  const blockedBadge = player.blocked
+    ? '<span class="live-blocked-badge" title="You previously blocked this Riot account">BLOCKED</span>'
+    : '';
   const hiddenIdentity = Boolean(player.hidden);
   const unresolvedIdentity = Boolean(player.identityUnavailable || (!player.isSelf && !player.hidden && !player.name));
   const agentOnly = hiddenIdentity || unresolvedIdentity;
@@ -863,7 +869,7 @@ function livePlayerRow(player) {
     : `${escapeHtml(player.agent)}${player.side === 'enemy' ? ' • ENEMY' : player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}`;
   return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
-    <div class="live-player-identity"><div class="live-player-heading">${identityTitle}<span class="live-player-level ${levelIsHidden ? 'hidden' : ''}">${escapeHtml(levelLabel)}</span></div><small>${identityDetail}</small></div>
+    <div class="live-player-identity"><div class="live-player-heading">${identityTitle}<span class="live-player-level ${levelIsHidden ? 'hidden' : ''}">${escapeHtml(levelLabel)}</span>${partyBadge}${blockedBadge}</div><small>${identityDetail}</small></div>
     <div class="live-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>CURRENT</small><strong>${escapeHtml(player.rank)}</strong><em>${escapeHtml(peakLabel)}</em><b>${escapeHtml(peakContext || 'EPISODE / ACT UNAVAILABLE')}</b></span></div>
   </div>`;
 }

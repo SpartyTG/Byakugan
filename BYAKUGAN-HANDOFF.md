@@ -1,15 +1,31 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.105`.
+This package is the canonical source for `v0.8.0-beta.106`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.104`
-- Automated tests: `157 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.105`
+- Automated tests: `159 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.106 adds two relationship signals to Live Match. Confirmed queued groups
+receive matching color-coded labels such as **YOUR PARTY · DUO**,
+**PARTY A · TRIO**, and **PARTY B · DUO**. Solo players and players for whom
+Riot does not provide a party identifier remain unmarked rather than being
+guessed. Riot's raw party identifiers are reduced to temporary display groups
+inside the backend and never reach the renderer. Pregame opponents remain
+fully concealed, so enemy party groups can appear only after the active core
+game begins and only when Riot includes that relationship in the live roster.
+
+The local Riot block list is also loaded with the social roster. Any live
+player whose PUUID appears on that list receives a red **BLOCKED** badge. The
+relationship marker does not override name privacy: a blocked incognito player
+remains agent-only, and BYAKUGAN never substitutes the stored block-list name.
+
+## Previous completed changes
 
 Beta.105 corrects the hidden-allied identity presentation exposed by the first
 real beta.104 Agent Select test and confirmed again after the core game began.
@@ -20,8 +36,6 @@ rendering now applies to every genuinely hidden identity: locked allies show
 their agent as the primary label, while unlocked hidden allies show
 **Selecting…**. Party members and Riot friends remain named, public players
 remain named, and the active enemy privacy boundary is unchanged.
-
-## Previous completed changes
 
 Beta.104 makes Agent Select show the complete allied roster, including random
 teammates outside the user's party. Riot supplies that roster through
@@ -121,7 +135,19 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.105 on both PCs. During Agent Select, confirm the allied side shows
+Install beta.106 on both PCs. Queue with at least one friend and confirm every
+member of the known party receives the same **YOUR PARTY** badge and correct
+duo/trio/stack size while solo teammates remain unmarked. If Riot supplies
+party identifiers for another allied or enemy premade, confirm its members
+share a second matching label and color. Enemy grouping must remain completely
+concealed until the active core game begins.
+
+If a previously blocked account appears in the same active match, confirm that
+card shows **BLOCKED**. A hidden blocked player must still show only their agent
+and **IDENTITY HIDDEN**; the block-list name must never appear as a privacy
+fallback.
+
+During Agent Select, confirm the allied side shows
 all five teammates rather than only known party members. A public random
 teammate should show their Riot ID; a hidden or unresolved teammate should show
 their locked agent; and every unlocked teammate should remain **Selecting…**.

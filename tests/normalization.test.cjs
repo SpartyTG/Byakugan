@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   RiotClientService, normalizeMatchDetail, normalizeLoadout, calculateStats, buildAgentMastery,
-  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, liveAccountLevel, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
+  isPlayerNameHidden, isKnownPartyMember, isKnownFriend, isKnownBlocked, liveAccountLevel, livePartyId, buildLivePartyGroups, valorantPresenceAccountLevel, mergeLivePartyContext, visiblePlayerIds, selectLiveMatchPlayers, filterPregameRoster, shouldHydrateRosterTier, normalizeLivePlayers, normalizeHistoricalRoster,
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
@@ -280,6 +280,27 @@ test('friend online flag outranks a stale product presence', async () => {
   assert.equal(friend.game, 'Riot Client');
 });
 
+test('Riot block list marks a live player without revealing a hidden identity', async () => {
+  const service = new RiotClientService();
+  service.localRequest = async () => ({ data: { blocked: [
+    { puuid: 'blocked-player', game_name: 'StoredBlockName', game_tag: 'NA1' }
+  ] } });
+  await service.fetchBlockedPlayers();
+  const [marked] = service.markKnownBlocked([
+    { Subject: 'blocked-player', TeamID: 'Red', CharacterID: 'agent-jett', PlayerIdentity: { Incognito: true } }
+  ]);
+  assert.equal(isKnownBlocked(marked), true);
+
+  const roster = normalizeLivePlayers([
+    { Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-sova', PlayerIdentity: { Incognito: false } },
+    marked
+  ], 'self', metadata(), { self: 'MyName#NA1' });
+  assert.equal(roster[1].blocked, true);
+  assert.equal(roster[1].name, '');
+  assert.equal(roster[1].agent, 'Jett');
+  assert.equal(JSON.stringify(roster).includes('StoredBlockName'), false);
+});
+
 test('normalizes a tied competitive match as a draw instead of a loss', () => {
   const detail = {
     MatchInfo: { MatchID: 'match-draw', MapID: '/Game/Maps/Ascent/Ascent' },
@@ -414,14 +435,43 @@ test('core-game roster inherits a party member level resolved from lobby presenc
     { Subject: 'party-friend', TeamID: 'Blue', PlayerIdentity: { AccountLevel: 0, HideAccountLevel: true } },
     { Subject: 'random-ally', TeamID: 'Blue', PlayerIdentity: {} }
   ], [
-    { Subject: 'self', BYAKUGANAccountLevel: 272, BYAKUGANPartyMember: true },
-    { Subject: 'party-friend', BYAKUGANAccountLevel: 355, BYAKUGANPartyMember: true }
+    { Subject: 'self', BYAKUGANAccountLevel: 272, BYAKUGANPartyMember: true, BYAKUGANPartyID: 'own-party' },
+    { Subject: 'party-friend', BYAKUGANAccountLevel: 355, BYAKUGANPartyMember: true, BYAKUGANPartyID: 'own-party' }
   ]);
 
   assert.equal(merged[0].BYAKUGANAccountLevel, 272);
   assert.equal(merged[1].BYAKUGANAccountLevel, 355);
   assert.equal(merged[1].BYAKUGANPartyMember, true);
+  assert.equal(merged[1].BYAKUGANPartyID, 'own-party');
   assert.equal(merged[2].BYAKUGANPartyMember, undefined);
+});
+
+test('live roster labels only confirmed queued groups without exposing Riot party IDs', () => {
+  const players = [
+    { Subject: 'self', TeamID: 'Blue', PartyID: 'private-own-id', PlayerIdentity: { Incognito: false } },
+    { Subject: 'friend', TeamID: 'Blue', PartyID: 'private-own-id', PlayerIdentity: { Incognito: false } },
+    { Subject: 'ally-a', TeamID: 'Blue', PartyID: 'private-ally-id', PlayerIdentity: { Incognito: false } },
+    { Subject: 'ally-b', TeamID: 'Blue', PartyID: 'private-ally-id', PlayerIdentity: { Incognito: false } },
+    { Subject: 'solo', TeamID: 'Blue', PartyID: 'private-solo-id', PlayerIdentity: { Incognito: false } },
+    { Subject: 'enemy-a', TeamID: 'Red', PartyID: 'private-enemy-id', PlayerIdentity: { Incognito: false } },
+    { Subject: 'enemy-b', TeamID: 'Red', PartyID: 'private-enemy-id', PlayerIdentity: { Incognito: false } }
+  ];
+  const groups = buildLivePartyGroups(players, 'self');
+  assert.equal(livePartyId(players[0]), 'private-own-id');
+  assert.equal(groups.get('self').label, 'YOUR PARTY · DUO');
+  assert.equal(groups.get('friend').label, 'YOUR PARTY · DUO');
+  assert.equal(groups.get('ally-a').label, 'PARTY B · DUO');
+  assert.equal(groups.get('enemy-a').label, 'PARTY A · DUO');
+  assert.equal(groups.has('solo'), false);
+
+  const roster = normalizeLivePlayers(players, 'self', metadata(), Object.fromEntries(players.map((player) => [player.Subject, `${player.Subject}#NA1`])));
+  assert.equal(roster[0].partyLabel, 'YOUR PARTY · DUO');
+  assert.equal(roster[1].partyLabel, 'YOUR PARTY · DUO');
+  assert.equal(roster[2].partyLabel, 'PARTY B · DUO');
+  assert.equal(roster[4].partyLabel, '');
+  assert.equal(roster[5].partyLabel, 'PARTY A · DUO');
+  assert.equal(JSON.stringify(roster).includes('private-own-id'), false);
+  assert.equal(JSON.stringify(roster).includes('private-enemy-id'), false);
 });
 
 test('public opponent name lookup unlocks only for the active core game', () => {
@@ -475,6 +525,7 @@ test('party roster preserves lobby levels even when the party identity contains 
   assert.equal(party.players[0].BYAKUGANAccountLevel, 271);
   assert.equal(party.players[1].BYAKUGANAccountLevel, 187);
   assert.equal(party.players[1].PlayerIdentity.AccountLevel, 187);
+  assert.equal(party.players[1].BYAKUGANPartyID, 'party-1');
   assert.equal(liveAccountLevel(party.players[1]).level, 187);
 });
 

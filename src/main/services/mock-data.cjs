@@ -76,8 +76,8 @@ const snapshot = Object.freeze({
     state: 'PREGAME', queue: 'Competitive', map: 'Ascent', mapImage: '', partySize: 5, matchId: 'demo-match-9f31', elapsed: '00:42',
     rosterStatus: 'Opponent identities are withheld; only selected agents and ranks are shown.',
     players: [
-      { id: 'p1', name: 'You', hidden: false, inspectable: true, isSelf: true, side: 'ally', agent: 'Omen', agentImage: '', agentColor: '#7669d9', rank: 'Ascendant 2', rankImage: '', rankColor: '#76d7cc', locked: true },
-      { id: 'p2', name: 'PixelPilot#NA1', hidden: false, inspectable: true, isSelf: false, side: 'ally', agent: 'Jett', agentImage: '', agentColor: '#8fd7ff', rank: 'Diamond 3', rankImage: '', rankColor: '#b7d8ef', locked: true },
+      { id: 'p1', name: 'You', hidden: false, inspectable: true, isSelf: true, side: 'ally', agent: 'Omen', agentImage: '', agentColor: '#7669d9', rank: 'Ascendant 2', rankImage: '', rankColor: '#76d7cc', partyLabel: 'YOUR PARTY · DUO', partySize: 2, partyTone: 0, ownParty: true, locked: true },
+      { id: 'p2', name: 'PixelPilot#NA1', hidden: false, inspectable: true, isSelf: false, side: 'ally', agent: 'Jett', agentImage: '', agentColor: '#8fd7ff', rank: 'Diamond 3', rankImage: '', rankColor: '#b7d8ef', partyLabel: 'YOUR PARTY · DUO', partySize: 2, partyTone: 0, ownParty: true, locked: true },
       { id: 'p3', name: '', hidden: true, inspectable: false, isSelf: false, side: 'enemy', agent: 'Sova', agentImage: '', agentColor: '#63a8e8', rank: 'Ascendant 1', rankImage: '', rankColor: '#76d7cc', locked: true },
       { id: 'p4', name: '', hidden: true, inspectable: false, isSelf: false, side: 'enemy', agent: 'Killjoy', agentImage: '', agentColor: '#f0d95b', rank: 'Platinum 3', rankImage: '', rankColor: '#69c9c8', locked: true },
       { id: 'p5', name: '', hidden: true, inspectable: false, isSelf: false, side: 'enemy', agent: 'Skye', agentImage: '', agentColor: '#72db73', rank: 'Diamond 1', rankImage: '', rankColor: '#b7d8ef', locked: true }
