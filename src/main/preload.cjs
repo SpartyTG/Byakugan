@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   getSenseiReport: (matchId) => ipcRenderer.invoke('sensei:get', matchId),
   runSensei: (request) => ipcRenderer.invoke('sensei:run', request),
   askSensei: (request) => ipcRenderer.invoke('sensei:ask', request),
+  updateSenseiMission: (request) => ipcRenderer.invoke('sensei:mission-action', request),
   importSenseiVod: (matchId) => ipcRenderer.invoke('sensei:vod-import', matchId),
   analyzeSenseiVod: (matchId) => ipcRenderer.invoke('sensei:vod-analyze', matchId),
   cancelSenseiVod: (matchId) => ipcRenderer.invoke('sensei:vod-cancel', matchId),

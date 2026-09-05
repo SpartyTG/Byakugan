@@ -99,7 +99,7 @@ function decideCurriculum(input) {
       verdictOneLiner: `Mission stays: ${openMission.title}.`,
       primaryMission: {
         ...openMission,
-        why: whyText(leak, tracked || { recent: 1, here: 1, qualifies: true }, lastMatches),
+        why: `This is still the open mission. ${leak.title} showed up again this match.`,
         wording: wordingFor(leak, rankBand)
       },
       secondaryWatch: scored.find((row) => row.slug !== openMission.slug && row.score > 0)

@@ -100,7 +100,8 @@ function normalizeEntry(value = {}) {
       drillName: cleanText(value.brain.drillName, 120),
       drillSetup: cleanText(value.brain.drillSetup, 500),
       successMetric: cleanText(value.brain.successMetric, 400),
-      keptOpenMission: Boolean(value.brain.keptOpenMission)
+      keptOpenMission: Boolean(value.brain.keptOpenMission),
+      status: cleanText(value.brain.status, 40)
     } : null,
     vod: value.vod && typeof value.vod === 'object' ? {
       path: cleanText(value.vod.path, 1_000),

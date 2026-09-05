@@ -7,7 +7,7 @@ const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
 const { SenseiBrainStore } = require('./sensei-brain/store.cjs');
-const { applySenseiBrain, planSenseiBrain } = require('./sensei-brain/hook.cjs');
+const { applySenseiBrain, planSenseiBrain, applySenseiVod } = require('./sensei-brain/hook.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
@@ -446,7 +446,7 @@ function registerIpc() {
       'focusRule must be 24 words or fewer and must restate this mission title.',
       'The first drill must be this mission drill. The other two drills must support the same mission.'
     ].join('\n') : '';
-    const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel, missionPrompt });({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
+    const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel, missionPrompt });
     const brain = applySenseiBrain({
       store: senseiBrainStore,
       accountId: senseiAccountId(),
@@ -487,6 +487,21 @@ function registerIpc() {
     const chat = [...(existing.chat || []), { role: 'user', text: String(request.question || '').trim(), createdAt: Date.now() }, { role: 'assistant', text: answer, createdAt: Date.now() }];
     return senseiStore.save(senseiAccountId(), matchId, { chat });
   });
+
+  ipcMain.handle('sensei:mission-action', async (_event, request = {}) => {
+    const matchId = String(request.matchId || '');
+    const action = String(request.action || '');
+    const existing = senseiEntry(matchId);
+    if (!existing?.brain?.title) throw new Error('Run Sensei Vision on this match first.');
+    if (action === 'keep') return existing;
+    const reason = action === 'done' ? 'resolved_by_user' : action === 'wrong' ? 'wrong' : '';
+    if (!reason) throw new Error('Choose Keep, Wrong, or Done.');
+    if (senseiBrainStore) senseiBrainStore.closeMission(senseiAccountId(), reason);
+    return senseiStore.save(senseiAccountId(), matchId, {
+      brain: { ...existing.brain, status: reason, keptOpenMission: false }
+    });
+  });
+
   ipcMain.handle('sensei:vod-import', async (_event, matchIdValue) => {
     const current = settings.get();
     if (!current.senseiEnabled || !current.senseiVodEnabled) throw new Error('Enable the optional VOD Vision add-on in Settings first.');
@@ -564,7 +579,27 @@ function registerIpc() {
       const totalSegments = Number(vodReport.coverage?.totalSegments) || 0;
       progress({ phase: 'saving', current: totalSegments, total: totalSegments, mode: analysisMode, message: 'Saving full-match report' });
       vodState = { ...vodState, checkpoint: null, status: 'analyzed', analyzedAt: Date.now(), report: vodReport, error: '' };
-      const saved = senseiStore.save(senseiAccountId(), matchId, { vod: vodState });
+      const vodBrain = applySenseiVod({
+        store: senseiBrainStore,
+        accountId: senseiAccountId(),
+        match,
+        report: existing.report,
+        vodReport,
+        rankName: match.rankName
+      });
+      const vodMission = vodBrain.curriculum && vodBrain.curriculum.primaryMission ? vodBrain.curriculum.primaryMission : null;
+      const saved = senseiStore.save(senseiAccountId(), matchId, {
+        vod: vodState,
+        brain: vodMission ? {
+          title: vodMission.title,
+          why: vodMission.why,
+          drillName: vodMission.drillName,
+          drillSetup: vodMission.drillSetup,
+          successMetric: vodMission.successMetric,
+          keptOpenMission: Boolean(vodBrain.curriculum.keptOpenMission),
+          status: existing.brain && existing.brain.status ? existing.brain.status : 'pending'
+        } : existing.brain || null
+      });
       progress({ phase: 'complete', current: totalSegments, total: totalSegments, mode: analysisMode, message: 'Full-match analysis complete' });
       return saved;
     } catch (error) {

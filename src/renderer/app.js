@@ -776,7 +776,8 @@ function renderSenseiPanel(entry, selector = '#senseiWorkspacePanel') {
     const isLiteFallback = /used Sensei Lite for this match|could not produce a valid report/i.test(noticeText);
     const cleanedNotice = noticeText.replace(/\s*Sensei mission(?: stays)?:[^\n]*/gi, '').trim();
     const fallbackNotice = isLiteFallback && cleanedNotice ? `<div class="sensei-notice"><strong>LOCAL MODEL FALLBACK</strong><span>${escapeHtml(cleanedNotice)}</span></div>` : '';
-        const mission = entry.brain && entry.brain.title ? `<div class="sensei-mission-card"><small>${entry.brain.keptOpenMission ? 'MISSION CONTINUES' : 'THIS MATCH MISSION'}</small><h3>${escapeHtml(entry.brain.title)}</h3><p>${escapeHtml(entry.brain.why || '')}</p><p><strong>Drill:</strong> ${escapeHtml(entry.brain.drillName || '')} — ${escapeHtml(entry.brain.drillSetup || '')}</p><p><strong>Done when:</strong> ${escapeHtml(entry.brain.successMetric || '')}</p></div>` : '';
+        const missionClosed = entry.brain && entry.brain.status && entry.brain.status !== 'pending';
+        const mission = entry.brain && entry.brain.title ? `<div class="sensei-mission-card"><small>${missionClosed ? 'MISSION CLOSED' : entry.brain.keptOpenMission ? 'MISSION CONTINUES' : 'THIS MATCH MISSION'}</small><h3>${escapeHtml(entry.brain.title)}</h3><p>${escapeHtml(entry.brain.why || '')}</p><p><strong>Drill:</strong> ${escapeHtml(entry.brain.drillName || '')} — ${escapeHtml(entry.brain.drillSetup || '')}</p><p><strong>Done when:</strong> ${escapeHtml(entry.brain.successMetric || '')}</p>${missionClosed ? `<p>Closed as ${escapeHtml(entry.brain.status === 'resolved_by_user' ? 'done' : entry.brain.status)}.</p>` : '<div class="sensei-mission-actions"><button type="button" class="ghost-button" data-sensei-mission="keep">Keep</button><button type="button" class="ghost-button" data-sensei-mission="wrong">Wrong</button><button type="button" class="ghost-button" data-sensei-mission="done">Done</button></div>'}</div>` : '';
     body = `<div class="sensei-report">${mission}${fallbackNotice}<div class="sensei-verdict"><small>MATCH VERDICT • ${escapeHtml(entry.tier === 'sensei' ? 'FULL SENSEI' : 'SENSEI LITE')}</small><p>${escapeHtml(report.verdict)}</p></div><div class="sensei-scorecard">${scorecard}</div><div class="sensei-columns"><article class="sensei-section-card"><h3>Strengths</h3>${senseiList(report.strengths)}</article><article class="sensei-section-card"><h3>Weaknesses</h3>${senseiList(report.weaknesses)}</article></div><div class="sensei-drills">${drills}</div><div class="sensei-focus"><small>NEXT-MATCH FOCUS</small><strong>${escapeHtml(report.focusRule)}</strong></div><div class="sensei-citations">Evidence: ${(report.citations || []).map(escapeHtml).join(' • ')}</div>${senseiVodMarkup(entry)}<div class="sensei-chat"><div class="sensei-vod-head"><div><h3>Ask Sensei</h3><p>Short follow-up using this saved match report only.</p></div></div><div class="sensei-chat-log">${chat || '<div class="sensei-chat-message assistant">Ask about a weakness, drill, or next-match focus. This does not rerun the analysis.</div>'}</div><form class="sensei-chat-form" data-sensei-chat><input name="question" maxlength="1000" placeholder="Ask about this match…" required><button class="ghost-button">Ask</button></form></div></div>`;
   }
   panel.innerHTML = `<div class="sensei-panel-head"><div><p class="eyebrow">SENSEI VISION</p><h2>Post-match coach debrief</h2></div><div class="sensei-panel-actions"><span class="sensei-status-chip ${status}">${label}</span>${actions}</div></div>${body}`;
@@ -1874,6 +1875,8 @@ function bindEvents() {
     if (event.target.closest('[data-sensei-vod-analyze]')) { analyzeSenseiVod(); return; }
     if (event.target.closest('[data-sensei-vod-cancel]')) { cancelSenseiVod(); return; }
     if (event.target.closest('[data-sensei-vod-delete]')) deleteSenseiVod();
+    const missionButton = event.target.closest('[data-sensei-mission]');
+    if (missionButton) { updateSenseiMission(missionButton.dataset.senseiMission); return; }
   });
   $('#senseiWorkspacePanel').addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-sensei-chat]');
@@ -2298,6 +2301,24 @@ function bindEvents() {
   });
   window.companion.onWarning((message) => toast('Connector notice', message, 'error'));
   window.companion.onUpdateStatus(renderUpdateStatus);
+}
+
+
+async function updateSenseiMission(action) {
+  const matchId = state.senseiSelectedMatchId;
+  if (!matchId || state.senseiBusy) return;
+  try {
+    const entry = await window.companion.updateSenseiMission({ matchId, action });
+    state.senseiReportsByMatch[matchId] = entry;
+    if (entry) state.senseiEntry = entry;
+    renderSenseiPanel(entry);
+    toast(
+      action === 'keep' ? 'Mission kept' : action === 'done' ? 'Mission marked done' : 'Mission marked wrong',
+      action === 'keep' ? 'Next match will stay on this lesson.' : 'The next Sensei run can pick a new lesson.'
+    );
+  } catch (error) {
+    toast('Could not update mission', error.message || 'Try running Sensei again.', 'error');
+  }
 }
 
 async function initialize() {

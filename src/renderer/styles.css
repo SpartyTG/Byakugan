@@ -1098,3 +1098,13 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
 .sensei-mission-card p:last-child {
   margin-bottom: 0;
 }
+
+.sensei-mission-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.sensei-mission-actions .ghost-button {
+  min-height: 32px;
+  padding: 0 12px;
+}
