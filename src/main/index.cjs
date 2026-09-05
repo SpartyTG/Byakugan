@@ -433,8 +433,8 @@ function registerIpc() {
       match,
       rankName: match.rankName
     });
-        const plannedMission = plan.curriculum && plan.curriculum.primaryMission ? plan.curriculum.primaryMission : null;
-    const missionPrompt = mission ? [
+       const plannedMission = plan.curriculum && plan.curriculum.primaryMission ? plan.curriculum.primaryMission : null;
+    const missionPrompt = plannedMission ? [
       'PRIMARY MISSION (already chosen; do not replace it):',
       JSON.stringify({
         title: plannedMission.title,
