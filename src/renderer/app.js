@@ -28,7 +28,8 @@ const state = {
   senseiVodStartedAt: 0,
   senseiVodTimer: null,
   senseiVodRequestActive: false,
-  senseiVodActiveMatchId: ''
+  senseiVodActiveMatchId: '',
+  actStatsHydrationActive: false
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -2241,11 +2242,13 @@ function bindEvents() {
   window.companion.onSnapshot((snapshot) => {
     renderSnapshot(snapshot);
     renderRemoteStatus(state.remoteStatus || {});
-    toast('Act stats updated', 'BYAKUGAN refreshed your current-act competitive history.');
   });
   window.companion.onActProgress((progress) => {
     const loaded = Number(progress.loaded) || 0;
     const total = Number(progress.total) || 0;
+    const wasLoading = state.actStatsHydrationActive;
+    const isLoading = progress.loading !== false;
+    state.actStatsHydrationActive = isLoading;
     if (state.snapshot?.profile && progress.stats) {
       Object.assign(state.snapshot.profile, {
         wins: progress.stats.wins,
@@ -2258,6 +2261,9 @@ function bindEvents() {
         actStatsTotal: total
       });
       renderStats(state.snapshot.profile);
+    }
+    if (wasLoading && !isLoading) {
+      toast('Act stats updated', 'BYAKUGAN finished refreshing your current-act competitive history.');
     }
   });
   window.companion.onSenseiVodProgress(async (progress) => {

@@ -68,6 +68,14 @@ test('Live Match and completed rosters visibly include peak Episode and Act cont
   assert.match(renderer, /live-rank/);
 });
 
+test('routine snapshots stay silent and act completion notifies only after real hydration', () => {
+  const snapshotHandler = app.match(/window\.companion\.onSnapshot\(\(snapshot\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
+  assert.doesNotMatch(snapshotHandler, /toast\(/);
+  assert.match(app, /const wasLoading = state\.actStatsHydrationActive/);
+  assert.match(app, /if \(wasLoading && !isLoading\)/);
+  assert.match(app, /finished refreshing your current-act competitive history/);
+});
+
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
   assert.match(html, /<option value="custom">Custom Overlay Builder<\/option>/);
   assert.match(html, /id="customOverlayWidth"/);

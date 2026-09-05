@@ -1,15 +1,23 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.112`.
+This package is the canonical source for `v0.8.0-beta.113`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.111`
-- Automated tests: `167 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.112`
+- Automated tests: `168 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.113 fixes the frequent, misleading **Act stats updated** toast observed on
+the streaming PC. Incoming Remote Viewer snapshots, five-second Live Match
+polls, normal automatic refreshes, and post-match snapshot retries now render
+silently. The toast appears once only when the act-progress stream was observed
+loading and then explicitly reports completion.
+
+## Previous completed changes
 
 Beta.112 replaces beta.111's unsuccessful live membership probes with
 historical inference, matching Valorant Tracker's publicly documented model.
@@ -26,8 +34,6 @@ precedence, first-time groups can remain undetected, and unmarked players remain
 unknown rather than confirmed solo. No inference runs during Agent Select, so
 opponent concealment is unchanged. The denied per-player GLZ requests and their
 temporary cache were removed.
-
-## Previous completed changes
 
 Beta.111 tested whether Riot's current-party membership endpoint would return
 other live-roster players' groups. The real dual-PC match test showed that Riot
@@ -207,7 +213,12 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.112 on both PCs and first open several recent completed matches.
+Install beta.113 on both PCs and leave Live Match or another page open for at
+least one minute. Routine gaming-PC and Remote Viewer refreshes must not create
+an **Act stats updated** toast. When BYAKUGAN genuinely performs a current-act
+history hydration, exactly one completion toast may appear.
+
+Then open several recent completed matches.
 When Riot supplies party data, matching **YOUR PARTY** or **PARTY A/B** badges
 should appear on the completed roster. In a later active match, players whom
 BYAKUGAN previously observed in the same confirmed party should receive a
