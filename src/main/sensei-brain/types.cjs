@@ -23,7 +23,11 @@ const LEAK_SLUGS = Object.freeze([
   "util_unused_on_death",
   "postplant_overpeek",
   "wrong_force_buy",
-  "rifle_hs_below_band"
+  "rifle_hs_below_band",
+  "dry_peek_repeat",
+  "lurk_too_long",
+  "retake_no_info",
+  "operator_overpeek"
 ]);
 
 const MISSION_STATUS = Object.freeze({

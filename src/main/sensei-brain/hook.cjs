@@ -50,6 +50,10 @@ function leaksFromVod(vodReport) {
     if (/(post[- ]?plant|after plant|spike down|overpeek.*plant|planted.*peek)/.test(text)) slugs.add("postplant_overpeek");
     if (/(force buy|forced full|should have saved|bad buy)/.test(text)) slugs.add("wrong_force_buy");
     if (/(missed first bullet|sprayed|low headshot|hs%|crosshair off)/.test(text)) slugs.add("rifle_hs_below_band");
+    if (/(re-peek|repeek|same angle|dry peek again|swung the same)/.test(text)) slugs.add("dry_peek_repeat");
+    if (/(lurk too long|still lurking|late to site|lurk after site)/.test(text)) slugs.add("lurk_too_long");
+    if (/(retake with no|no info on retake|swung into plant|retake dry)/.test(text)) slugs.add("retake_no_info");
+    if (/(operator|op pick|awp).*(wide|re-peek|overpeek)|(wide swing).*(operator|op |awp)/.test(text)) slugs.add("operator_overpeek");
   }
   return [...slugs].filter(isLeakSlug);
 }
