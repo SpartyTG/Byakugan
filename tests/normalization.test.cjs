@@ -732,16 +732,18 @@ test('active core-game hydration resolves a missing enemy tier', async () => {
 test('completed match roster uses Career-visible names regardless of the live incognito flag', () => {
   const detail = {
     Players: [
-      { Subject: 'self', TeamID: 'Blue', PartyID: 'own-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
-      { Subject: 'visible-enemy', TeamID: 'Red', PartyID: 'enemy-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakRankImage: 'immortal.png', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2', PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
-      { Subject: 'hidden-enemy', TeamID: 'Red', PartyID: 'enemy-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } },
+      { Subject: 'self', TeamID: 'Blue', PartyID: 'own-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false, AccountLevel: 273 }, PlayerStats: { Kills: 20, Deaths: 10, Assists: 5, Score: 4000 } },
+      { Subject: 'visible-enemy', TeamID: 'Red', PartyID: 'enemy-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: false, AccountLevel: 425 }, BYAKUGANPeakRank: 'Immortal 1', BYAKUGANPeakRankImage: 'immortal.png', BYAKUGANPeakEpisode: 'Episode 9', BYAKUGANPeakAct: 'Act 2', PlayerStats: { Kills: 12, Deaths: 14, Assists: 3, Score: 2600 } },
+      { Subject: 'hidden-enemy', TeamID: 'Red', PartyID: 'enemy-party', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true, AccountLevel: 397, HideAccountLevel: true }, PlayerStats: { Kills: 8, Deaths: 16, Assists: 2, Score: 1800 } },
       { Subject: 'hidden-friend', TeamID: 'Red', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerIdentity: { Incognito: true }, BYAKUGANFriend: true, PlayerStats: { Kills: 10, Deaths: 12, Assists: 4, Score: 2200 } }
     ],
     RoundResults: Array.from({ length: 20 }, () => ({}))
   };
   const roster = normalizeHistoricalRoster(detail, 'self', metadata(), { 'visible-enemy': 'Visible#NA1', 'hidden-enemy': 'CareerName#NA1', 'hidden-friend': 'KnownFriend#NA1' });
   assert.equal(roster[0].acs, 200);
+  assert.equal(roster[0].level, 273);
   assert.equal(roster[1].name, 'Visible#NA1');
+  assert.equal(roster[1].level, 425);
   assert.equal(roster[1].inspectable, true);
   assert.equal(roster[1].peakRank, 'Immortal 1');
   assert.equal(roster[1].peakRankImage, 'immortal.png');
@@ -749,11 +751,14 @@ test('completed match roster uses Career-visible names regardless of the live in
   assert.equal(roster[1].peakAct, 'Act 2');
   assert.equal(roster[1].partyLabel, 'PARTY A · DUO');
   assert.equal(roster[2].partyLabel, 'PARTY A · DUO');
+  assert.equal(roster[2].level, 397);
+  assert.equal(roster[2].levelHidden, false);
   assert.equal(JSON.stringify(roster).includes('enemy-party'), false);
   assert.equal(roster[2].name, 'CareerName#NA1');
   assert.equal(roster[2].hidden, false);
   assert.equal(roster[2].inspectable, true);
   assert.equal(roster[3].name, 'KnownFriend#NA1');
+  assert.equal(roster[3].level, null);
   assert.equal(roster[3].hidden, false);
   assert.equal(roster[3].inspectable, true);
 });

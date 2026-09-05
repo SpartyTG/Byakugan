@@ -1,23 +1,30 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.113`.
+This package is the canonical source for `v0.8.0-beta.114`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.112`
-- Automated tests: `168 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.113`
+- Automated tests: `169 passed, 0 failed`
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
 ## Latest completed change
+
+Beta.114 adds Riot account levels to every completed Match History roster row.
+The historical normalizer now retains the level supplied in each participant's
+completed-match identity, and the renderer places a compact **LVL** badge next
+to the name without disturbing K/D/A, ACS, party grouping, match rank, or peak
+rank. Available levels remain visible independently of Riot-name privacy, as in
+Live Match; missing values are labeled **LVL PRIVATE** rather than invented.
+
+## Previous completed changes
 
 Beta.113 fixes the frequent, misleading **Act stats updated** toast observed on
 the streaming PC. Incoming Remote Viewer snapshots, five-second Live Match
 polls, normal automatic refreshes, and post-match snapshot retries now render
 silently. The toast appears once only when the act-progress stream was observed
 loading and then explicitly reports completion.
-
-## Previous completed changes
 
 Beta.112 replaces beta.111's unsuccessful live membership probes with
 historical inference, matching Valorant Tracker's publicly documented model.
@@ -213,7 +220,12 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.113 on both PCs and leave Live Match or another page open for at
+Install beta.114 on both PCs and open several completed matches. Every roster
+row should show **LVL [number]** when Riot supplied the account level and **LVL
+PRIVATE** when it did not. Confirm that the level badge remains alongside party
+badges without covering names or performance data.
+
+Then leave Live Match or another page open for at
 least one minute. Routine gaming-PC and Remote Viewer refreshes must not create
 an **Act stats updated** toast. When BYAKUGAN genuinely performs a current-act
 history hydration, exactly one completion toast may appear.

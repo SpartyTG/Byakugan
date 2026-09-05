@@ -588,12 +588,14 @@ function historicalPlayerRow(player) {
   const clickable = Boolean(player.inspectable && player.profileId);
   const peakLabel = player.peakRank ? `PEAK ${player.peakRank}` : 'PEAK UNAVAILABLE';
   const peakContext = [player.peakEpisode, player.peakAct].filter(Boolean).join(' • ') || 'EPISODE / ACT UNAVAILABLE';
+  const hasLevel = player.level !== null && player.level !== undefined && Number.isFinite(Number(player.level));
+  const levelLabel = hasLevel ? `LVL ${Math.floor(Number(player.level))}` : 'LVL PRIVATE';
   const partyBadge = player.partyLabel
     ? `<span class="live-party-badge party-tone-${Math.max(0, Math.min(4, Number(player.partyTone) || 0))}" title="Confirmed by Riot's completed match data">${escapeHtml(player.partyLabel)}</span>`
     : '';
   return `<div class="history-player ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${clickable ? 'inspectable' : ''}" ${clickable ? `data-player-id="${escapeHtml(player.profileId)}" role="button" tabindex="0"` : ''}>
     <div class="history-player-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
-    <div class="history-player-name"><strong>${escapeHtml(displayName)}</strong><small>${escapeHtml(detail)}</small>${partyBadge}</div>
+    <div class="history-player-name"><div class="history-player-heading"><strong>${escapeHtml(displayName)}</strong><span class="history-player-level">${escapeHtml(levelLabel)}</span></div><small>${escapeHtml(detail)}</small>${partyBadge}</div>
     <div class="history-player-performance"><small>THIS MATCH</small><strong>${escapeHtml(player.kills)} / ${escapeHtml(player.deaths)} / ${escapeHtml(player.assists)}</strong><em>${escapeHtml(player.acs || 0)} ACS</em></div>
     <div class="history-player-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>MATCH RANK</small><strong>${escapeHtml(player.rank)}</strong><em>${escapeHtml(peakLabel)}</em><b>${escapeHtml(peakContext)}</b></span></div>
   </div>`;

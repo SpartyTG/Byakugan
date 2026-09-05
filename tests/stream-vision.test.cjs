@@ -68,6 +68,12 @@ test('Live Match and completed rosters visibly include peak Episode and Act cont
   assert.match(renderer, /live-rank/);
 });
 
+test('completed Match History roster displays every available account level', () => {
+  assert.match(app, /class="history-player-level"/);
+  assert.match(app, /const levelLabel = hasLevel \? `LVL/);
+  assert.match(app, /: 'LVL PRIVATE'/);
+});
+
 test('routine snapshots stay silent and act completion notifies only after real hydration', () => {
   const snapshotHandler = app.match(/window\.companion\.onSnapshot\(\(snapshot\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
   assert.doesNotMatch(snapshotHandler, /toast\(/);

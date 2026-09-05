@@ -96,7 +96,10 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.113
+## Included in version 0.8.0-beta.114
+
+- Completed Match History rosters now show each player's Riot account level beside their name whenever the completed match payload supplies it
+- A missing completed-match level is labeled **LVL PRIVATE**, while an available level remains visible independently of Riot-name privacy, matching Live Match behavior
 
 - Routine five-second Live Match updates, 2.5-second Remote Viewer checks, automatic data refreshes, and post-match snapshots no longer trigger the misleading **Act stats updated** toast
 - **Act stats updated** appears once only after a real current-act history hydration transitions from loading to complete
@@ -379,10 +382,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.113`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.114`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.113`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.114`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -390,8 +393,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.113
-git push origin v0.8.0-beta.113
+git tag v0.8.0-beta.114
+git push origin v0.8.0-beta.114
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

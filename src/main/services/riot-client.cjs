@@ -1077,6 +1077,7 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
     const assists = Number(stats.Assists ?? stats.assists ?? 0);
     const score = Number(stats.Score ?? stats.score ?? 0);
     const partyGroup = partyGroups.get(subject) || null;
+    const accountLevel = liveAccountLevel(player);
     return {
       subject,
       name: isSelf ? 'You' : resolvedName,
@@ -1097,6 +1098,8 @@ function normalizeHistoricalRoster(detail, ownPuuid, metadata, names = {}) {
       deaths,
       assists,
       acs: score ? Math.round(score / roundCount) : 0,
+      level: accountLevel.level,
+      levelHidden: accountLevel.hidden,
       partyLabel: partyGroup?.label || '',
       partySize: partyGroup?.size || 1,
       partyTone: partyGroup?.tone ?? 0,
