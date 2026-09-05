@@ -18,7 +18,8 @@ function emptyAccount(accountId) {
     profile: null,
     matches: [],
     leaks: {},
-    mission: null
+    mission: null,
+    cooldowns: []
   };
 }
 
@@ -30,7 +31,8 @@ function normalizeAccount(accountId, value) {
     profile: value.profile && typeof value.profile === "object" ? value.profile : null,
     matches: Array.isArray(value.matches) ? value.matches.slice(-MAX_MATCHES_PER_ACCOUNT) : [],
     leaks: value.leaks && typeof value.leaks === "object" ? value.leaks : {},
-    mission: value.mission && typeof value.mission === "object" ? value.mission : null
+    mission: value.mission && typeof value.mission === "object" ? value.mission : null,
+    cooldowns: Array.isArray(value.cooldowns) ? value.cooldowns : []
   };
 }
 
@@ -93,20 +95,25 @@ class SenseiBrainStore {
     const data = this.read();
     const account = this.#account(data, accountId);
     const row = {
-      accountId: String(accountId),
       matchId: String(memory.matchId || ""),
-      map: memory.map || null,
-      agent: memory.agent || null,
-      result: memory.result || null,
+      map: memory.map || "",
+      agent: memory.agent || "",
+      result: memory.result || "",
       liteScorecard: memory.liteScorecard || {},
       leakSlugs: Array.isArray(memory.leakSlugs) ? memory.leakSlugs.filter(isLeakSlug) : [],
-      primaryMissionId: memory.primaryMissionId || null,
       vodUsed: Boolean(memory.vodUsed),
       createdAt: now()
     };
+    const replacing = account.matches.some((item) => item.matchId === row.matchId);
+    account.matches = account.matches.filter((item) => item.matchId !== row.matchId);
     account.matches.push(row);
     if (account.matches.length > MAX_MATCHES_PER_ACCOUNT) {
       account.matches = account.matches.slice(-MAX_MATCHES_PER_ACCOUNT);
+    }
+    if (!replacing) {
+      account.cooldowns = (account.cooldowns || [])
+        .map((item) => ({ ...item, remaining: Math.max(0, Number(item.remaining || 0) - 1) }))
+        .filter((item) => item.remaining > 0);
     }
     this.write(data);
     return row;
@@ -150,6 +157,11 @@ class SenseiBrainStore {
     return this.#account(this.read(), accountId).leaks;
   }
 
+  getBlockedSlugs(accountId) {
+    const account = this.#account(this.read(), accountId);
+    return (account.cooldowns || []).filter((item) => Number(item.remaining) > 0).map((item) => item.slug);
+  }
+
   getOpenMission(accountId) {
     const mission = this.#account(this.read(), accountId).mission;
     if (!mission || mission.status !== MISSION_STATUS.PENDING) return null;
@@ -170,13 +182,22 @@ class SenseiBrainStore {
     return account.mission;
   }
 
-  closeMission(accountId, reason) {
+  closeMission(accountId, reason, fallbackSlug) {
     const data = this.read();
     const account = this.#account(data, accountId);
-    if (!account.mission) return null;
+    if (!account.mission && !fallbackSlug) return null;
     const allowed = new Set(Object.values(MISSION_STATUS));
-    account.mission.status = allowed.has(reason) ? reason : MISSION_STATUS.SKIPPED;
-    account.mission.updatedAt = now();
+    const status = allowed.has(reason) ? reason : MISSION_STATUS.SKIPPED;
+    if (account.mission) {
+      account.mission.status = status;
+      account.mission.updatedAt = now();
+    }
+    const slug = (account.mission && account.mission.slug) || fallbackSlug;
+    const remaining = status === MISSION_STATUS.WRONG ? 8 : status === MISSION_STATUS.RESOLVED_BY_USER || status === "resolved_by_user" ? 5 : 3;
+    if (slug) {
+      account.cooldowns = (account.cooldowns || []).filter((item) => item.slug !== slug);
+      account.cooldowns.push({ slug, reason: status, remaining });
+    }
     this.write(data);
     return account.mission;
   }

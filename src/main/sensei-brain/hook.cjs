@@ -84,7 +84,8 @@ function buildCurriculum({ store, accountId, match, report, rankName, extraLeaks
         praise: praiseFromReport(report)
       },
       lastMatches: priorMatches(store, accountId, matchId),
-      openMission: store.getOpenMission(accountId)
+      openMission: store.getOpenMission(accountId),
+      blockedSlugs: store.getBlockedSlugs ? store.getBlockedSlugs(accountId) : []
     })
   };
 }
@@ -124,7 +125,8 @@ function applySenseiBrain({ store, accountId, match, report, rankName, extraLeak
     store.touchLeak(accountId, slug, 1, match.id || match.matchId);
   }
 
-  if (curriculum.primaryMission && curriculum.primaryMission.slug !== "observe") {
+  const blocked = store.getBlockedSlugs ? store.getBlockedSlugs(accountId) : [];
+  if (curriculum.primaryMission && curriculum.primaryMission.slug !== "observe" && !blocked.includes(curriculum.primaryMission.slug)) {
     if (!curriculum.keptOpenMission) {
       store.setMission(accountId, curriculum.primaryMission);
     }

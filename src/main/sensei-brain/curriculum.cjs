@@ -73,6 +73,7 @@ function decideCurriculum(input) {
   const rankBand = input.rankBand || "gold-plat";
   const thisMatch = input.thisMatch || { leakSlugs: [] };
   const lastMatches = Array.isArray(input.lastMatches) ? input.lastMatches.slice(-LAST_N) : [];
+  const blockedSlugs = new Set(Array.isArray(input.blockedSlugs) ? input.blockedSlugs : []);
   const openMission = input.openMission || null;
   const praise = Array.isArray(thisMatch.praise) ? thisMatch.praise.slice(0, 3) : [];
 
@@ -83,7 +84,7 @@ function decideCurriculum(input) {
   for (const slug of thisMatch.leakSlugs || []) slugs.add(slug);
   if (openMission && openMission.slug) slugs.add(openMission.slug);
 
-  const scored = [...slugs].map((slug) => scoreLeak(slug, thisMatch, lastMatches));
+  const scored = [...slugs].map((slug) => scoreLeak(slug, thisMatch, lastMatches)).filter((row) => !blockedSlugs.has(row.slug));
   scored.sort((a, b) => b.score - a.score);
 
   const openStillTrue = Boolean(
@@ -99,7 +100,7 @@ function decideCurriculum(input) {
       verdictOneLiner: `Mission stays: ${openMission.title}.`,
       primaryMission: {
         ...openMission,
-        why: `This is still the open mission. ${leak.title} showed up again this match.`,
+        why: whyText(leak, tracked || { recent: 1, here: 1, qualifies: true }, lastMatches),
         wording: wordingFor(leak, rankBand)
       },
       secondaryWatch: scored.find((row) => row.slug !== openMission.slug && row.score > 0)

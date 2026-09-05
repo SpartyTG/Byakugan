@@ -95,6 +95,7 @@ function normalizeEntry(value = {}) {
       createdAt: Number(message?.createdAt) || 0
     })),
     brain: value.brain && typeof value.brain === 'object' ? {
+      slug: cleanText(value.brain.slug, 80),
       title: cleanText(value.brain.title, 160),
       why: cleanText(value.brain.why, 400),
       drillName: cleanText(value.brain.drillName, 120),

@@ -465,6 +465,7 @@ function registerIpc() {
       error: '',
       chat: request.regenerate ? [] : existing?.chat || [],
       brain: mission ? {
+        slug: mission.slug || '',
         title: mission.title,
         why: mission.why,
         drillName: mission.drillName,
@@ -496,7 +497,7 @@ function registerIpc() {
     if (action === 'keep') return existing;
     const reason = action === 'done' ? 'resolved_by_user' : action === 'wrong' ? 'wrong' : '';
     if (!reason) throw new Error('Choose Keep, Wrong, or Done.');
-    if (senseiBrainStore) senseiBrainStore.closeMission(senseiAccountId(), reason);
+    if (senseiBrainStore) senseiBrainStore.closeMission(senseiAccountId(), reason, existing.brain && existing.brain.slug);
     return senseiStore.save(senseiAccountId(), matchId, {
       brain: { ...existing.brain, status: reason, keptOpenMission: false }
     });
@@ -591,6 +592,7 @@ function registerIpc() {
       const saved = senseiStore.save(senseiAccountId(), matchId, {
         vod: vodState,
         brain: vodMission ? {
+          slug: vodMission.slug || '',
           title: vodMission.title,
           why: vodMission.why,
           drillName: vodMission.drillName,
