@@ -435,8 +435,25 @@ function registerIpc() {
       report: result.report,
       rankName: match.rankName
     });
-    const notice = [result.notice || '', brain.notice || ''].filter(Boolean).join(' ');
-    return senseiStore.save(senseiAccountId(), matchId, { status: 'ready', tier: result.tier || tier, model: result.model, notice, report: result.report, error: '', chat: request.regenerate ? [] : existing?.chat || [] });
+        const notice = [result.notice || '', brain.notice || ''].filter(Boolean).join(' ');
+    const mission = brain.curriculum && brain.curriculum.primaryMission ? brain.curriculum.primaryMission : null;
+    return senseiStore.save(senseiAccountId(), matchId, {
+      status: 'ready',
+      tier: result.tier || tier,
+      model: result.model,
+      notice,
+      report: result.report,
+      error: '',
+      chat: request.regenerate ? [] : existing?.chat || [],
+      brain: mission ? {
+        title: mission.title,
+        why: mission.why,
+        drillName: mission.drillName,
+        drillSetup: mission.drillSetup,
+        successMetric: mission.successMetric,
+        keptOpenMission: Boolean(brain.curriculum.keptOpenMission)
+      } : null
+    });
     } catch (error) {
       senseiStore.save(senseiAccountId(), matchId, { status: 'failed', tier, error: error.message || 'Sensei analysis failed.' });
       throw error;

@@ -94,6 +94,14 @@ function normalizeEntry(value = {}) {
       text: cleanText(message?.text, 2_000),
       createdAt: Number(message?.createdAt) || 0
     })),
+    brain: value.brain && typeof value.brain === 'object' ? {
+      title: cleanText(value.brain.title, 160),
+      why: cleanText(value.brain.why, 400),
+      drillName: cleanText(value.brain.drillName, 120),
+      drillSetup: cleanText(value.brain.drillSetup, 500),
+      successMetric: cleanText(value.brain.successMetric, 400),
+      keptOpenMission: Boolean(value.brain.keptOpenMission)
+    } : null,
     vod: value.vod && typeof value.vod === 'object' ? {
       path: cleanText(value.vod.path, 1_000),
       name: cleanText(value.vod.name, 260),
