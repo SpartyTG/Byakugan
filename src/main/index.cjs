@@ -6,6 +6,8 @@ const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, power
 const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
+const { SenseiBrainStore } = require('./sensei-brain/store.cjs');
+const { applySenseiBrain } = require('./sensei-brain/hook.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
@@ -20,6 +22,7 @@ if (!hasSingleInstanceLock) app.quit();
 let mainWindow = null;
 let settings = null;
 let senseiStore = null;
+let senseiBrainStore = null;
 let senseiService = null;
 let service = null;
 let snapshot = null;
@@ -424,8 +427,16 @@ function registerIpc() {
     const tier = current.senseiTier === 'sensei' ? 'sensei' : 'lite';
     senseiStore.save(senseiAccountId(), matchId, { status: 'analyzing', tier, error: '' });
     try {
-      const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
-      return senseiStore.save(senseiAccountId(), matchId, { status: 'ready', tier: result.tier || tier, model: result.model, notice: result.notice || '', report: result.report, error: '', chat: request.regenerate ? [] : existing?.chat || [] });
+          const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
+    const brain = applySenseiBrain({
+      store: senseiBrainStore,
+      accountId: senseiAccountId(),
+      match,
+      report: result.report,
+      rankName: match.rankName
+    });
+    const notice = [result.notice || '', brain.notice || ''].filter(Boolean).join(' ');
+    return senseiStore.save(senseiAccountId(), matchId, { status: 'ready', tier: result.tier || tier, model: result.model, notice, report: result.report, error: '', chat: request.regenerate ? [] : existing?.chat || [] });
     } catch (error) {
       senseiStore.save(senseiAccountId(), matchId, { status: 'failed', tier, error: error.message || 'Sensei analysis failed.' });
       throw error;
@@ -772,6 +783,7 @@ app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
   settings = new SettingsStore(app.getPath('userData'));
   senseiStore = new SenseiStore(app.getPath('userData'));
+  senseiBrainStore = new SenseiBrainStore(app.getPath('userData'));
   senseiStore.recoverInterruptedVodAnalyses();
   senseiService = new SenseiService();
   if (settings.get().gamingRelayMode && (settings.get().pcRole !== 'gaming' || !settings.get().remoteViewerEnabled)) {
