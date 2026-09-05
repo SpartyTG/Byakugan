@@ -56,6 +56,18 @@ function missionFromLeak(accountId, leak, rankBand, why, matchId) {
   };
 }
 
+function whyText(leak, primary, lastMatches) {
+  const considered = lastMatches.length + 1;
+  const seen = Math.min(primary.recent + primary.here, considered);
+  if (!primary.qualifies) {
+    return `${leak.title} showed up in this match only. Treating it as a short watch, not an identity.`;
+  }
+  if (seen <= 1) {
+    return `${leak.title} showed up in this match.`;
+  }
+  return `${leak.title} showed up in ${seen} of the last ${considered} matches.`;
+}
+
 function decideCurriculum(input) {
   const accountId = String(input.accountId || "default");
   const rankBand = input.rankBand || "gold-plat";
@@ -82,10 +94,12 @@ function decideCurriculum(input) {
 
   if (openStillTrue) {
     const leak = getLeak(openMission.slug);
+    const tracked = scored.find((row) => row.slug === openMission.slug);
     return {
       verdictOneLiner: `Mission stays: ${openMission.title}.`,
       primaryMission: {
         ...openMission,
+        why: whyText(leak, tracked || { recent: 1, here: 1, qualifies: true }, lastMatches),
         wording: wordingFor(leak, rankBand)
       },
       secondaryWatch: scored.find((row) => row.slug !== openMission.slug && row.score > 0)
@@ -128,10 +142,7 @@ function decideCurriculum(input) {
   }
 
   const leak = getLeak(primary.slug);
-  const why = primary.qualifies
-    ? `${leak.title} showed up in ${primary.recent + primary.here} of the last ${Math.max(lastMatches.length, 1)} lookbacks.`
-    : `${leak.title} showed up in this match only. Treating it as a short watch, not an identity.`;
-
+  const why = whyText(leak, primary, lastMatches);
   const secondary = scored.find((row) => row.slug !== primary.slug && row.score > 0);
 
   return {

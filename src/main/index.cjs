@@ -7,7 +7,7 @@ const appMetadata = require('../../package.json');
 const { SettingsStore } = require('./settings-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
 const { SenseiBrainStore } = require('./sensei-brain/store.cjs');
-const { applySenseiBrain } = require('./sensei-brain/hook.cjs');
+const { applySenseiBrain, planSenseiBrain } = require('./sensei-brain/hook.cjs');
 const { LOOPBACK_HOST, OverlayServer, createOverlayToken, findLanHost } = require('./services/overlay-server.cjs');
 const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
@@ -427,7 +427,26 @@ function registerIpc() {
     const tier = current.senseiTier === 'sensei' ? 'sensei' : 'lite';
     senseiStore.save(senseiAccountId(), matchId, { status: 'analyzing', tier, error: '' });
     try {
-          const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
+              const plan = planSenseiBrain({
+      store: senseiBrainStore,
+      accountId: senseiAccountId(),
+      match,
+      rankName: match.rankName
+    });
+        const plannedMission = plan.curriculum && plan.curriculum.primaryMission ? plan.curriculum.primaryMission : null;
+    const missionPrompt = mission ? [
+      'PRIMARY MISSION (already chosen; do not replace it):',
+      JSON.stringify({
+        title: plannedMission.title,
+        why: plannedMission.why,
+        drillName: plannedMission.drillName,
+        drillSetup: plannedMission.drillSetup,
+        successMetric: plannedMission.successMetric
+      }),
+      'focusRule must be 24 words or fewer and must restate this mission title.',
+      'The first drill must be this mission drill. The other two drills must support the same mission.'
+    ].join('\n') : '';
+    const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel, missionPrompt });({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel });
     const brain = applySenseiBrain({
       store: senseiBrainStore,
       accountId: senseiAccountId(),
@@ -464,7 +483,7 @@ function registerIpc() {
     const match = completedMatch(matchId);
     const existing = senseiEntry(matchId);
     if (!match || existing?.status !== 'ready' || !existing.report) throw new Error('Run Sensei Vision on this match first.');
-    const answer = await senseiService.ask({ question: request.question, report: existing.report, match, model: settings.get().senseiModel, tier: existing.tier });
+      const answer = await senseiService.ask({ question: request.question, report: existing.report, match, model: settings.get().senseiModel, tier: existing.tier, mission: existing.brain || null });
     const chat = [...(existing.chat || []), { role: 'user', text: String(request.question || '').trim(), createdAt: Date.now() }, { role: 'assistant', text: answer, createdAt: Date.now() }];
     return senseiStore.save(senseiAccountId(), matchId, { chat });
   });

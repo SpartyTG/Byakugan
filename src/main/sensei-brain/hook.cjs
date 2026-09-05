@@ -27,6 +27,43 @@ function praiseFromReport(report) {
   return Array.isArray(report && report.strengths) ? report.strengths.slice(0, 3) : [];
 }
 
+function priorMatches(store, accountId, currentMatchId) {
+  const current = String(currentMatchId || "");
+  return store.getLastMatches(accountId, 8).filter((row) => String(row.matchId || "") !== current);
+}
+
+function buildCurriculum({ store, accountId, match, report, rankName }) {
+  const leakSlugs = leaksFromMatch(match, report);
+  const rankBand = rankBandFromName(rankName || match.rankName || "");
+  const matchId = match.id || match.matchId;
+  return decideCurriculum({
+    accountId,
+    rankBand,
+    thisMatch: {
+      matchId,
+      map: match.map,
+      agent: match.agent,
+      leakSlugs,
+      firstDeaths: number(match && match.report && match.report.openingDeaths),
+      praise: praiseFromReport(report)
+    },
+    lastMatches: priorMatches(store, accountId, matchId),
+    openMission: store.getOpenMission(accountId)
+  });
+}
+
+function planSenseiBrain({ store, accountId, match, rankName }) {
+  if (!store || !accountId || !match) {
+    return { curriculum: null, leakSlugs: [], notice: "" };
+  }
+  const curriculum = buildCurriculum({ store, accountId, match, report: null, rankName });
+  return {
+    curriculum,
+    leakSlugs: leaksFromMatch(match, null),
+    notice: ""
+  };
+}
+
 function applySenseiBrain({ store, accountId, match, report, rankName }) {
   if (!store || !accountId || !match) {
     return { curriculum: null, leakSlugs: [], notice: "" };
@@ -51,20 +88,7 @@ function applySenseiBrain({ store, accountId, match, report, rankName }) {
     store.touchLeak(accountId, slug, 1, match.id || match.matchId);
   }
 
-  const curriculum = decideCurriculum({
-    accountId,
-    rankBand,
-    thisMatch: {
-      matchId: match.id || match.matchId,
-      map: match.map,
-      agent: match.agent,
-      leakSlugs,
-      firstDeaths: number(match && match.report && match.report.openingDeaths),
-      praise: praiseFromReport(report)
-    },
-    lastMatches: store.getLastMatches(accountId, 8),
-    openMission: store.getOpenMission(accountId)
-  });
+  const curriculum = buildCurriculum({ store, accountId, match, report, rankName });
 
   if (curriculum.primaryMission && curriculum.primaryMission.slug !== "observe") {
     if (!curriculum.keptOpenMission) {
@@ -83,5 +107,6 @@ function applySenseiBrain({ store, accountId, match, report, rankName }) {
 
 module.exports = {
   leaksFromMatch,
+  planSenseiBrain,
   applySenseiBrain
 };

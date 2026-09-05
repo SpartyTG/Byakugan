@@ -363,9 +363,9 @@ function strictSchema() {
   };
 }
 
-function modelPrompt(matchCard, contextPack) {
+function modelPrompt(matchCard, contextPack, missionPrompt = '') {
   const rubric = senseiMetricRubric(matchCard);
-  return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines. BYAKUGAN has already classified the metrics and scorecard using a deterministic rubric; copy the supplied scorecard exactly and never describe an average or high metric as low, poor, weak, or inaccurate. A below-baseline match can still have objectively strong statistics. Do not infer poor survival or positioning from total deaths when K/D is high, and do not infer utility or economy quality without direct supporting data. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number and must remain compatible with the rubric. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Use short, realistic practice blocks with countable repetitions; never prescribe 100-round timers, simulated high-pressure rounds, or extreme percentage targets. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nDETERMINISTIC METRIC RUBRIC:\n${JSON.stringify(rubric)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}`;
+  return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines. BYAKUGAN has already classified the metrics and scorecard using a deterministic rubric; copy the supplied scorecard exactly and never describe an average or high metric as low, poor, weak, or inaccurate. A below-baseline match can still have objectively strong statistics. Do not infer poor survival or positioning from total deaths when K/D is high, and do not infer utility or economy quality without direct supporting data. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number and must remain compatible with the rubric. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Use short, realistic practice blocks with countable repetitions; never prescribe 100-round timers, simulated high-pressure rounds, or extreme percentage targets. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nDETERMINISTIC METRIC RUBRIC:\n${JSON.stringify(rubric)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}${missionPrompt ? `\n\n${missionPrompt}` : ''}`;
 }
 
 async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {}, repairContext = null }) {
@@ -971,7 +971,7 @@ class SenseiService {
     }
   }
 
-  async analyze({ match, matches, tier = 'lite', model = '' }) {
+  async analyze({ match, matches, tier = 'lite', model = '', missionPrompt = '' }) {
     const matchCard = compactMatch(match);
     const contextPack = buildContextPack(match, matches);
     const lite = liteReport(match, contextPack);
@@ -980,7 +980,7 @@ class SenseiService {
     if (!model) throw new Error('Choose an installed local Sensei model in Settings first.');
     try {
       const report = await generateStructured({
-        endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack), schema: strictSchema(),
+        endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack, missionPrompt), schema: strictSchema(),
         label: 'local model', validate: (value) => validateGroundedReport(value, matchCard, lite), retries: 1,
         repairContext: {
           match: Object.fromEntries(Object.entries(matchCard).filter(([key]) => key !== 'roundTimeline')),
@@ -1009,18 +1009,18 @@ class SenseiService {
     }
   }
 
-  async ask({ question, report, match, model = '', tier = 'lite' }) {
+  async ask({ question, report, match, model = '', tier = 'lite', mission = null }) {
     const clean = String(question || '').trim().slice(0, 1_000);
     if (!clean) throw new Error('Enter a question for Sensei.');
     if (tier === 'lite') {
-      return `Use the saved report's focus rule: ${report.focusRule} The strongest evidence for this match is ${report.citations.slice(0, 3).join('; ')}.`;
+      return `Stay on this mission: ${mission && mission.title ? mission.title : report.focusRule} The strongest evidence for this match is ${report.citations.slice(0, 3).join('; ')}.`;
     }
     if (!model) throw new Error('The local Sensei model is not configured.');
     const response = await requestJson(`${this.endpoint}/api/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, stream: false, think: false, options: { temperature: .25, num_predict: 450 }, prompt: `Answer one short follow-up about this completed VALORANT match. Use only the saved report and match card. Do not start a new analysis. If evidence is missing, say so.\nMATCH:${JSON.stringify(compactMatch(match))}\nREPORT:${JSON.stringify(report)}\nQUESTION:${clean}` })
+      body: JSON.stringify({ model, stream: false, think: false, options: { temperature: .25, num_predict: 450 }, prompt: `Answer one short follow-up about this completed VALORANT match. Use only the saved report, match card, and open mission. Do not start a new analysis. Do not assign a new primary lesson unless the player says the current mission is wrong. If evidence is missing, say so.\nOPEN MISSION:${JSON.stringify(mission || null)}\nMATCH:${JSON.stringify(compactMatch(match))}\nREPORT:${JSON.stringify(report)}\nQUESTION:${clean}` })
     });
-    return String(response.response || '').trim().slice(0, 2_000);
+    return String(response.response || '').trim().slice(0, 2000);
   }
 
   async analyzeVod({ match, statisticalReport, frameFiles, frameTimestamps = [], frameIntervalSeconds = 120, model = '', repairModel = '', signal = null, onProgress = () => {} }) {
