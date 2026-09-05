@@ -1,0 +1,22 @@
+{
+  "packId": "ranks.calibration.v1",
+  "kind": "ranks",
+  "bands": {
+    "iron-silver": {
+      "emphasize": ["head-height crosshair", "do not wide swing alone", "use the utility you bought", "trade the entry"],
+      "avoid": ["pro default executes", "lurk timings", "opponent tendency reads"]
+    },
+    "gold-plat": {
+      "emphasize": ["utility before peek", "spacing", "when to fall vs re-peek", "buy discipline"],
+      "avoid": ["copying a pro default 1:1"]
+    },
+    "diamond-asc": {
+      "emphasize": ["mid-round calls", "default vs hit", "ult economy", "leftover utility"],
+      "avoid": ["just aim better as the main tip"]
+    },
+    "immortal-radiant": {
+      "emphasize": ["pattern breaks", "opponent adaptation", "micro-defaults"],
+      "avoid": ["beginner hygiene unless the VOD proves it"]
+    }
+  }
+}

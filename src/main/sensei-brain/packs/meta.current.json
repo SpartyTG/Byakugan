@@ -1,0 +1,22 @@
+{
+  "packId": "meta.v26-act4-13.05-stub",
+  "kind": "meta",
+  "gamePatch": "13.05",
+  "act": "V26 Act 4",
+  "validFrom": "2026-09-01",
+  "changelogForCoach": [
+    "Patch 13.00 buffed several Sentinels. Do not coach as if Sentinels are inherently weak this act.",
+    "Initiator signature cooldowns for Sova, Fade, Skye, Breach, and KAY/O sit at 50s, not 60s.",
+    "Patch 13.05 is mostly cosmetics, Champions Pick Ems, and behavior penalties. No major agent rewrite in 13.05.",
+    "Summit is a newer competitive map. Prefer principles over copied defaults until this pack has stable defaults."
+  ],
+  "doNotSay": [
+    "Initiator signatures are 60 seconds this act",
+    "Sentinels are unplayable",
+    "Summit is not in competitive"
+  ],
+  "sources": [
+    "playvalorant.com Patch Notes 13.00",
+    "playvalorant.com Patch Notes 13.05"
+  ]
+}

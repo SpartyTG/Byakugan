@@ -1,0 +1,66 @@
+{
+  "packId": "leaks.catalog.v1",
+  "kind": "leaks",
+  "leaks": {
+    "first_death_attack": {
+      "slug": "first_death_attack",
+      "liteHints": ["high firstDeaths", "low entry rating", "lost attack rounds"],
+      "title": "Stop dying first on attack",
+      "silverWording": "You peeked first and alone. Wait for utility or a teammate swinging with you.",
+      "immortalWording": "Your contact is ahead of the pack. Delay and play second contact, or the pack has to be on your hip.",
+      "drillName": "Second contact rule",
+      "drillSetup": "For the next 5 ranked attack rounds on your main map: do not take the first peek unless a flash or recon is already used, or a teammate swings with you.",
+      "successMetric": "First-death-on-attack rate drops below 20% over the next 8 attack rounds."
+    },
+    "untraded_entry": {
+      "slug": "untraded_entry",
+      "liteHints": ["firstKills without follow-up", "deaths with no assist nearby"],
+      "title": "Stop taking untraded space",
+      "silverWording": "If you swing a corner, a teammate should be ready to shoot the same angle.",
+      "immortalWording": "Your entry timing is creating numbers-down rounds. Space is only worth it if the trade window is real.",
+      "drillName": "Pair the swing",
+      "drillSetup": "Call the swing before you take it. If nobody is with you, you do not go.",
+      "successMetric": "Untraded entry deaths drop over the next 8 games."
+    },
+    "util_unused_on_death": {
+      "slug": "util_unused_on_death",
+      "liteHints": ["low utility rating", "deaths with unused signature"],
+      "title": "Spend utility before the peek",
+      "silverWording": "If you bought a flash or recon, use it before you swing.",
+      "immortalWording": "Utility is late. The info or flash has to exist before first contact, not after you are already dead.",
+      "drillName": "Util first",
+      "drillSetup": "Every gunfight in the next 3 games starts with a piece of utility, not a dry peek.",
+      "successMetric": "Utility rating is no longer the lowest scorecard item."
+    },
+    "postplant_overpeek": {
+      "slug": "postplant_overpeek",
+      "liteHints": ["lost rounds after plants", "deaths after plant"],
+      "title": "Play the planted spike, not the extra fight",
+      "silverWording": "After the plant, hold an angle. Do not re-peek for style kills.",
+      "immortalWording": "Post-plant peeks are donating time. Play the clock and the off-angle.",
+      "drillName": "Clock first",
+      "drillSetup": "Next 5 post-plants: you hold, you do not wide-swing unless you hear the defuse.",
+      "successMetric": "Fewer deaths in the 10 seconds after a plant."
+    },
+    "wrong_force_buy": {
+      "slug": "wrong_force_buy",
+      "liteHints": ["low econ rating", "force buy losses"],
+      "title": "Stop force-buying the wrong rounds",
+      "silverWording": "If the team cannot buy together, save. A half-buy that loses puts you behind two rounds.",
+      "immortalWording": "Your force rounds are not creating a numbers or spike advantage. Save unless the force has a plan.",
+      "drillName": "Buy with the team",
+      "drillSetup": "Look at team money before you click buy. If two teammates are saving, you save.",
+      "successMetric": "Econ rating is average or better over the next 5 games."
+    },
+    "rifle_hs_below_band": {
+      "slug": "rifle_hs_below_band",
+      "liteHints": ["low hsPercent", "low aim rating"],
+      "title": "Get rifle shots back to head height",
+      "silverWording": "Keep the crosshair at head height when you walk corners.",
+      "immortalWording": "HS% is below your band. This is a hygiene leak, not a new agent problem.",
+      "drillName": "Head-height walk",
+      "drillSetup": "10 minutes of range bots or deathmatch with one rule: crosshair starts at head height before every swing.",
+      "successMetric": "HS% moves up toward your rank band over the next 8 games."
+    }
+  }
+}
