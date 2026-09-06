@@ -274,9 +274,40 @@ function normalizeVerdict(value, fallbackReport = null) {
   return sentences.map(normalizeSentenceEnding).filter(Boolean).join(' ').trim();
 }
 
+function reportDrillMode(drill) {
+  const text = `${drill?.name || ''} ${drill?.setup || ''}`.toLowerCase();
+  if (/\b(range|bots?)\b/.test(text)) return 'range';
+  if (/\bcustom(?: game)?\b/.test(text)) return 'custom';
+  if (/\b(deathmatch|dm)\b/.test(text)) return 'deathmatch';
+  return '';
+}
+
+function completeDrill(drill) {
+  return Boolean(drill?.name && drill?.setup && drill?.success);
+}
+
+function normalizeDrills(value, fallbackReport = null) {
+  const modelDrills = Array.isArray(value) ? value.filter(completeDrill) : [];
+  const supportDrills = Array.isArray(fallbackReport?.drills) ? fallbackReport.drills.filter(completeDrill) : [];
+  if (!supportDrills.length) return value;
+  const selected = [];
+  const isDistinct = (candidate) => selected.every((drill) => (
+    String(drill.name).trim().toLowerCase() !== String(candidate.name).trim().toLowerCase()
+    && String(drill.setup).trim().toLowerCase() !== String(candidate.setup).trim().toLowerCase()
+    && String(drill.success).trim().toLowerCase() !== String(candidate.success).trim().toLowerCase()
+  ));
+  for (const mode of ['range', 'custom', 'deathmatch']) {
+    const candidate = modelDrills.find((drill) => reportDrillMode(drill) === mode && isDistinct(drill))
+      || supportDrills.find((drill) => reportDrillMode(drill) === mode && isDistinct(drill));
+    if (candidate) selected.push(candidate);
+  }
+  return selected.length === 3 ? selected : value;
+}
+
 function validateGroundedReport(value, matchCard = {}, fallbackReport = null) {
   const groundedValue = value && typeof value === 'object' ? { ...value } : value;
   if (groundedValue) groundedValue.verdict = normalizeVerdict(groundedValue.verdict, fallbackReport);
+  if (groundedValue) groundedValue.drills = normalizeDrills(groundedValue.drills, fallbackReport);
   if (groundedValue && Array.isArray(groundedValue.weaknesses)) {
     const evidencedWeaknesses = groundedValue.weaknesses.filter((item) => /\d/.test(String(item)));
     groundedValue.weaknesses = evidencedWeaknesses.length || !groundedValue.weaknesses.length

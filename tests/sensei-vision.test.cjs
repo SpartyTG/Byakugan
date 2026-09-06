@@ -82,6 +82,39 @@ test('strict Sensei validation rejects repetitive drills and accepts harmless fe
   assert.throws(() => validateReport(report), /three distinct drills/i);
 });
 
+test('Full Sensei repairs missing and duplicate drill modes without falling back', async () => {
+  const current = match('drill-mode-repair');
+  const candidate = liteReport(current, buildContextPack(current, []));
+  candidate.drills = [
+    { name: 'Route One', setup: 'Custom game: rehearse the first safe route.', success: 'Name the exit before moving.' },
+    { name: 'Route Two', setup: 'Custom game: rehearse the second safe route.', success: 'Name the trade path before moving.' },
+    { name: 'Route Three', setup: 'Custom game: rehearse the third safe route.', success: 'Reach cover before the timer ends.' }
+  ];
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: JSON.stringify(candidate) }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({ match: current, matches: [], tier: 'sensei', model: 'sensei:latest' });
+    const drillText = result.report.drills.map((drill) => `${drill.name} ${drill.setup}`.toLowerCase());
+    assert.equal(result.tier, 'sensei');
+    assert.equal(result.notice, '');
+    assert.equal(requests.length, 1);
+    assert.equal(result.report.drills.some((drill) => drill.name === 'Route One'), true);
+    assert.equal(drillText.some((drill) => /\brange\b/.test(drill)), true);
+    assert.equal(drillText.some((drill) => /\bcustom(?: game)?\b/.test(drill)), true);
+    assert.equal(drillText.some((drill) => /\b(?:deathmatch|dm)\b/.test(drill)), true);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
 test('Full Sensei repairs malformed model output with broadly compatible JSON mode', async () => {
   const payload = JSON.stringify(liteReport(match('structured-repair'), buildContextPack(match('structured-repair'), [])));
   const requests = [];

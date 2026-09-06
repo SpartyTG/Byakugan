@@ -2,15 +2,24 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.123`
-- Previous release: `v0.8.0-beta.122`
+- Target: `v0.8.0-beta.124`
+- Previous release: `v0.8.0-beta.123`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `178` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `179` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.124 changes
+
+### Deterministic drill-category repair
+
+- A Full Sensei report no longer falls back solely because its three drills repeat or omit a required practice category.
+- Valid model drills are retained first; only missing or duplicate Range, custom-game, and Deathmatch slots are filled from the grounded Lite support report.
+- The one Brain-selected mission drill still becomes the first drill after category repair.
+- Unsafe or incomplete drills continue to fail the existing safety validation.
 
 ## Beta.123 changes
 
@@ -80,13 +89,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.123 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.124 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.123
-git push origin v0.8.0-beta.123
+git tag v0.8.0-beta.124
+git push origin v0.8.0-beta.124
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -94,7 +103,7 @@ git push origin v0.8.0-beta.123
 
 ## Manual verification
 
-1. Regenerate the Full Sensei report that exposed the punctuation-free verdict sentence-count failure. Confirm it remains Full Sensei and the mission, focus rule, and first drill agree.
+1. Regenerate the Full Sensei report that exposed the duplicate/missing drill-category failure. Confirm it remains Full Sensei and contains one Range, one custom-game, and one Deathmatch drill, with the mission drill first.
 2. Regenerate the same match twice and add existing VOD evidence. Confirm the mission does not reassign and the leak count does not grow for the same match.
 3. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.
 4. If VOD is selected, confirm the app clearly reports missing FFmpeg until the complete FFmpeg package is installed.
