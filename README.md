@@ -96,7 +96,21 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.114
+## Included in version 0.8.0-beta.122
+
+- Full Sensei now receives the complete Sensei Brain context: the selected mission, local match memory, leak ledger, rank calibration, coaching doctrine, and manually maintained `meta.current.json`
+- Repairable one-sentence and overlong verdicts are normalized locally instead of unnecessarily dropping a statistically valid report to Sensei Lite
+- Full and Lite reports are aligned to the one Brain-selected mission; the focus rule and first drill cannot silently replace it
+- One ordinary leak remains **Collect a baseline**; only a repeating or catastrophic signal can become a real mission
+- Sensei reports and Brain memory now use a stable pseudonymous Riot-account key and automatically migrate existing `GameName#Tag` history without exposing the Riot PUUID
+- Regenerating a report or applying VOD evidence to the same match no longer increments the same leak occurrence more than once
+- The Sensei setup wizard follows only trusted HTTPS installer redirects, uses a fresh temporary download stream, reports download progress, blocks overlapping setup jobs, validates the Windows executable, and removes the installer after use
+- **Sensei Vision Ready** now reflects Ollama and model availability; incomplete optional VOD requirements are labeled separately
+- GitHub Actions now verifies every tracked JavaScript file, Brain pack JSON, 178 automated tests, and all 10 Sensei Brain smoke checks before building an installer
+
+Beta.121 added concrete Keep / Wrong / Done mission-card guidance. Beta.120 and earlier Sensei Brain phases introduced the persistent one-mission curriculum, cooldowns, editable meta pack, VOD leak merging, mission-aware Ask Sensei, and the opt-in local setup wizard.
+
+### Earlier beta fixes
 
 - Completed Match History rosters now show each player's Riot account level beside their name whenever the completed match payload supplies it
 - A missing completed-match level is labeled **LVL PRIVATE**, while an available level remains visible independently of Riot-name privacy, matching Live Match behavior
@@ -341,7 +355,7 @@ Requirements: Node.js 24+ and npm.
 
 ```bash
 npm install
-npm test
+npm run verify
 npm start
 ```
 
@@ -353,7 +367,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.98-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.122-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -382,10 +396,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.114`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.122`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.114`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.122`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -393,8 +407,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.114
-git push origin v0.8.0-beta.114
+git tag v0.8.0-beta.122
+git push origin v0.8.0-beta.122
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

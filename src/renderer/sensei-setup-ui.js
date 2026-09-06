@@ -1,5 +1,8 @@
 "use strict";
 
+let senseiSetupBusy = false;
+let removeSenseiSetupProgress = null;
+
 function ensureSenseiSetupModal() {
   if (document.getElementById("senseiSetupModal")) return;
   const wrap = document.createElement("div");
@@ -39,10 +42,18 @@ async function runSenseiSetup() {
   const log = document.getElementById("senseiSetupLog");
   const write = (text) => { if (log) log.textContent = text; };
   if (!window.companion || !window.companion.installSenseiOllama) {
-    write("Setup bridge missing. Copy preload.cjs from the Phase 18 zip.");
+    write("Sensei setup is unavailable in this installation. Update BYAKUGAN and try again.");
     return;
   }
+  if (senseiSetupBusy) return;
   const includeVod = Boolean(document.getElementById("senseiSetupVod")?.checked);
+  const yes = document.getElementById("senseiSetupYes");
+  const no = document.getElementById("senseiSetupNo");
+  const vod = document.getElementById("senseiSetupVod");
+  senseiSetupBusy = true;
+  if (yes) { yes.disabled = true; yes.textContent = "Setting up…"; }
+  if (no) no.disabled = true;
+  if (vod) vod.disabled = true;
   try {
     write("Checking for Ollama…");
     await window.companion.installSenseiOllama();
@@ -63,29 +74,41 @@ async function runSenseiSetup() {
     if (enabled) enabled.checked = true;
     write("Sensei is ready on this PC.");
     hideSenseiSetupModal();
+    await refreshSetupButton();
   } catch (error) {
     write(error && error.message ? error.message : String(error));
+  } finally {
+    senseiSetupBusy = false;
+    if (yes) { yes.disabled = false; yes.textContent = "Yes, install on this PC"; }
+    if (no) no.disabled = false;
+    if (vod) vod.disabled = false;
   }
 }
 
-async function senseiIsReady() {
-  const enabled = document.getElementById("senseiEnabled");
-  const model = document.getElementById("senseiModel");
-  if (enabled && enabled.checked && model && String(model.value || "").trim()) return true;
+async function senseiReadiness() {
   try {
-    const settings = window.companion && window.companion.getSettings ? await window.companion.getSettings() : null;
-    return Boolean(settings && settings.senseiEnabled && String(settings.senseiModel || "").trim());
+    if (!window.companion?.getSettings || !window.companion?.getSenseiStatus) return { ready: false, vodMissing: false };
+    const [settings, status] = await Promise.all([
+      window.companion.getSettings(),
+      window.companion.getSenseiStatus()
+    ]);
+    const textReady = settings?.senseiTier !== "sensei" || Boolean(status?.connected && status?.textModel?.installed);
+    const vodReady = !settings?.senseiVodEnabled || Boolean(status?.vodReady);
+    return {
+      ready: Boolean(settings?.senseiEnabled && textReady),
+      vodMissing: Boolean(settings?.senseiEnabled && textReady && !vodReady)
+    };
   } catch {
-    return false;
+    return { ready: false, vodMissing: false };
   }
 }
 
 async function refreshSetupButton() {
   const button = document.getElementById("senseiSetupOpen");
   if (!button) return;
-  const ready = await senseiIsReady();
-  button.textContent = ready ? "Sensei Vision Ready" : "Set up Sensei on this PC";
-  button.className = ready ? "ghost-button" : "primary-button";
+  const status = await senseiReadiness();
+  button.textContent = status.vodMissing ? "Sensei Ready • VOD setup incomplete" : status.ready ? "Sensei Vision Ready" : "Set up Sensei on this PC";
+  button.className = status.ready ? "ghost-button" : "primary-button";
 }
 
 function addSetupButton() {
@@ -102,7 +125,8 @@ function addSetupButton() {
     button.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (await senseiIsReady()) return;
+      const status = await senseiReadiness();
+      if (status.ready && !status.vodMissing) return;
       showSenseiSetupModal();
     });
     host.parentNode.insertBefore(button, host.nextSibling);
@@ -119,13 +143,27 @@ function bindSenseiSetup() {
       if (event.target && event.target.id === "senseiSetupYes") runSenseiSetup();
       if (event.target && event.target.id === "senseiSetupNo") {
         hideSenseiSetupModal();
-        const enabled = document.getElementById("senseiEnabled");
-        if (enabled) enabled.checked = false;
       }
     });
+    document.addEventListener("change", (event) => {
+      if (["senseiEnabled", "senseiTier", "senseiModel", "senseiVodEnabled", "senseiVodModel"].includes(event.target?.id)) refreshSetupButton();
+    });
+    if (window.companion?.onSenseiSetupProgress) {
+      removeSenseiSetupProgress?.();
+      removeSenseiSetupProgress = window.companion.onSenseiSetupProgress((progress = {}) => {
+        const log = document.getElementById("senseiSetupLog");
+        if (!log) return;
+        if (progress.phase === "download-ollama") {
+          log.textContent = Number.isFinite(progress.percent) ? `Downloading Ollama… ${progress.percent}%` : "Downloading Ollama…";
+        } else if (progress.phase === "pull-model") {
+          log.textContent = Number.isFinite(progress.percent)
+            ? `Downloading ${progress.model}… ${progress.percent}%`
+            : `Downloading ${progress.model}… ${progress.raw || "working"}`;
+        } else if (progress.message) log.textContent = progress.message;
+      });
+    }
   }
 }
 
 document.addEventListener("DOMContentLoaded", bindSenseiSetup);
 if (document.readyState !== "loading") bindSenseiSetup();
-setInterval(addSetupButton, 1500);

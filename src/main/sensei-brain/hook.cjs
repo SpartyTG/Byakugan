@@ -96,20 +96,20 @@ function buildCurriculum({ store, accountId, match, report, rankName, extraLeaks
 
 function planSenseiBrain({ store, accountId, match, rankName }) {
   if (!store || !accountId || !match) {
-    return { curriculum: null, leakSlugs: [], notice: "" };
+    return { curriculum: null, leakSlugs: [], rankBand: rankBandFromName(rankName || match?.rankName || ""), notice: "" };
   }
   const built = buildCurriculum({ store, accountId, match, report: null, rankName });
-  return { curriculum: built.curriculum, leakSlugs: built.leakSlugs, notice: "" };
+  return { curriculum: built.curriculum, leakSlugs: built.leakSlugs, rankBand: rankBandFromName(rankName || match.rankName || ""), notice: "" };
 }
 
-function applySenseiBrain({ store, accountId, match, report, rankName, extraLeaks }) {
+function applySenseiBrain({ store, accountId, match, report, rankName, extraLeaks, plannedCurriculum = null }) {
   if (!store || !accountId || !match) {
     return { curriculum: null, leakSlugs: [], notice: "" };
   }
 
   const built = buildCurriculum({ store, accountId, match, report, rankName, extraLeaks });
   const leakSlugs = built.leakSlugs;
-  const curriculum = built.curriculum;
+  const curriculum = plannedCurriculum || built.curriculum;
   const rankBand = rankBandFromName(rankName || match.rankName || "");
 
   store.upsertProfile(accountId, {

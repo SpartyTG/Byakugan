@@ -1,15 +1,24 @@
 # BYAKUGAN Source Handoff
 
-This package is the canonical source for `v0.8.0-beta.114`.
+This historical release log is retained for context. The active handoff is
+`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.122`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.113`
-- Automated tests: `169 passed, 0 failed`
+- Previous canonical version: `v0.8.0-beta.121`
+- Automated tests: `178 passed, 0 failed`, plus `10` Sensei Brain smoke checks
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
 
-## Latest completed change
+## Beta.122 stabilization
+
+Beta.122 connects the complete Sensei Brain prompt and validation stack to the
+production Full Sensei path, repairs avoidable verdict-length failures, makes
+Lite fallback mission-aware, migrates saved coaching history to a stable
+pseudonymous Riot-account key, makes leak occurrences idempotent per match,
+hardens the local Ollama setup flow, and expands the release gate.
+
+## Earlier completed changes
 
 Beta.114 adds Riot account levels to every completed Match History roster row.
 The historical normalizer now retains the level supplied in each participant's
@@ -17,8 +26,6 @@ completed-match identity, and the renderer places a compact **LVL** badge next
 to the name without disturbing K/D/A, ACS, party grouping, match rank, or peak
 rank. Available levels remain visible independently of Riot-name privacy, as in
 Live Match; missing values are labeled **LVL PRIVATE** rather than invented.
-
-## Previous completed changes
 
 Beta.113 fixes the frequent, misleading **Act stats updated** toast observed on
 the streaming PC. Incoming Remote Viewer snapshots, five-second Live Match
@@ -220,7 +227,8 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.114 on both PCs and open several completed matches. Every roster
+Install beta.122 on both PCs and follow the manual verification in
+`BYAKUGAN-CURRENT-HANDOFF.md`. For the beta.114 roster feature, every roster
 row should show **LVL [number]** when Riot supplied the account level and **LVL
 PRIVATE** when it did not. Confirm that the level badge remains alongside party
 badges without covering names or performance data.

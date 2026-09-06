@@ -171,6 +171,24 @@ class SenseiStore {
     return changed;
   }
 
+  migrateAccount(fromAccountId, toAccountId) {
+    const from = cleanText(fromAccountId, 160);
+    const to = cleanText(toAccountId, 160);
+    if (!from || !to || from === to) return false;
+    const data = this.read();
+    const source = data.accounts[from];
+    if (!source) return false;
+    const target = data.accounts[to] || {};
+    for (const [matchId, entry] of Object.entries(source)) {
+      const existing = target[matchId];
+      if (!existing || Number(entry?.updatedAt || 0) > Number(existing?.updatedAt || 0)) target[matchId] = entry;
+    }
+    data.accounts[to] = target;
+    delete data.accounts[from];
+    this.write(data);
+    return true;
+  }
+
   get(accountId, matchId) {
     const account = this.read().accounts[cleanText(accountId, 160)] || {};
     const value = account[cleanText(matchId, 100)];

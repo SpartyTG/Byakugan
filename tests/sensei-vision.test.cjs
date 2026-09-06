@@ -11,7 +11,7 @@ const {
   SenseiService, ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_FRAME_RATE, ADAPTIVE_VOD_MAX_FRAMES, ADAPTIVE_VOD_WINDOW_SECONDS,
   buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds,
   finalizeFullVodReport, isUsefulVodFinding, liteReport, parseStructuredJson, parseVodActivityScan,
-  senseiMetricRubric, validateFullVodSegment, validateGroundedReport, validateReport
+  normalizeVerdict, senseiMetricRubric, validateFullVodSegment, validateGroundedReport, validateReport
 } = require('../src/main/services/sensei-service.cjs');
 const { SettingsStore } = require('../src/main/settings-store.cjs');
 
@@ -142,6 +142,69 @@ test('Sensei verdicts stay specific and focus rules remain memorable', () => {
   next.focusRule = Array.from({ length: 25 }, () => 'word').join(' ');
   const trimmed = validateReport(next);
   assert.equal(trimmed.focusRule.split(/\s+/).length, 24);
+});
+
+test('Sensei repairs verdict length without splitting decimal statistics', () => {
+  const fallback = { verdict: 'You won with a 1.62 K/D. Opening duels were positive.' };
+  assert.equal(
+    normalizeVerdict('A 1.62 K/D created reliable fight value.', fallback),
+    'A 1.62 K/D created reliable fight value. You won with a 1.62 K/D.'
+  );
+  assert.equal(
+    normalizeVerdict('One. Two. Three. Four.', fallback),
+    'One. Two. Three.'
+  );
+});
+
+test('Full Sensei uses Brain packs and deterministically aligns a repairable report to the selected mission', async () => {
+  const current = match('brain-runtime', { report: { openingKills: 0, openingDeaths: 4, rounds: [] } });
+  const candidate = liteReport(current, buildContextPack(current, []));
+  candidate.verdict = 'The supplied match showed a difficult opening-duel pattern.';
+  candidate.focusRule = 'Change several habits next match.';
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push(JSON.parse(body));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ response: JSON.stringify(candidate) }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const mission = {
+    id: 'first-death-brain-runtime', slug: 'first_death_attack', title: 'Stop dying first on attack',
+    why: 'It repeated.', drillName: 'Second contact rule',
+    drillSetup: 'Do not take first contact without utility or a teammate.',
+    successMetric: 'First deaths drop over the next eight attack rounds.', status: 'pending'
+  };
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({
+      match: current,
+      matches: [],
+      tier: 'sensei',
+      model: 'qwen3:8b',
+      brainContext: {
+        rankBand: 'diamond-asc',
+        curriculum: { primaryMission: mission, keptOpenMission: false, praise: [] },
+        lastMatches: [{ matchId: 'prior', map: 'Ascent', agent: 'Omen', result: 'DEFEAT', leakSlugs: ['first_death_attack'] }],
+        ledger: { first_death_attack: { slug: 'first_death_attack', timesSeen: 2, status: 'active' } },
+        openMission: null
+      }
+    });
+    assert.equal(result.tier, 'sensei');
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].prompt, /meta\.v26-act4-13\.05/);
+    assert.match(requests[0].prompt, /PLAYER MEMORY/);
+    assert.match(requests[0].prompt, /diamond-asc/);
+    assert.match(result.report.verdict, /[.!?].+[.!?]$/);
+    assert.equal(result.report.focusRule, mission.title);
+    assert.equal(result.report.drills[0].name, mission.drillName);
+    assert.match(result.report.drills[0].setup, /Custom game/i);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test('Sensei grounds a 21/13 Omen performance to the deterministic metric rubric', () => {

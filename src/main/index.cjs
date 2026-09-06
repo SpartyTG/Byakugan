@@ -40,10 +40,24 @@ let trayBusy = false;
 let quitting = false;
 let lastTrayUpdateNotice = '';
 const senseiVodJobs = new Map();
+const migratedSenseiAccounts = new Set();
 
-function senseiAccountId() {
+function legacySenseiAccountId() {
   const profile = snapshot?.profile || {};
   return `${profile.gameName || 'local'}#${profile.tagLine || 'player'}`.slice(0, 160);
+}
+
+function senseiAccountId() {
+  const legacy = legacySenseiAccountId();
+  const stable = String(snapshot?.profile?.senseiAccountKey || '').trim().slice(0, 160);
+  if (!stable) return legacy;
+  const migration = `${legacy}=>${stable}`;
+  if (!migratedSenseiAccounts.has(migration) && senseiStore && senseiBrainStore) {
+    senseiStore.migrateAccount(legacy, stable);
+    senseiBrainStore.migrateAccount(legacy, stable);
+    migratedSenseiAccounts.add(migration);
+  }
+  return stable;
 }
 
 function completedMatch(matchId) {
@@ -418,8 +432,12 @@ function registerIpc() {
     };
   });
   ipcMain.handle('sensei:setup-status', () => senseiSetup.status());
-  ipcMain.handle('sensei:setup-install-ollama', async () => senseiSetup.installOllama());
-  ipcMain.handle('sensei:setup-pull-model', async (_event, model) => senseiSetup.pullModel(String(model || '')));
+  ipcMain.handle('sensei:setup-install-ollama', async (event) => senseiSetup.installOllama((progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send('sensei:setup-progress', progress);
+  }));
+  ipcMain.handle('sensei:setup-pull-model', async (event, model) => senseiSetup.pullModel(String(model || ''), (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send('sensei:setup-progress', progress);
+  }));
   ipcMain.handle('sensei:get', (_event, matchId) => senseiEntry(String(matchId || '')));
   ipcMain.handle('sensei:run', async (_event, request = {}) => {
     const current = settings.get();
@@ -432,53 +450,55 @@ function registerIpc() {
     const tier = current.senseiTier === 'sensei' ? 'sensei' : 'lite';
     senseiStore.save(senseiAccountId(), matchId, { status: 'analyzing', tier, error: '' });
     try {
-              const plan = planSenseiBrain({
-      store: senseiBrainStore,
-      accountId: senseiAccountId(),
-      match,
-      rankName: match.rankName
-    });
-       const plannedMission = plan.curriculum && plan.curriculum.primaryMission ? plan.curriculum.primaryMission : null;
-    const missionPrompt = plannedMission ? [
-      'PRIMARY MISSION (already chosen; do not replace it):',
-      JSON.stringify({
-        title: plannedMission.title,
-        why: plannedMission.why,
-        drillName: plannedMission.drillName,
-        drillSetup: plannedMission.drillSetup,
-        successMetric: plannedMission.successMetric
-      }),
-      'focusRule must be 24 words or fewer and must restate this mission title.',
-      'The first drill must be this mission drill. The other two drills must support the same mission.'
-    ].join('\n') : '';
-    const result = await senseiService.analyze({ match, matches: snapshot?.matches || [], tier, model: current.senseiModel, missionPrompt });
-    const brain = applySenseiBrain({
-      store: senseiBrainStore,
-      accountId: senseiAccountId(),
-      match,
-      report: result.report,
-      rankName: match.rankName
-    });
-        const notice = [result.notice || '', brain.notice || ''].filter(Boolean).join(' ');
-    const mission = brain.curriculum && brain.curriculum.primaryMission ? brain.curriculum.primaryMission : null;
-    return senseiStore.save(senseiAccountId(), matchId, {
-      status: 'ready',
-      tier: result.tier || tier,
-      model: result.model,
-      notice,
-      report: result.report,
-      error: '',
-      chat: request.regenerate ? [] : existing?.chat || [],
-      brain: mission ? {
-        slug: mission.slug || '',
-        title: mission.title,
-        why: mission.why,
-        drillName: mission.drillName,
-        drillSetup: mission.drillSetup,
-        successMetric: mission.successMetric,
-        keptOpenMission: Boolean(brain.curriculum.keptOpenMission)
-      } : null
-    });
+      const accountId = senseiAccountId();
+      const plan = planSenseiBrain({
+        store: senseiBrainStore,
+        accountId,
+        match,
+        rankName: match.rankName
+      });
+      const brainContext = plan.curriculum ? {
+        curriculum: plan.curriculum,
+        rankBand: plan.rankBand,
+        lastMatches: senseiBrainStore.getLastMatches(accountId, 8),
+        ledger: senseiBrainStore.getLedger(accountId),
+        openMission: senseiBrainStore.getOpenMission(accountId)
+      } : null;
+      const result = await senseiService.analyze({
+        match,
+        matches: snapshot?.matches || [],
+        tier,
+        model: current.senseiModel,
+        brainContext
+      });
+      const brain = applySenseiBrain({
+        store: senseiBrainStore,
+        accountId,
+        match,
+        report: result.report,
+        rankName: match.rankName,
+        plannedCurriculum: plan.curriculum
+      });
+      const notice = [result.notice || '', brain.notice || ''].filter(Boolean).join(' ');
+      const mission = brain.curriculum && brain.curriculum.primaryMission ? brain.curriculum.primaryMission : null;
+      return senseiStore.save(accountId, matchId, {
+        status: 'ready',
+        tier: result.tier || tier,
+        model: result.model,
+        notice,
+        report: result.report,
+        error: '',
+        chat: request.regenerate ? [] : existing?.chat || [],
+        brain: mission ? {
+          slug: mission.slug || '',
+          title: mission.title,
+          why: mission.why,
+          drillName: mission.drillName,
+          drillSetup: mission.drillSetup,
+          successMetric: mission.successMetric,
+          keptOpenMission: Boolean(brain.curriculum.keptOpenMission)
+        } : null
+      });
     } catch (error) {
       senseiStore.save(senseiAccountId(), matchId, { status: 'failed', tier, error: error.message || 'Sensei analysis failed.' });
       throw error;
@@ -489,7 +509,7 @@ function registerIpc() {
     const match = completedMatch(matchId);
     const existing = senseiEntry(matchId);
     if (!match || existing?.status !== 'ready' || !existing.report) throw new Error('Run Sensei Vision on this match first.');
-      const answer = await senseiService.ask({ question: request.question, report: existing.report, match, model: settings.get().senseiModel, tier: existing.tier, mission: existing.brain || null });
+    const answer = await senseiService.ask({ question: request.question, report: existing.report, match, model: settings.get().senseiModel, tier: existing.tier, mission: existing.brain || null });
     const chat = [...(existing.chat || []), { role: 'user', text: String(request.question || '').trim(), createdAt: Date.now() }, { role: 'assistant', text: answer, createdAt: Date.now() }];
     return senseiStore.save(senseiAccountId(), matchId, { chat });
   });

@@ -1,7 +1,7 @@
 'use strict';
 
 const { EventEmitter } = require('node:events');
-const { randomUUID } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { readLockfile, getLockfilePath, canReachPort } = require('./riot-lockfile.cjs');
@@ -26,6 +26,12 @@ const REMOTE_HOST_PATTERNS = [
 
 function isAllowedRemoteHost(hostname) {
   return REMOTE_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
+}
+
+function senseiAccountKey(puuid) {
+  const value = String(puuid || '').trim();
+  if (!value) return '';
+  return `riot-${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
 }
 
 function decodeJwtPayload(token) {
@@ -2411,6 +2417,9 @@ class RiotClientService extends EventEmitter {
         region: this.region.region.toUpperCase(), lastUpdated: new Date().toISOString()
       },
       profile: {
+        // Stable pseudonymous key for local Sensei memory. The Riot PUUID is
+        // never included in renderer or Dual PC snapshots.
+        senseiAccountKey: senseiAccountKey(this.identity.puuid),
         gameName: this.identity.gameName,
         tagLine: this.identity.tagLine,
         level,
@@ -2708,6 +2717,7 @@ function buildAgentMastery(matches) {
 
 module.exports = {
   RiotClientService,
+  senseiAccountKey,
   isAllowedRemoteHost,
   decodeJwtPayload,
   normalizeMatchHistory,

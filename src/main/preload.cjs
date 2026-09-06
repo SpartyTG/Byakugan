@@ -55,6 +55,11 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
     ipcRenderer.on('sensei:vod-progress', handler);
     return () => ipcRenderer.removeListener('sensei:vod-progress', handler);
   },
+  onSenseiSetupProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('sensei:setup-progress', handler);
+    return () => ipcRenderer.removeListener('sensei:setup-progress', handler);
+  },
   onWarning: (callback) => {
     const handler = (_event, message) => callback(message);
     ipcRenderer.on('app:warning', handler);

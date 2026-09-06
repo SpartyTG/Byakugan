@@ -14,8 +14,8 @@ echo Installing build dependencies...
 call npm.cmd install
 if errorlevel 1 goto :failed
 
-echo Running BYAKUGAN tests...
-call npm.cmd test
+echo Verifying BYAKUGAN source, tests, and Sensei Brain...
+call npm.cmd run verify
 if errorlevel 1 goto :failed
 
 echo.

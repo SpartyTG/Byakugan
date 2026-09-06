@@ -116,7 +116,9 @@ function decideCurriculum(input) {
     };
   }
 
-  const primary = scored.find((row) => row.qualifies) || scored.find((row) => row.here === 1) || null;
+  // A single ordinary match is evidence, not a habit. Only a repeating or
+  // catastrophic leak can replace the conservative baseline mission.
+  const primary = scored.find((row) => row.qualifies) || null;
   if (!primary) {
     return {
       verdictOneLiner: "No repeating leak yet. Keep the film simple and play your normal game.",

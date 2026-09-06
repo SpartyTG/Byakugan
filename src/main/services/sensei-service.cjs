@@ -5,6 +5,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFile, execFileSync, spawn } = require('node:child_process');
 const { buildLiteAsk, buildFullAskPrompt, formatAskResponse } = require('../sensei-brain/ask-prompt.cjs');
+const { assemblePrompt } = require('../sensei-brain/assemble-prompt.cjs');
+const { repairOrFallback } = require('../sensei-brain/validate.cjs');
 
 const SCORE_VALUES = new Set(['high', 'average', 'low']);
 const SCORE_KEYS = ['impact', 'aim', 'entry', 'utility', 'econ'];
@@ -231,8 +233,38 @@ function validateReport(value) {
   };
 }
 
+function verdictSentences(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  const sentences = [];
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (!/[.!?]/.test(text[index])) continue;
+    if (index + 1 < text.length && !/\s/.test(text[index + 1])) continue;
+    const sentence = text.slice(start, index + 1).trim();
+    if (sentence) sentences.push(sentence);
+    start = index + 1;
+  }
+  const remainder = text.slice(start).trim();
+  if (remainder) sentences.push(remainder);
+  return sentences;
+}
+
+function normalizeVerdict(value, fallbackReport = null) {
+  let sentences = verdictSentences(value);
+  const fallback = verdictSentences(fallbackReport?.verdict);
+  if (!sentences.length) sentences = fallback.slice(0, 3);
+  if (sentences.length > 3) sentences = sentences.slice(0, 3);
+  if (sentences.length === 1) {
+    const normalizedFirst = sentences[0].replace(/[.!?]+$/, '').toLowerCase();
+    const support = fallback.find((sentence) => sentence.replace(/[.!?]+$/, '').toLowerCase() !== normalizedFirst);
+    if (support) sentences.push(support);
+  }
+  return sentences.join(' ').trim();
+}
+
 function validateGroundedReport(value, matchCard = {}, fallbackReport = null) {
   const groundedValue = value && typeof value === 'object' ? { ...value } : value;
+  if (groundedValue) groundedValue.verdict = normalizeVerdict(groundedValue.verdict, fallbackReport);
   if (groundedValue && Array.isArray(groundedValue.weaknesses)) {
     const evidencedWeaknesses = groundedValue.weaknesses.filter((item) => /\d/.test(String(item)));
     groundedValue.weaknesses = evidencedWeaknesses.length || !groundedValue.weaknesses.length
@@ -374,9 +406,9 @@ function strictSchema() {
   };
 }
 
-function modelPrompt(matchCard, contextPack, missionPrompt = '') {
+function modelPrompt(matchCard, contextPack, brainPrompt = '') {
   const rubric = senseiMetricRubric(matchCard);
-  return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines. BYAKUGAN has already classified the metrics and scorecard using a deterministic rubric; copy the supplied scorecard exactly and never describe an average or high metric as low, poor, weak, or inaccurate. A below-baseline match can still have objectively strong statistics. Do not infer poor survival or positioning from total deaths when K/D is high, and do not infer utility or economy quality without direct supporting data. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number and must remain compatible with the rubric. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Use short, realistic practice blocks with countable repetitions; never prescribe 100-round timers, simulated high-pressure rounds, or extreme percentage targets. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nDETERMINISTIC METRIC RUBRIC:\n${JSON.stringify(rubric)}\n\nCONTEXT PACK:\n${JSON.stringify(contextPack)}${missionPrompt ? `\n\n${missionPrompt}` : ''}`;
+  return `You are SENSEI VISION, a direct VALORANT post-match coach. Analyze only the supplied completed match and the same player's summarized baselines. Never claim to have watched a VOD. Never invent, recalculate, or reverse supplied values. The context already includes match-minus-baseline deltas: positive means the match value was higher. Compare the match to the player's overall baseline first, then agent/map baselines. BYAKUGAN has already classified the metrics and scorecard using a deterministic rubric; copy the supplied scorecard exactly and never describe an average or high metric as low, poor, weak, or inaccurate. A below-baseline match can still have objectively strong statistics. Do not infer poor survival or positioning from total deaths when K/D is high, and do not infer utility or economy quality without direct supporting data. Write a specific verdict in exactly 2-3 sentences. Every weakness must quote a supplied number and must remain compatible with the rubric. Return exactly three genuinely different drills: one Range mechanics drill, one custom-game utility/positioning drill, and one Deathmatch gunfight-habit drill. Use short, realistic practice blocks with countable repetitions; never prescribe 100-round timers, simulated high-pressure rounds, or extreme percentage targets. Each drill needs an objective completion condition. The next-match focus must be one memorable rule of 24 words or fewer. Avoid generic advice and hype. Return only JSON matching the requested schema.\n\nMATCH CARD:\n${JSON.stringify(matchCard)}\n\nDETERMINISTIC METRIC RUBRIC:\n${JSON.stringify(rubric)}\n\nRECENT BASELINES:\n${JSON.stringify(contextPack)}${brainPrompt ? `\n\nSENSEI BRAIN CONTEXT:\n${brainPrompt}` : ''}`;
 }
 
 async function generateStructured({ endpoint, model, repairModel = '', prompt, schema, images, timeoutMs = 120_000, signal = null, label = 'local model', validate = (value) => value, retries = 1, numPredict = 2_400, onRepair = () => {}, repairContext = null }) {
@@ -982,22 +1014,54 @@ class SenseiService {
     }
   }
 
-  async analyze({ match, matches, tier = 'lite', model = '', missionPrompt = '' }) {
+  async analyze({ match, matches, tier = 'lite', model = '', brainContext = null }) {
     const matchCard = compactMatch(match);
     const contextPack = buildContextPack(match, matches);
     const lite = liteReport(match, contextPack);
     if (!matchCard.matchId || !['VICTORY', 'DEFEAT', 'DRAW'].includes(matchCard.result)) throw new Error('Sensei Vision can only analyze a completed match.');
-    if (tier === 'lite') return { report: validateGroundedReport(lite, matchCard, lite), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
+    const brainValidationContext = brainContext?.curriculum ? {
+      matchCard,
+      scorecard: senseiMetricRubric(matchCard).scorecard,
+      curriculum: brainContext.curriculum,
+      ledger: brainContext.ledger || {},
+      supportReport: lite
+    } : null;
+    const alignToBrain = (report, allowFallback = false) => {
+      const grounded = validateGroundedReport(report, matchCard, lite);
+      if (!brainValidationContext) return grounded;
+      const result = repairOrFallback(grounded, brainValidationContext, allowFallback ? lite : null);
+      if (!result.report) throw new Error(`The local model report did not follow the selected Sensei mission: ${result.errors.join('; ')}`);
+      return result.report;
+    };
+    const liteAligned = () => alignToBrain(lite, true);
+    if (tier === 'lite') return { report: liteAligned(), matchCard, contextPack, model: 'BYAKUGAN Lite Engine', tier: 'lite', notice: '' };
     if (!model) throw new Error('Choose an installed local Sensei model in Settings first.');
+    const assembled = brainContext?.curriculum ? assemblePrompt({
+      rankBand: brainContext.rankBand,
+      thisMatch: matchCard,
+      matchCard,
+      scorecard: brainValidationContext.scorecard,
+      recentBaselines: contextPack,
+      lastMatches: brainContext.lastMatches,
+      ledger: brainContext.ledger,
+      openMission: brainContext.openMission,
+      curriculum: brainContext.curriculum
+    }) : null;
     try {
       const report = await generateStructured({
-        endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack, missionPrompt), schema: strictSchema(),
-        label: 'local model', validate: (value) => validateGroundedReport(value, matchCard, lite), retries: 1,
+        endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack, assembled?.prompt || ''), schema: strictSchema(),
+        label: 'local model', validate: (value) => alignToBrain(value), retries: 1,
         repairContext: {
           match: Object.fromEntries(Object.entries(matchCard).filter(([key]) => key !== 'roundTimeline')),
           requiredScorecard: senseiMetricRubric(matchCard).scorecard,
           metricRubric: senseiMetricRubric(matchCard),
           recentBaselines: contextPack,
+          senseiBrain: assembled ? {
+            primaryMission: brainContext.curriculum.primaryMission,
+            keptOpenMission: brainContext.curriculum.keptOpenMission,
+            pack: assembled.packs,
+            memory: assembled.memory
+          } : null,
           rules: [
             'Never call an average or high metric low, poor, weak, or inaccurate.',
             'Do not infer poor survival or positioning from total deaths when K/D is high.',
@@ -1013,7 +1077,7 @@ class SenseiService {
       const fallbackReason = String(error?.message || 'The repaired report still failed validation.')
         .replace(/\s+/g, ' ').trim().slice(0, 260);
       return {
-        report: validateGroundedReport(lite, matchCard, lite), matchCard, contextPack,
+        report: liteAligned(), matchCard, contextPack,
         model: 'BYAKUGAN Lite Engine', tier: 'lite',
         notice: `The selected local model (${model}) could not produce a valid report after automatic repair, so BYAKUGAN safely used Sensei Lite for this match. Last validation issue: ${fallbackReason}`
       };
@@ -1316,6 +1380,6 @@ module.exports = {
   ADAPTIVE_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_SCAN_FPS, ADAPTIVE_VOD_WINDOW_SECONDS, ADAPTIVE_VOD_MAX_FRAMES, ADAPTIVE_VOD_FRAME_RATE,
   SenseiService, buildAdaptiveReviewWindows, buildContextPack, compactMatch, coveredWindowSeconds, detectFfmpeg, detectFfprobe,
   extractVodFrames, extractVodSegmentFrames, finalizeFullVodReport, parseVodActivityScan, scanVodActivity,
-  headshotPercent, isUsefulVodFinding, liteReport, parseStructuredJson, probeVodDuration, senseiMetricRubric, strictSchema, summarizeMatches,
+  headshotPercent, isUsefulVodFinding, liteReport, normalizeVerdict, parseStructuredJson, probeVodDuration, senseiMetricRubric, strictSchema, summarizeMatches,
   validateFullVodSegment, validateGroundedReport, validateReport, validateVodReport, vodTime
 };

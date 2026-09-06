@@ -46,6 +46,55 @@ function numberAllowed(value, allowed) {
   return false;
 }
 
+function drillMode(drill) {
+  const text = `${drill && drill.name || ""} ${drill && drill.setup || ""}`.toLowerCase();
+  if (/\b(range|bots?)\b/.test(text)) return "range";
+  if (/\b(deathmatch|dm)\b/.test(text)) return "deathmatch";
+  if (/\bcustom(?: game)?\b/.test(text)) return "custom";
+  return "";
+}
+
+function missionDrill(mission) {
+  const rangeMission = mission.slug === "rifle_hs_below_band";
+  return {
+    name: String(mission.drillName || mission.title || "Primary mission"),
+    setup: `${rangeMission ? "Range" : "Custom game"}: ${mission.drillSetup || mission.wording || mission.title}`,
+    success: String(mission.successMetric || "Complete the mission block before the next review.")
+  };
+}
+
+function missionFocusRule(mission) {
+  if (!mission) return "";
+  if (mission.slug === "observe") return "Play your normal game and collect three more ranked matches before changing your routine.";
+  return String(mission.title || mission.wording || "Keep the selected mission").replace(/[.!?]+$/, "");
+}
+
+function normalizeMissionReport(report, context = {}) {
+  const mission = context.curriculum && context.curriculum.primaryMission;
+  if (!report || !mission) return report;
+  const next = {
+    ...report,
+    scorecard: context.scorecard ? { ...context.scorecard } : report.scorecard,
+    focusRule: missionFocusRule(mission)
+  };
+  if (mission.slug === "observe") return next;
+
+  const primary = missionDrill(mission);
+  const primaryMode = drillMode(primary);
+  const candidates = [
+    ...(Array.isArray(report.drills) ? report.drills : []),
+    ...(Array.isArray(context.supportReport?.drills) ? context.supportReport.drills : [])
+  ];
+  const selected = [primary];
+  for (const mode of ["range", "custom", "deathmatch"].filter((value) => value !== primaryMode)) {
+    const candidate = candidates.find((drill) => drillMode(drill) === mode
+      && !selected.some((chosen) => String(chosen.name || "").trim().toLowerCase() === String(drill?.name || "").trim().toLowerCase()));
+    if (candidate) selected.push(candidate);
+  }
+  next.drills = selected.length === 3 ? selected : report.drills;
+  return next;
+}
+
 function validateBrainReport(report, context = {}) {
   const errors = [];
   if (!report || typeof report !== "object") {
@@ -82,8 +131,13 @@ function validateBrainReport(report, context = {}) {
     const slug = String(curriculum.primaryMission.slug || "").replace(/_/g, " ");
     const focus = String(report.focusRule || "").toLowerCase();
     if (curriculum.primaryMission.slug !== "observe") {
-      if (!focus.includes(slug) && !focus.includes(title.toLowerCase()) && !text.includes(title)) {
+      if (!focus.includes(slug) && !focus.includes(title.toLowerCase())) {
         errors.push("focusRule does not keep the curriculum mission");
+      }
+      const firstDrill = report.drills && report.drills[0];
+      const requiredName = String(curriculum.primaryMission.drillName || "").trim().toLowerCase();
+      if (!firstDrill || (requiredName && String(firstDrill.name || "").trim().toLowerCase() !== requiredName)) {
+        errors.push("first drill does not train the curriculum mission");
       }
     }
   }
@@ -114,10 +168,11 @@ function validateBrainReport(report, context = {}) {
 }
 
 function repairOrFallback(report, context, liteReport) {
-  const first = validateBrainReport(report, context);
-  if (first.ok) return { report, source: "model", errors: [] };
+  const prepared = normalizeMissionReport(report, context);
+  const first = validateBrainReport(prepared, context);
+  if (first.ok) return { report: prepared, source: prepared === report ? "model" : "repaired", errors: [] };
 
-  const stripped = { ...report };
+  const stripped = { ...prepared };
   if (first.errors.includes("always/never used without a repeating leak")) {
     stripped.verdict = String(stripped.verdict || "").replace(/\b(always|never)\b/gi, "often");
     stripped.weaknesses = (stripped.weaknesses || []).map((line) => line.replace(/\b(always|never)\b/gi, "often"));
@@ -127,10 +182,10 @@ function repairOrFallback(report, context, liteReport) {
 
   if (liteReport) {
     const mission = context.curriculum && context.curriculum.primaryMission;
-    const fallback = {
+    const fallback = normalizeMissionReport({
       ...liteReport,
       focusRule: mission && mission.title ? mission.title : liteReport.focusRule
-    };
+    }, { ...context, supportReport: liteReport });
     return { report: fallback, source: "lite-fallback", errors: first.errors.concat(second.errors) };
   }
 
@@ -138,6 +193,9 @@ function repairOrFallback(report, context, liteReport) {
 }
 
 module.exports = {
+  drillMode,
+  missionFocusRule,
+  normalizeMissionReport,
   validateBrainReport,
   repairOrFallback
 };

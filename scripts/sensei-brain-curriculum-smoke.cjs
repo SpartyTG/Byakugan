@@ -22,7 +22,7 @@ const fixtureA = decideCurriculum({
 
 assert(fixtureA.confidence === "low", "A should be low confidence");
 assert(fixtureA.keptOpenMission === false, "A should not keep a mission");
-assert(fixtureA.primaryMission.slug === "first_death_attack" || fixtureA.primaryMission.slug === "observe", "A should stay conservative");
+assert(fixtureA.primaryMission.slug === "observe", "A should collect a baseline after one ordinary leak");
 console.log("A PASS", fixtureA.confidence, fixtureA.primaryMission.slug);
 
 const history = ["m1", "m2", "m3", "m4"].map((matchId) => ({

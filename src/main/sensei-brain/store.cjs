@@ -30,7 +30,17 @@ function normalizeAccount(accountId, value) {
     accountId: String(accountId),
     profile: value.profile && typeof value.profile === "object" ? value.profile : null,
     matches: Array.isArray(value.matches) ? value.matches.slice(-MAX_MATCHES_PER_ACCOUNT) : [],
-    leaks: value.leaks && typeof value.leaks === "object" ? value.leaks : {},
+    leaks: value.leaks && typeof value.leaks === "object"
+      ? Object.fromEntries(Object.entries(value.leaks).map(([slug, leak]) => [slug, {
+          ...(leak && typeof leak === "object" ? leak : {}),
+          accountId: String(accountId),
+          slug,
+          seenMatchIds: [...new Set([
+            ...(Array.isArray(leak?.seenMatchIds) ? leak.seenMatchIds : []),
+            ...(leak?.lastSeenMatchId ? [leak.lastSeenMatchId] : [])
+          ].map(String).filter(Boolean))].slice(-MAX_MATCHES_PER_ACCOUNT)
+        }]))
+      : {},
     mission: value.mission && typeof value.mission === "object" ? value.mission : null,
     cooldowns: Array.isArray(value.cooldowns) ? value.cooldowns : []
   };
@@ -65,7 +75,9 @@ class SenseiBrainStore {
       version: STORE_VERSION,
       accounts: data && data.accounts ? data.accounts : {}
     };
-    fs.writeFileSync(this.filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    const temporary = `${this.filePath}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    fs.renameSync(temporary, this.filePath);
   }
 
   #blank() {
@@ -89,6 +101,60 @@ class SenseiBrainStore {
     };
     this.write(data);
     return account.profile;
+  }
+
+  migrateAccount(fromAccountId, toAccountId) {
+    const from = String(fromAccountId || "");
+    const to = String(toAccountId || "");
+    if (!from || !to || from === to) return false;
+    const data = this.read();
+    const source = data.accounts[from];
+    if (!source) return false;
+    const target = data.accounts[to];
+    if (!target) {
+      data.accounts[to] = normalizeAccount(to, source);
+    } else {
+      const sourceAccount = normalizeAccount(to, source);
+      const targetAccount = normalizeAccount(to, target);
+      const matches = new Map();
+      for (const row of [...sourceAccount.matches, ...targetAccount.matches]) {
+        const key = String(row.matchId || "");
+        const current = matches.get(key);
+        if (!current || Number(row.createdAt || 0) >= Number(current.createdAt || 0)) matches.set(key, row);
+      }
+      const leaks = { ...sourceAccount.leaks };
+      for (const [slug, leak] of Object.entries(targetAccount.leaks)) {
+        const older = leaks[slug];
+        if (!older) { leaks[slug] = leak; continue; }
+        const seenMatchIds = [...new Set([...(older.seenMatchIds || []), ...(leak.seenMatchIds || [])])].slice(-MAX_MATCHES_PER_ACCOUNT);
+        leaks[slug] = {
+          ...(Number(leak.updatedAt || 0) >= Number(older.updatedAt || 0) ? older : leak),
+          ...(Number(leak.updatedAt || 0) >= Number(older.updatedAt || 0) ? leak : older),
+          accountId: to,
+          slug,
+          seenMatchIds,
+          timesSeen: Math.max(seenMatchIds.length, Number(older.timesSeen || 0), Number(leak.timesSeen || 0))
+        };
+      }
+      const cooldowns = new Map();
+      for (const item of [...sourceAccount.cooldowns, ...targetAccount.cooldowns]) {
+        const current = cooldowns.get(item.slug);
+        if (!current || Number(item.remaining || 0) > Number(current.remaining || 0)) cooldowns.set(item.slug, item);
+      }
+      data.accounts[to] = {
+        accountId: to,
+        profile: { ...(sourceAccount.profile || {}), ...(targetAccount.profile || {}), accountId: to },
+        matches: [...matches.values()].sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0)).slice(-MAX_MATCHES_PER_ACCOUNT),
+        leaks,
+        mission: (targetAccount.mission || sourceAccount.mission)
+          ? { ...(targetAccount.mission || sourceAccount.mission), accountId: to }
+          : null,
+        cooldowns: [...cooldowns.values()]
+      };
+    }
+    delete data.accounts[from];
+    this.write(data);
+    return true;
   }
 
   insertMatchMemory(accountId, memory) {
@@ -131,16 +197,27 @@ class SenseiBrainStore {
       severityEwma: 0,
       status: LEAK_STATUS.ACTIVE,
       lastDrillName: null,
+      seenMatchIds: [],
       updatedAt: 0
     };
+    current.seenMatchIds = [...new Set([
+      ...(Array.isArray(current.seenMatchIds) ? current.seenMatchIds : []),
+      ...(current.lastSeenMatchId ? [current.lastSeenMatchId] : [])
+    ].map(String).filter(Boolean))];
+    const matchKey = matchId ? String(matchId) : "";
+    const alreadyCounted = Boolean(matchKey && current.seenMatchIds.includes(matchKey));
     const nextSeverity = Number(severity);
-    const ewma = current.timesSeen === 0
+    const ewma = alreadyCounted
+      ? Math.max(Number(current.severityEwma) || 0, Number.isFinite(nextSeverity) ? nextSeverity : 1)
+      : current.timesSeen === 0
       ? (Number.isFinite(nextSeverity) ? nextSeverity : 1)
       : (current.severityEwma * 0.7) + ((Number.isFinite(nextSeverity) ? nextSeverity : 1) * 0.3);
-    current.timesSeen += 1;
-    current.lastSeenMatchId = matchId ? String(matchId) : current.lastSeenMatchId;
+    if (!alreadyCounted) current.timesSeen += 1;
+    if (matchKey && !alreadyCounted) current.seenMatchIds.push(matchKey);
+    current.seenMatchIds = current.seenMatchIds.slice(-MAX_MATCHES_PER_ACCOUNT);
+    current.lastSeenMatchId = matchKey || current.lastSeenMatchId;
     current.severityEwma = Math.round(ewma * 100) / 100;
-    if (current.status === LEAK_STATUS.RESOLVED) current.status = LEAK_STATUS.ACTIVE;
+    if (!alreadyCounted && current.status === LEAK_STATUS.RESOLVED) current.status = LEAK_STATUS.ACTIVE;
     current.updatedAt = now();
     account.leaks[slug] = current;
     this.write(data);

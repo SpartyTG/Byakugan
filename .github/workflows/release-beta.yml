@@ -29,10 +29,10 @@ jobs:
           }
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Verify source, tests, and Sensei Brain
+        run: npm run verify
 
       - name: Build update-enabled installer
         run: npm run release:win
