@@ -34,6 +34,27 @@ function senseiAccountKey(puuid) {
   return `riot-${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
 }
 
+function preserveResolvedProfile(nextProfile = {}, previousProfile = {}, availability = {}) {
+  const next = { ...nextProfile };
+  const previous = previousProfile && typeof previousProfile === 'object' ? previousProfile : {};
+  if (next.senseiAccountKey && previous.senseiAccountKey && next.senseiAccountKey !== previous.senseiAccountKey) {
+    return next;
+  }
+  if (!availability.rank) {
+    for (const key of ['rank', 'rankImage', 'rr']) {
+      if (previous[key] !== undefined && previous[key] !== null && previous[key] !== '') next[key] = previous[key];
+    }
+    if (previous.card?.color && next.card) next.card = { ...next.card, color: previous.card.color };
+  }
+  if (!availability.peak) {
+    for (const key of ['peakRank', 'peakRankImage', 'peakEpisode', 'peakAct']) {
+      if (previous[key] !== undefined && previous[key] !== null && previous[key] !== '') next[key] = previous[key];
+    }
+  }
+  if (!availability.level && Number(previous.level) > 0) next.level = previous.level;
+  return next;
+}
+
 function valorantClientVersionFromSessions(sessions) {
   const versions = [];
   const seen = new Set();
@@ -2423,17 +2444,39 @@ class RiotClientService extends EventEmitter {
     const recentStats = calculateStats(matches.filter((match) => match.isCompetitive || match.queueId === 'competitive'));
     const stats = actData?.stats || { ...recentStats, scope: 'PARTIAL ACT' };
     const allTimePeak = selectAllTimePeak(mmr, this.metadata);
+    const currentSenseiAccountKey = senseiAccountKey(this.identity.puuid);
+    const resolvedCareer = preserveResolvedProfile({
+      senseiAccountKey: currentSenseiAccountKey,
+      level,
+      rank: rank.name,
+      rankImage: rank.image || '',
+      rr,
+      peakRank: allTimePeak.rank || rank.name,
+      peakRankImage: allTimePeak.image || rank.image || '',
+      peakAct: allTimePeak.act,
+      peakEpisode: allTimePeak.episode,
+      card: { initials: this.identity.gameName.slice(0, 2).toUpperCase(), color: rank.color || '#735cff' }
+    }, this.lastSnapshot?.profile, {
+      rank: Boolean(mmr || initialRows.length),
+      peak: Boolean(mmr),
+      level: Boolean(xp)
+    });
     if (!this.session.initialized) {
-      this.session = { ...this.session, startingRank: rank.name, startingRR: rr, initialized: true };
+      this.session = {
+        ...this.session,
+        startingRank: resolvedCareer.rank,
+        startingRR: resolvedCareer.rr,
+        initialized: true
+      };
     }
     const actMatches = actData?.matches || matches;
     const analytics = buildActAnalytics(actMatches, {
       tiers: this.metadata.tiers,
       friends,
-      session: { ...this.session, currentRank: rank.name, currentRR: rr }
+      session: { ...this.session, currentRank: resolvedCareer.rank, currentRR: resolvedCareer.rr }
     });
     analytics.session = buildSession(mergeSessionMatches(actMatches, matches), {
-      ...this.session, currentRank: rank.name, currentRR: rr
+      ...this.session, currentRank: resolvedCareer.rank, currentRR: resolvedCareer.rr
     });
     const publicMatches = matches.map(({ teammateIds: _teammateIds, ...match }) => match);
     const sharedMatchIds = new Set(analytics.synergy.flatMap((friend) => friend.matchIds || []));
@@ -2444,7 +2487,7 @@ class RiotClientService extends EventEmitter {
 
     this.persistSession();
 
-    return {
+    const nextSnapshot = {
       connection: {
         mode: 'live', status: 'connected', label: 'Riot Client connected',
         region: this.region.region.toUpperCase(), lastUpdated: new Date().toISOString()
@@ -2452,17 +2495,9 @@ class RiotClientService extends EventEmitter {
       profile: {
         // Stable pseudonymous key for local Sensei memory. The Riot PUUID is
         // never included in renderer or Dual PC snapshots.
-        senseiAccountKey: senseiAccountKey(this.identity.puuid),
+        ...resolvedCareer,
         gameName: this.identity.gameName,
         tagLine: this.identity.tagLine,
-        level,
-        rank: rank.name,
-        rankImage: rank.image || '',
-        rr,
-        peakRank: allTimePeak.rank || rank.name,
-        peakRankImage: allTimePeak.image || rank.image || '',
-        peakAct: allTimePeak.act,
-        peakEpisode: allTimePeak.episode,
         wins: stats.wins, losses: stats.losses, kd: stats.kd, headshot: stats.headshot,
         statsScope: stats.scope,
         actStatsLoading: !actData?.complete,
@@ -2471,8 +2506,7 @@ class RiotClientService extends EventEmitter {
         dodgeRrLost: dodgeData.rrLost,
         dodgeCount: dodgeData.count,
         dodgeStatsScope: dodgeData.scope,
-        dodgeStatsLoading: !cachedDodgeData,
-        card: { initials: this.identity.gameName.slice(0, 2).toUpperCase(), color: rank.color || '#735cff' }
+        dodgeStatsLoading: !cachedDodgeData
       },
       live,
       matches: publicMatches,
@@ -2484,6 +2518,7 @@ class RiotClientService extends EventEmitter {
       analytics,
       diagnostics: this.diagnostics.slice(0, 20)
     };
+    return nextSnapshot;
   }
 
   async inspectPlayer(playerId) {
@@ -2757,6 +2792,7 @@ function buildAgentMastery(matches) {
 module.exports = {
   RiotClientService,
   senseiAccountKey,
+  preserveResolvedProfile,
   valorantClientVersionFromSessions,
   isAllowedRemoteHost,
   decodeJwtPayload,

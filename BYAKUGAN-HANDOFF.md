@@ -1,14 +1,22 @@
 # BYAKUGAN Source Handoff
 
 This historical release log is retained for context. The active handoff is
-`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.126`.
+`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.127`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.125`
-- Automated tests: `182 passed, 0 failed`, plus `10` Sensei Brain smoke checks
+- Previous canonical version: `v0.8.0-beta.126`
+- Automated tests: `184 passed, 0 failed`, plus `10` Sensei Brain smoke checks
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
+
+## Beta.127 stable profile snapshots
+
+Beta.127 keeps the last resolved rank, RR, peak rank, account level, rank art,
+and accent color when one of Riot's supporting profile requests temporarily
+fails. The same stable values feed session analytics and Stream Vision. New
+data replaces the cache only after a successful response, and resolved career
+data is never shared between Riot accounts.
 
 ## Beta.126 loadout and Stream Vision cleanup
 
@@ -258,7 +266,7 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.126 on both PCs and follow the manual verification in
+Install beta.127 on both PCs and follow the manual verification in
 `BYAKUGAN-CURRENT-HANDOFF.md`. For the beta.114 roster feature, every roster
 row should show **LVL [number]** when Riot supplied the account level and **LVL
 PRIVATE** when it did not. Confirm that the level badge remains alongside party

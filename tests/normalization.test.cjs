@@ -11,7 +11,7 @@ const {
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
-  parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions
+  parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions, preserveResolvedProfile
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -48,6 +48,79 @@ test('optional loadout 404 does not mark the required Riot connection unhealthy'
   assert.equal(service.diagnostics.length, 1);
   assert.equal(service.diagnostics[0].status, 404);
   assert.equal(service.diagnostics[0].endpoint, '/mmr/v1/players/self');
+});
+
+test('preserves resolved career data when transient Riot profile requests fail', () => {
+  const previous = {
+    senseiAccountKey: 'riot-account-a',
+    level: 535,
+    rank: 'Ascendant 2',
+    rankImage: 'ascendant.png',
+    rr: 72,
+    peakRank: 'Immortal 1',
+    peakRankImage: 'immortal.png',
+    peakEpisode: 'Episode 8',
+    peakAct: 'Act 2',
+    card: { initials: 'TG', color: '#45b8ad' }
+  };
+  const unresolved = {
+    senseiAccountKey: 'riot-account-a',
+    level: 0,
+    rank: 'Unrated',
+    rankImage: '',
+    rr: 0,
+    peakRank: 'Unrated',
+    peakRankImage: '',
+    peakEpisode: '',
+    peakAct: '',
+    card: { initials: 'TG', color: '#735cff' }
+  };
+
+  const stable = preserveResolvedProfile(unresolved, previous, {
+    rank: false,
+    peak: false,
+    level: false
+  });
+
+  assert.equal(stable.level, 535);
+  assert.equal(stable.rank, 'Ascendant 2');
+  assert.equal(stable.rankImage, 'ascendant.png');
+  assert.equal(stable.rr, 72);
+  assert.equal(stable.peakRank, 'Immortal 1');
+  assert.equal(stable.peakRankImage, 'immortal.png');
+  assert.equal(stable.peakEpisode, 'Episode 8');
+  assert.equal(stable.peakAct, 'Act 2');
+  assert.equal(stable.card.color, '#45b8ad');
+});
+
+test('accepts successful career changes and never carries data between Riot accounts', () => {
+  const previous = {
+    senseiAccountKey: 'riot-account-a',
+    level: 535,
+    rank: 'Ascendant 2',
+    rr: 72,
+    peakRank: 'Immortal 1'
+  };
+  const reset = {
+    senseiAccountKey: 'riot-account-a',
+    level: 1,
+    rank: 'Unrated',
+    rr: 0,
+    peakRank: 'Unrated'
+  };
+
+  assert.deepEqual(preserveResolvedProfile(reset, previous, {
+    rank: true,
+    peak: true,
+    level: true
+  }), reset);
+
+  const differentAccount = { ...reset, senseiAccountKey: 'riot-account-b' };
+  assert.deepEqual(preserveResolvedProfile(differentAccount, previous, {
+    rank: false,
+    peak: false,
+    level: false
+  }), differentAccount);
 });
 
 test('detects a completed live match and merges it ahead of stale act-cache data', () => {

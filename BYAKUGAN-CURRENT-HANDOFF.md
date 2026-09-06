@@ -2,15 +2,24 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.126`
-- Previous release: `v0.8.0-beta.125`
+- Target: `v0.8.0-beta.127`
+- Previous release: `v0.8.0-beta.126`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `182` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `184` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.127 changes
+
+### Stable profile snapshots
+
+- A transient MMR, competitive-update, or account-XP request can no longer replace a resolved rank, RR, peak rank, account level, rank image, or profile accent with `Unrated`, zero, or an empty value.
+- Stable resolved rank data is also used by session analytics and Stream Vision, closing the secondary path that could still make an overlay flicker.
+- BYAKUGAN retains previous values only when their supporting Riot source failed. A successful response remains authoritative, including legitimate placement, Act-reset, and account changes.
+- Cached career data is account-scoped and cannot carry across Riot accounts.
 
 ## Beta.126 changes
 
@@ -118,13 +127,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.126 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.127 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.126
-git push origin v0.8.0-beta.126
+git tag v0.8.0-beta.127
+git push origin v0.8.0-beta.127
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -132,10 +141,11 @@ git push origin v0.8.0-beta.126
 
 ## Manual verification
 
-1. With Riot Client and VALORANT open, select **Refresh Data** and confirm Loadout shows the signed-in account's equipped skins. If Riot withholds the collection, confirm the page shows the unavailable message rather than a false empty loadout.
-2. Open Stream Vision and confirm only Custom Overlay Builder appears. Verify the duplicate Visible Fields section and preset selector are gone.
-3. Customize Landscape, switch to Portrait, customize it differently, then switch back and confirm both designs persist independently.
-4. Enable Browser Source, add the Landscape and Portrait URLs to separate OBS Browser Sources, and confirm both update simultaneously with their correct canvas and privacy settings.
-5. Follow the in-app dual-PC guide on both computers and confirm the streaming PC displays **Gaming PC connected** before copying its OBS URLs.
-6. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
+1. Leave BYAKUGAN and both Stream Vision Browser Sources open through several automatic refresh cycles. Confirm resolved rank, RR, peak rank, level, and rank art never flash to `Unrated`, zero, or blank during a transient Riot request failure.
+2. With Riot Client and VALORANT open, select **Refresh Data** and confirm Loadout shows the signed-in account's equipped skins. If Riot withholds the collection, confirm the page shows the unavailable message rather than a false empty loadout.
+3. Open Stream Vision and confirm only Custom Overlay Builder appears. Verify the duplicate Visible Fields section and preset selector are gone.
+4. Customize Landscape, switch to Portrait, customize it differently, then switch back and confirm both designs persist independently.
+5. Enable Browser Source, add the Landscape and Portrait URLs to separate OBS Browser Sources, and confirm both update simultaneously with their correct canvas and privacy settings.
+6. Follow the in-app dual-PC guide on both computers and confirm the streaming PC displays **Gaming PC connected** before copying its OBS URLs.
+7. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
 7. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.
