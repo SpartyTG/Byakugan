@@ -175,6 +175,9 @@ test('Sensei rejects negative metric reversals and unrealistic drills from the r
     'High deaths (13) and 1.62 K/D suggest poor survival and positioning.'
   ];
   assert.throws(() => validateGroundedReport(contradicted, card), /contradicts.*K\/D|contradicts.*ADR/i);
+  const recovered = validateGroundedReport(contradicted, card, liteReport(strong, buildContextPack(strong, [])));
+  assert.match(recovered.verdict, /21|1\.62|won/i);
+  assert.doesNotMatch(recovered.weaknesses.join(' '), /poor survival/i);
 
   const unrealistic = liteReport(strong, buildContextPack(strong, []));
   unrealistic.drills[0] = {
@@ -209,15 +212,12 @@ test('Full Sensei repair receives the exact rubric after reversing strong Omen m
   try {
     const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
     const result = await service.analyze({ match: strong, matches: [], tier: 'sensei', model: 'qwen3:8b' });
-    assert.equal(requests.length, 2);
     assert.equal(result.tier, 'sensei');
     assert.equal(result.notice, '');
     assert.deepEqual(result.report.scorecard, {
       impact: 'high', aim: 'high', entry: 'high', utility: 'average', econ: 'average'
     });
-    assert.match(requests[1].prompt, /1\.62/);
-    assert.match(requests[1].prompt, /requiredScorecard/);
-    assert.match(requests[1].prompt, /poor survival/);
+    assert.doesNotMatch(result.report.weaknesses.join(' '), /poor survival/i);
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 

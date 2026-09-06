@@ -253,7 +253,7 @@ function validateGroundedReport(value, matchCard = {}, fallbackReport = null) {
       ...suppliedCitations
     ].map((item) => String(item).trim()).filter(Boolean))];
   }
-  const report = validateReport(groundedValue);
+  let report = validateReport(groundedValue);
   const rubric = senseiMetricRubric(matchCard);
   const evaluativeText = [report.verdict, ...report.weaknesses].join(' ').toLowerCase();
   const contradictions = [];
@@ -280,7 +280,15 @@ function validateGroundedReport(value, matchCard = {}, fallbackReport = null) {
   if (rubric.bands.kd === 'high' && /\bpoor survival\b/i.test(evaluativeText)) contradictions.push('survival based on a high K/D');
   if ((rubric.bands.acs === 'high' || rubric.bands.adr !== 'low') && /\bpoor damage output\b/i.test(evaluativeText)) contradictions.push('damage output');
   if (rubric.bands.hsPercent === 'high' && /\bpoor (?:shot )?accuracy\b/i.test(evaluativeText)) contradictions.push('accuracy');
-  if (contradictions.length) {
+  if (contradictions.length && fallbackReport) {
+    report = {
+      ...report,
+      verdict: fallbackReport.verdict || report.verdict,
+      weaknesses: Array.isArray(fallbackReport.weaknesses) && fallbackReport.weaknesses.length
+        ? fallbackReport.weaknesses.slice(0, 3)
+        : report.weaknesses
+    };
+  } else if (contradictions.length) {
     throw new Error(`The report contradicts BYAKUGAN's supplied metric rubric for ${[...new Set(contradictions)].join(', ')}. Remove the unsupported negative claim.`);
   }
   return { ...report, scorecard: rubric.scorecard };
