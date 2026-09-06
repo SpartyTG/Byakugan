@@ -158,12 +158,45 @@ test('Full Sensei safely falls back to an identified Lite report when JSON repai
   try {
     const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
     const result = await service.analyze({ match: match('structured-fallback'), matches: [], tier: 'sensei', model: 'small-model:4b' });
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 4);
+    assert.equal(requests[2].keep_alive, 0);
+    assert.equal(requests[2].prompt, '');
     assert.equal(result.tier, 'lite');
     assert.equal(result.model, 'BYAKUGAN Lite Engine');
     assert.match(result.notice, /small-model:4b/);
     assert.match(result.notice, /Sensei Lite/);
     assert.equal(validateReport(result.report).drills.length, 3);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('Full Sensei unloads and freshly reloads only its text model before Lite fallback', async () => {
+  const current = match('fresh-model-recovery');
+  const payload = JSON.stringify(liteReport(current, buildContextPack(current, [])));
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      const parsed = JSON.parse(body);
+      requests.push(parsed);
+      response.writeHead(200, { 'content-type': 'application/json' });
+      const isUnload = parsed.keep_alive === 0;
+      const isFreshGeneration = requests.length === 4;
+      response.end(JSON.stringify({ response: isUnload ? '' : isFreshGeneration ? payload : 'Not valid JSON.' }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const service = new SenseiService({ endpoint: `http://127.0.0.1:${server.address().port}` });
+    const result = await service.analyze({ match: current, matches: [], tier: 'sensei', model: 'sensei:latest' });
+    assert.equal(requests.length, 4);
+    assert.equal(requests[2].model, 'sensei:latest');
+    assert.equal(requests[2].keep_alive, 0);
+    assert.equal(requests[2].prompt, '');
+    assert.equal(requests[3].keep_alive, '30m');
+    assert.equal(result.tier, 'sensei');
+    assert.equal(result.model, 'sensei:latest');
+    assert.equal(result.notice, '');
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 

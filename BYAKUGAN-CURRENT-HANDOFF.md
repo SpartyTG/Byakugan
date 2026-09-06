@@ -2,15 +2,25 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.124`
-- Previous release: `v0.8.0-beta.123`
+- Target: `v0.8.0-beta.125`
+- Previous release: `v0.8.0-beta.124`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `179` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `180` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.125 changes
+
+### Automatic fresh-model recovery
+
+- Full Sensei still receives its normal generation and one grounded JSON repair attempt first.
+- If both fail structured-output validation, BYAKUGAN sends Ollama an empty `keep_alive: 0` request for only the selected text model.
+- BYAKUGAN then performs one fresh Full Sensei generation automatically.
+- Ollama remains running, and the separately configured VOD model is not targeted.
+- Sensei Lite appears only if the fresh generation also fails or the model cannot be reloaded.
 
 ## Beta.124 changes
 
@@ -89,13 +99,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.124 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.125 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.124
-git push origin v0.8.0-beta.124
+git tag v0.8.0-beta.125
+git push origin v0.8.0-beta.125
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -103,7 +113,7 @@ git push origin v0.8.0-beta.124
 
 ## Manual verification
 
-1. Regenerate the Full Sensei report that exposed the duplicate/missing drill-category failure. Confirm it remains Full Sensei and contains one Range, one custom-game, and one Deathmatch drill, with the mission drill first.
+1. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
 2. Regenerate the same match twice and add existing VOD evidence. Confirm the mission does not reassign and the leak count does not grow for the same match.
 3. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.
 4. If VOD is selected, confirm the app clearly reports missing FFmpeg until the complete FFmpeg package is installed.

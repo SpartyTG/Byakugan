@@ -96,7 +96,9 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.124
+## Included in version 0.8.0-beta.125
+
+- When Full Sensei and its JSON repair both fail validation, BYAKUGAN now unloads only the selected text model and performs one fresh generation before falling back to Sensei Lite; Ollama itself stays running
 
 - Full Sensei now keeps valid model drills and deterministically fills only missing or duplicate Range, custom-game, and Deathmatch categories instead of discarding the whole report
 
@@ -110,7 +112,7 @@ registered trademarks of Riot Games, Inc.
 - Regenerating a report or applying VOD evidence to the same match no longer increments the same leak occurrence more than once
 - The Sensei setup wizard follows only trusted HTTPS installer redirects, uses a fresh temporary download stream, reports download progress, blocks overlapping setup jobs, validates the Windows executable, and removes the installer after use
 - **Sensei Vision Ready** now reflects Ollama and model availability; incomplete optional VOD requirements are labeled separately
-- GitHub Actions now verifies every tracked JavaScript file, Brain pack JSON, 179 automated tests, and all 10 Sensei Brain smoke checks before building an installer
+- GitHub Actions now verifies every tracked JavaScript file, Brain pack JSON, 180 automated tests, and all 10 Sensei Brain smoke checks before building an installer
 
 Beta.121 added concrete Keep / Wrong / Done mission-card guidance. Beta.120 and earlier Sensei Brain phases introduced the persistent one-mission curriculum, cooldowns, editable meta pack, VOD leak merging, mission-aware Ask Sensei, and the opt-in local setup wizard.
 
@@ -371,7 +373,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.124-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.125-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -400,10 +402,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.124`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.125`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.124`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.125`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -411,8 +413,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.124
-git push origin v0.8.0-beta.124
+git tag v0.8.0-beta.125
+git push origin v0.8.0-beta.125
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

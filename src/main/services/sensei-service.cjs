@@ -437,6 +437,13 @@ async function requestJson(url, options = {}, timeoutMs = 120_000, externalSigna
   } finally { clearTimeout(timer); }
 }
 
+async function unloadOllamaModel(endpoint, model, signal = null) {
+  return requestJson(`${endpoint}/api/generate`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ model, prompt: '', stream: false, keep_alive: 0 })
+  }, 20_000, signal);
+}
+
 function strictSchema() {
   return {
     type: 'object', required: ['verdict', 'scorecard', 'strengths', 'weaknesses', 'drills', 'focusRule', 'citations'],
@@ -1090,10 +1097,9 @@ class SenseiService {
       openMission: brainContext.openMission,
       curriculum: brainContext.curriculum
     }) : null;
-    try {
-      const report = await generateStructured({
+    const runFullSensei = (retries) => generateStructured({
         endpoint: this.endpoint, model, prompt: modelPrompt(matchCard, contextPack, assembled?.prompt || ''), schema: strictSchema(),
-        label: 'local model', validate: (value) => alignToBrain(value), retries: 1,
+        label: 'local model', validate: (value) => alignToBrain(value), retries,
         repairContext: {
           match: Object.fromEntries(Object.entries(matchCard).filter(([key]) => key !== 'roundTimeline')),
           requiredScorecard: senseiMetricRubric(matchCard).scorecard,
@@ -1114,6 +1120,32 @@ class SenseiService {
           safeDrillPatterns: lite.drills
         }
       });
+    let report;
+    let structuredFailure;
+    try {
+      try {
+        report = await runFullSensei(1);
+      } catch (error) {
+        if (error?.code !== 'SENSEI_STRUCTURED_OUTPUT') throw error;
+        structuredFailure = error;
+        try {
+          await unloadOllamaModel(this.endpoint, model);
+          report = await runFullSensei(0);
+        } catch (recoveryError) {
+          if (recoveryError?.code === 'SENSEI_STRUCTURED_OUTPUT') {
+            const freshReason = String(recoveryError.message || 'The fresh model response was invalid.')
+              .replace(/\s+/g, ' ').trim();
+            structuredFailure = new Error(`${freshReason} Fresh model reload also failed.`);
+            structuredFailure.code = 'SENSEI_STRUCTURED_OUTPUT';
+          } else {
+            const recoveryReason = String(recoveryError?.message || 'The selected model could not be reloaded.')
+              .replace(/\s+/g, ' ').trim();
+            structuredFailure = new Error(`${structuredFailure.message} Automatic model reload could not start: ${recoveryReason}`);
+            structuredFailure.code = 'SENSEI_STRUCTURED_OUTPUT';
+          }
+        }
+      }
+      if (!report) throw structuredFailure;
       return { report, matchCard, contextPack, model, tier: 'sensei', notice: '' };
     } catch (error) {
       if (error?.code !== 'SENSEI_STRUCTURED_OUTPUT') throw error;
