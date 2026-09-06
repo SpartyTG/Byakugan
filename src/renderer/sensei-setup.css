@@ -1,0 +1,22 @@
+
+.sensei-setup-modal[hidden] { display: none !important; }
+.sensei-setup-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 7, 14, .72);
+}
+.sensei-setup-card {
+  width: min(560px, calc(100vw - 32px));
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  background: #10121c;
+  border: 1px solid rgba(120, 255, 214, .18);
+  color: #e8eaf2;
+}
+.sensei-setup-card h2 { margin: 0 0 8px; font-size: 20px; }
+.sensei-setup-card p, .sensei-setup-card li { color: #9ca1b7; line-height: 1.45; }
+.sensei-setup-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.sensei-setup-log { min-height: 2.4em; margin-top: 12px; color: #7ee0c6; font-size: 13px; }

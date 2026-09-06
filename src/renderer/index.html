@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://media.valorant-api.com; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self'; connect-src 'none'; font-src 'self'">
   <title>BYAKUGAN</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="sensei-setup.css">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -532,6 +533,25 @@
   </div>
   <div class="loading-overlay" id="loadingOverlay"><div class="loader-mark"><span></span></div><p id="loadingText">Awakening BYAKUGAN…</p></div>
 
+<div id="senseiSetupModal" class="sensei-setup-modal" hidden>
+  <div class="sensei-setup-card">
+    <h2>Enable Sensei Vision?</h2>
+    <p>This stays on this computer. No cloud API. No live mid-round coaching.</p>
+    <p>If you choose Yes, BYAKUGAN will install the official Ollama app (if missing) and download:</p>
+    <ul>
+      <li>qwen3:8b — Full Sensei text model, about 5 GB</li>
+      <li>qwen3-vl:4b-instruct — only if VOD Vision is checked, about 3 GB</li>
+    </ul>
+    <label><input id="senseiSetupVod" type="checkbox"> Also set up VOD Vision (needs FFmpeg separately)</label>
+    <p class="sensei-setup-log" id="senseiSetupLog"></p>
+    <div class="sensei-setup-actions">
+      <button type="button" class="ghost-button" id="senseiSetupNo">No</button>
+      <button type="button" class="primary-button" id="senseiSetupYes">Yes, install on this PC</button>
+    </div>
+  </div>
+</div>
+
   <script src="app.js"></script>
+  <script src="sensei-setup-ui.js"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@ const { RemoteViewerClient } = require('./services/remote-viewer-client.cjs');
 const { RiotClientService } = require('./services/riot-client.cjs');
 const { UpdateService } = require('./services/update-service.cjs');
 const { SenseiService, FULL_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_ANALYSIS_VERSION, detectFfmpeg, detectFfprobe } = require('./services/sensei-service.cjs');
+const { SenseiSetupService } = require('./services/sensei-setup.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -24,6 +25,7 @@ let settings = null;
 let senseiStore = null;
 let senseiBrainStore = null;
 let senseiService = null;
+let senseiSetup = null;
 let service = null;
 let snapshot = null;
 let overlayServer = null;
@@ -415,6 +417,9 @@ function registerIpc() {
       enabled: current.senseiEnabled, tier: current.senseiTier, vodEnabled: current.senseiVodEnabled
     };
   });
+  ipcMain.handle('sensei:setup-status', () => senseiSetup.status());
+  ipcMain.handle('sensei:setup-install-ollama', async () => senseiSetup.installOllama());
+  ipcMain.handle('sensei:setup-pull-model', async (_event, model) => senseiSetup.pullModel(String(model || '')));
   ipcMain.handle('sensei:get', (_event, matchId) => senseiEntry(String(matchId || '')));
   ipcMain.handle('sensei:run', async (_event, request = {}) => {
     const current = settings.get();
@@ -859,6 +864,7 @@ app.whenReady().then(async () => {
   senseiBrainStore = new SenseiBrainStore(app.getPath('userData'));
   senseiStore.recoverInterruptedVodAnalyses();
   senseiService = new SenseiService();
+  senseiSetup = new SenseiSetupService({ userData: app.getPath('userData') });
   if (settings.get().gamingRelayMode && (settings.get().pcRole !== 'gaming' || !settings.get().remoteViewerEnabled)) {
     settings.update({ pcRole: 'gaming', remoteViewerEnabled: true });
   }
