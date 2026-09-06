@@ -68,22 +68,46 @@ async function runSenseiSetup() {
   }
 }
 
+async function senseiIsReady() {
+  const enabled = document.getElementById("senseiEnabled");
+  const model = document.getElementById("senseiModel");
+  if (enabled && enabled.checked && model && String(model.value || "").trim()) return true;
+  try {
+    const settings = window.companion && window.companion.getSettings ? await window.companion.getSettings() : null;
+    return Boolean(settings && settings.senseiEnabled && String(settings.senseiModel || "").trim());
+  } catch {
+    return false;
+  }
+}
+
+async function refreshSetupButton() {
+  const button = document.getElementById("senseiSetupOpen");
+  if (!button) return;
+  const ready = await senseiIsReady();
+  button.textContent = ready ? "Sensei Vision Ready" : "Set up Sensei on this PC";
+  button.className = ready ? "ghost-button" : "primary-button";
+}
+
 function addSetupButton() {
-  if (document.getElementById("senseiSetupOpen")) return;
   const enabled = document.getElementById("senseiEnabled");
   const host = enabled ? enabled.closest("label") || enabled.parentNode : document.getElementById("senseiSystemStatus");
   if (!host || !host.parentNode) return;
-  const button = document.createElement("button");
-  button.type = "button";
-  button.id = "senseiSetupOpen";
-  button.className = "primary-button";
-  button.textContent = "Set up Sensei on this PC";
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    showSenseiSetupModal();
-  });
-  host.parentNode.insertBefore(button, host.nextSibling);
+  let button = document.getElementById("senseiSetupOpen");
+  if (!button) {
+    button = document.createElement("button");
+    button.type = "button";
+    button.id = "senseiSetupOpen";
+    button.className = "primary-button";
+    button.textContent = "Set up Sensei on this PC";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (await senseiIsReady()) return;
+      showSenseiSetupModal();
+    });
+    host.parentNode.insertBefore(button, host.nextSibling);
+  }
+  refreshSetupButton();
 }
 
 function bindSenseiSetup() {
@@ -91,12 +115,6 @@ function bindSenseiSetup() {
   addSetupButton();
   if (!document.body.dataset.senseiSetupBound) {
     document.body.dataset.senseiSetupBound = "1";
-    document.addEventListener("change", (event) => {
-      if (event.target && event.target.id === "senseiEnabled" && event.target.checked) {
-        event.target.checked = false;
-        showSenseiSetupModal();
-      }
-    }, true);
     document.addEventListener("click", (event) => {
       if (event.target && event.target.id === "senseiSetupYes") runSenseiSetup();
       if (event.target && event.target.id === "senseiSetupNo") {
