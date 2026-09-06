@@ -3,7 +3,22 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { UI_SCALE_OPTIONS, normalizeUiScale } = require('./ui-scale.cjs');
-const { DEFAULT_CUSTOM_OVERLAY, normalizeCustomOverlay } = require('./custom-overlay.cjs');
+const {
+  DEFAULT_CUSTOM_OVERLAY,
+  DEFAULT_CUSTOM_OVERLAY_PORTRAIT,
+  normalizeCustomOverlay
+} = require('./custom-overlay.cjs');
+
+const LEGACY_OVERLAY_VISIBILITY = Object.freeze({
+  streamOverlayShowIdentity: 'playerName',
+  streamOverlayShowWl: 'sessionWL',
+  streamOverlayShowKd: 'sessionKD',
+  streamOverlayShowAgent: 'agent',
+  streamOverlayShowMap: 'map',
+  streamOverlayShowRR: 'currentRR',
+  streamOverlayShowPeakRank: 'peakRank',
+  streamOverlayShowRrChange: 'rrChange'
+});
 
 const DEFAULTS = Object.freeze({
   launchAtStartup: false,
@@ -20,15 +35,7 @@ const DEFAULTS = Object.freeze({
   remoteSourceUrl: '',
   streamOverlayEnabled: false,
   streamOverlayLanEnabled: false,
-  streamOverlayLayout: 'horizontal',
-  streamOverlayShowIdentity: false,
-  streamOverlayShowWl: true,
-  streamOverlayShowKd: true,
-  streamOverlayShowAgent: true,
-  streamOverlayShowMap: true,
-  streamOverlayShowRR: true,
-  streamOverlayShowPeakRank: true,
-  streamOverlayShowRrChange: true,
+  streamOverlayLayout: 'custom',
   streamOverlayAnimatedRrBeam: true,
   streamOverlaySmoothTransitions: true,
   streamOverlayTransitionSound: false,
@@ -38,6 +45,7 @@ const DEFAULTS = Object.freeze({
   streamOverlayPostMatchRecapSeconds: 7,
   streamOverlayBackgroundOpacity: 70,
   streamOverlayCustom: DEFAULT_CUSTOM_OVERLAY,
+  streamOverlayCustomPortrait: DEFAULT_CUSTOM_OVERLAY_PORTRAIT,
   streamOverlayToken: '',
   senseiEnabled: false,
   senseiTier: 'lite',
@@ -58,14 +66,35 @@ class SettingsStore {
   load() {
     try {
       const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      if (typeof parsed.streamOverlayShowAgentMap === 'boolean') {
-        if (parsed.streamOverlayShowAgent === undefined) parsed.streamOverlayShowAgent = parsed.streamOverlayShowAgentMap;
-        if (parsed.streamOverlayShowMap === undefined) parsed.streamOverlayShowMap = parsed.streamOverlayShowAgentMap;
+      const previousLayout = parsed.streamOverlayLayout;
+      let custom = normalizeCustomOverlay(parsed.streamOverlayCustom);
+      const hasLegacyVisibility = Object.keys(LEGACY_OVERLAY_VISIBILITY).some((key) => typeof parsed[key] === 'boolean')
+        || typeof parsed.streamOverlayShowAgentMap === 'boolean';
+      if (previousLayout !== 'custom' && (previousLayout || hasLegacyVisibility)) {
+        const applyLegacyVisibility = (elements) => elements.map((element) => {
+          const setting = Object.entries(LEGACY_OVERLAY_VISIBILITY).find(([, id]) => id === element.id)?.[0];
+          const combinedAgentMap = ['agent', 'map'].includes(element.id) ? parsed.streamOverlayShowAgentMap : undefined;
+          const visible = typeof parsed[setting] === 'boolean' ? parsed[setting] : combinedAgentMap;
+          return typeof visible === 'boolean' ? { ...element, visible } : element;
+        });
+        custom = {
+          ...custom,
+          reactive: previousLayout === 'reactive' || custom.reactive,
+          elements: applyLegacyVisibility(custom.elements),
+          inGameElements: applyLegacyVisibility(custom.inGameElements),
+          postMatchElements: applyLegacyVisibility(custom.postMatchElements)
+        };
       }
+      for (const key of Object.keys(LEGACY_OVERLAY_VISIBILITY)) delete parsed[key];
       delete parsed.streamOverlayShowAgentMap;
       delete parsed.dataMode;
+      parsed.streamOverlayLayout = 'custom';
       parsed.uiScale = normalizeUiScale(parsed.uiScale);
-      parsed.streamOverlayCustom = normalizeCustomOverlay(parsed.streamOverlayCustom);
+      parsed.streamOverlayCustom = custom;
+      parsed.streamOverlayCustomPortrait = normalizeCustomOverlay(
+        parsed.streamOverlayCustomPortrait,
+        DEFAULT_CUSTOM_OVERLAY_PORTRAIT
+      );
       this.data = { ...DEFAULTS, ...parsed };
     } catch {}
   }
@@ -80,6 +109,10 @@ class SettingsStore {
         this.data[key] = normalizeCustomOverlay(value);
         continue;
       }
+      if (key === 'streamOverlayCustomPortrait') {
+        this.data[key] = normalizeCustomOverlay(value, DEFAULT_CUSTOM_OVERLAY_PORTRAIT);
+        continue;
+      }
       if (typeof DEFAULTS[key] === 'boolean' && typeof value !== 'boolean') continue;
       if (typeof DEFAULTS[key] === 'number') {
         if (!Number.isFinite(value)) continue;
@@ -91,7 +124,7 @@ class SettingsStore {
           if (value < 3 || value > 15) continue;
         } else if (value < 1) continue;
       }
-      if (key === 'streamOverlayLayout' && !['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(value)) continue;
+      if (key === 'streamOverlayLayout' && value !== 'custom') continue;
       if (key === 'senseiTier' && !['lite', 'sensei'].includes(value)) continue;
       if (key === 'senseiVodMode' && !['adaptive', 'exhaustive'].includes(value)) continue;
       if (['senseiModel', 'senseiVodModel'].includes(key)) {

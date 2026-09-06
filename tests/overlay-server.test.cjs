@@ -12,6 +12,7 @@ const {
   findLanHost,
   isPrivateIpv4,
   overlayBackgroundOpacity,
+  overlayProfile,
   rrBeamProgress,
   tokenMatches
 } = require('../src/main/services/overlay-server.cjs');
@@ -21,15 +22,7 @@ const token = 'a'.repeat(48);
 function settings(patch = {}) {
   return {
     streamOverlayEnabled: true,
-    streamOverlayLayout: 'horizontal',
-    streamOverlayShowIdentity: false,
-    streamOverlayShowWl: true,
-    streamOverlayShowKd: true,
-    streamOverlayShowAgent: true,
-    streamOverlayShowMap: true,
-    streamOverlayShowRR: true,
-    streamOverlayShowPeakRank: true,
-    streamOverlayShowRrChange: true,
+    streamOverlayLayout: 'custom',
     streamOverlayAnimatedRrBeam: true,
     streamOverlaySmoothTransitions: true,
     streamOverlayTransitionSound: false,
@@ -44,7 +37,16 @@ function settings(patch = {}) {
 }
 
 test('overlay payload exposes only personal stream fields', () => {
-  const payload = buildOverlayPayload(snapshot, settings());
+  const payload = buildOverlayPayload(snapshot, settings({
+    streamOverlayCustom: {
+      elements: [
+        { id: 'agent', visible: true },
+        { id: 'map', visible: true },
+        { id: 'matchScore', visible: true },
+        { id: 'rrChange', visible: true }
+      ]
+    }
+  }));
   const serialized = JSON.stringify(payload);
 
   assert.equal(payload.player.name, 'PLAYER');
@@ -78,7 +80,9 @@ test('overlay agent falls back to the last played agent while in menus', () => {
     ...snapshot,
     live: { state: 'MENUS', queue: 'Not queued', map: '—', players: [] }
   };
-  const payload = buildOverlayPayload(menuSnapshot, settings());
+  const payload = buildOverlayPayload(menuSnapshot, settings({
+    streamOverlayCustom: { elements: [{ id: 'agent', visible: true }] }
+  }));
   assert.equal(payload.live.agent, snapshot.matches[0].agent);
   assert.equal(payload.live.agentImage, snapshot.matches[0].agentImage);
   assert.equal(payload.live.agentLabel, 'LAST PLAYED');
@@ -101,18 +105,15 @@ test('last-match overlay result follows recovered session membership', () => {
   assert.equal(included.session.lastMatchRR, newest.rr);
 });
 
-test('awakened rank layout is accepted for OBS', () => {
-  const payload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'rank' }));
-  assert.equal(payload.layout, 'rank');
+test('custom is the only emitted OBS layout even for a legacy preset setting', () => {
+  const rankPayload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'rank' }));
+  const reactivePayload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'reactive' }));
+  assert.equal(rankPayload.layout, 'custom');
+  assert.equal(reactivePayload.layout, 'custom');
+  assert.equal(reactivePayload.session.lastMatchId, snapshot.matches[0].id);
 });
 
-test('Reactive Vision Dock is a separate accepted OBS layout', () => {
-  const payload = buildOverlayPayload(snapshot, settings({ streamOverlayLayout: 'reactive' }));
-  assert.equal(payload.layout, 'reactive');
-  assert.equal(payload.session.lastMatchId, snapshot.matches[0].id);
-});
-
-test('Reactive Vision payload carries toggleable Match Pulse and recap settings', () => {
+test('custom Reactive Vision payload carries toggleable Match Pulse and recap settings', () => {
   const payload = buildOverlayPayload({
     ...snapshot,
     live: {
@@ -121,9 +122,15 @@ test('Reactive Vision payload carries toggleable Match Pulse and recap settings'
       roundPulse: ['UNKNOWN', 'WIN', 'LOSS'], roundPulseRevision: 3
     }
   }, settings({
-    streamOverlayLayout: 'reactive', streamOverlayMatchPulse: true,
-    streamOverlayMatchPulseStyle: 'dots', streamOverlayPostMatchRecapSeconds: 10
+    streamOverlayMatchPulse: true,
+    streamOverlayMatchPulseStyle: 'dots', streamOverlayPostMatchRecapSeconds: 10,
+    streamOverlayCustom: {
+      reactive: true,
+      inGameElements: [{ id: 'matchPulse', visible: true }]
+    }
   }));
+  assert.equal(payload.layout, 'custom');
+  assert.equal(payload.session.lastMatchId, snapshot.matches[0].id);
   assert.equal(payload.preferences.matchPulse, true);
   assert.equal(payload.preferences.matchPulseStyle, 'dots');
   assert.equal(payload.preferences.postMatchRecap, true);
@@ -164,6 +171,24 @@ test('custom overlay derives privacy fields from its own element visibility', ()
   assert.equal(payload.session.games, 0);
   assert.equal(payload.session.kd, 1.4);
   assert.equal(payload.preferences.showIdentity, true);
+});
+
+test('landscape and portrait payloads use independent custom designs', () => {
+  const configured = settings({
+    streamOverlayCustom: { width: 1200, height: 400, elements: [{ id: 'playerName', visible: false }] },
+    streamOverlayCustomPortrait: { width: 540, height: 960, elements: [{ id: 'playerName', visible: true }] }
+  });
+  const landscape = buildOverlayPayload(snapshot, configured, 'landscape');
+  const portrait = buildOverlayPayload(snapshot, configured, 'portrait');
+  assert.equal(overlayProfile('anything'), 'landscape');
+  assert.equal(overlayProfile('portrait'), 'portrait');
+  assert.equal(landscape.profile, 'landscape');
+  assert.equal(landscape.customOverlay.width, 1200);
+  assert.equal(landscape.player.name, 'PLAYER');
+  assert.equal(portrait.profile, 'portrait');
+  assert.equal(portrait.customOverlay.width, 540);
+  assert.equal(portrait.customOverlay.height, 960);
+  assert.equal(portrait.player.name, 'Nova');
 });
 
 test('custom Reactive Vision exposes fields from the canvas matching live state', () => {
@@ -307,18 +332,24 @@ test('overlay background opacity supports transparent through solid', () => {
   assert.equal(overlayBackgroundOpacity(undefined), 70);
 });
 
-test('overlay visibility settings are enforced in the server payload', () => {
+test('custom element visibility is enforced in the server payload', () => {
   const payload = buildOverlayPayload(snapshot, settings({
-    streamOverlayShowIdentity: true,
-    streamOverlayShowWl: false,
-    streamOverlayShowKd: false,
-    streamOverlayShowAgent: false,
-    streamOverlayShowMap: false,
-    streamOverlayShowRR: false,
-    streamOverlayShowPeakRank: false,
-    streamOverlayShowRrChange: false,
     streamOverlayAnimatedRrBeam: false,
-    streamOverlayLayout: 'vertical'
+    streamOverlayCustom: {
+      elements: [
+        { id: 'playerName', visible: true },
+        { id: 'currentRank', visible: true, showCurrentRR: false },
+        { id: 'currentRR', visible: false },
+        { id: 'peakRank', visible: false },
+        { id: 'sessionWL', visible: false },
+        { id: 'sessionKD', visible: false },
+        { id: 'rrChange', visible: false },
+        { id: 'lastMatch', visible: false },
+        { id: 'agent', visible: false },
+        { id: 'map', visible: false },
+        { id: 'rrBeam', visible: false }
+      ]
+    }
   }));
 
   assert.equal(payload.player.name, 'Nova');
@@ -340,7 +371,7 @@ test('overlay visibility settings are enforced in the server payload', () => {
   assert.equal(payload.preferences.showPeakRank, false);
   assert.equal(payload.preferences.showRrChange, false);
   assert.equal(payload.preferences.animatedRrBeam, false);
-  assert.equal(payload.layout, 'vertical');
+  assert.equal(payload.layout, 'custom');
 });
 
 test('overlay tokens use constant-shape validation', () => {
@@ -378,6 +409,9 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     assert.equal(status.access, 'local');
     assert.equal(status.host, LOOPBACK_HOST);
     assert.match(status.url, /^http:\/\/127\.0\.0\.1:\d+\/overlay\//);
+    assert.match(status.landscapeUrl, /\?profile=landscape$/);
+    assert.match(status.portraitUrl, /\?profile=portrait$/);
+    assert.notEqual(status.landscapeUrl, status.portraitUrl);
 
     const page = await fetch(status.url);
     assert.equal(page.status, 200);
@@ -406,8 +440,16 @@ test('overlay server defaults to loopback and rejects invalid URLs', async () =>
     const accepted = await fetch(`http://127.0.0.1:${status.port}/snapshot?token=${token}`);
     assert.equal(accepted.status, 200);
     const payload = await accepted.json();
+    assert.equal(payload.profile, 'landscape');
     assert.equal(payload.player.name, 'PLAYER');
     assert.equal(JSON.stringify(payload).includes('PixelPilot'), false);
+
+    const portraitResponse = await fetch(`http://127.0.0.1:${status.port}/snapshot?token=${token}&profile=portrait`);
+    assert.equal(portraitResponse.status, 200);
+    const portraitPayload = await portraitResponse.json();
+    assert.equal(portraitPayload.profile, 'portrait');
+    assert.equal(portraitPayload.customOverlay.width, 540);
+    assert.equal(portraitPayload.customOverlay.height, 960);
   } finally {
     await server.stop();
   }

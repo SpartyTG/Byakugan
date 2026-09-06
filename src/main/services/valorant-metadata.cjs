@@ -76,7 +76,14 @@ async function fetchMetadata(force = false) {
           image: skin.displayIcon || skin.chromas?.[0]?.fullRender || weapon.displayIcon || ''
         };
         put(metadata.skins, skin.uuid, item);
-        for (const chroma of skin.chromas || []) put(metadata.skins, chroma.uuid, item);
+        for (const chroma of skin.chromas || []) put(metadata.skins, chroma.uuid, {
+          ...item,
+          image: chroma.fullRender || chroma.displayIcon || item.image
+        });
+        for (const level of skin.levels || []) put(metadata.skins, level.uuid, {
+          ...item,
+          image: level.displayIcon || item.image
+        });
       }
     }
 

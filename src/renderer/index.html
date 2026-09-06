@@ -320,6 +320,18 @@
         <div class="stream-vision-grid">
           <article class="glass settings-card remote-viewer-card">
             <div class="settings-heading"><span class="setting-icon">⇄</span><div><h2>Dual PC Streaming Mode</h2><p>Run VALORANT on the gaming PC and operate BYAKUGAN from the streaming PC.</p></div><span class="overlay-status" id="remoteStatus">LOCAL</span></div>
+            <section class="dual-pc-guide" aria-labelledby="dualPcGuideTitle">
+              <div class="dual-pc-guide-heading"><small>STEP-BY-STEP SETUP</small><strong id="dualPcGuideTitle">Connect both computers</strong><span>Install the same BYAKUGAN version on both PCs and connect them to the same private network.</span></div>
+              <ol>
+                <li><b>Gaming PC</b><span>Start Riot Client and VALORANT, open Stream Vision, and choose <strong>Gaming PC — Host</strong>.</span></li>
+                <li><b>Gaming PC</b><span>Turn on <strong>Allow Remote Viewer</strong>. If Windows Firewall appears, allow BYAKUGAN on <strong>Private networks</strong>.</span></li>
+                <li><b>Gaming PC</b><span>Select <strong>Copy connection URL</strong>. You may then enable Relay Mode for a tray-only host.</span></li>
+                <li><b>Streaming PC</b><span>Open Stream Vision, choose <strong>Streaming PC — Viewer</strong>, paste the copied URL, and select <strong>Connect to gaming PC</strong>.</span></li>
+                <li><b>Streaming PC</b><span>Confirm the header says <strong>Gaming PC connected</strong>. Customize the overlay below and enable its Browser Source.</span></li>
+                <li><b>OBS on streaming PC</b><span>Copy the <strong>Landscape</strong> or <strong>Portrait</strong> OBS URL, add it as a Browser Source, and use that design's displayed canvas size. Add both URLs to multistream.</span></li>
+              </ol>
+              <p>Keep both URLs private. Standard dual-PC setups leave <strong>Allow streaming PC</strong> off because OBS and the overlay server are already on the streaming PC.</p>
+            </section>
             <label class="range-row"><span>This computer</span><select id="pcRole"><option value="gaming">Gaming PC — Host</option><option value="viewer">Streaming PC — Viewer</option></select></label>
             <div id="remoteHostControls">
               <label class="toggle-row relay-mode-toggle"><span><strong>Gaming PC Relay Mode</strong><small>After restart, run full-speed data collection and the streaming link from the system tray without loading the dashboard.</small></span><input type="checkbox" id="gamingRelayMode"><i></i></label>
@@ -348,13 +360,16 @@
             </div>
             <label class="toggle-row"><span><strong>Enable Browser Source</strong><small>Runs the live overlay server while BYAKUGAN is open.</small></span><input type="checkbox" id="streamOverlayEnabled"><i></i></label>
             <label class="toggle-row"><span><strong>Allow streaming PC</strong><small>Creates a private-network URL for OBS on another PC connected to the same router.</small></span><input type="checkbox" id="streamOverlayLanEnabled"><i></i></label>
-            <label class="range-row"><span>Overlay layout</span><select id="streamOverlayLayout"><option value="rank">Awakened rank card</option><option value="reactive">Reactive Vision Dock</option><option value="custom">Custom Overlay Builder</option><option value="horizontal">Horizontal bar</option><option value="compact">Compact card</option><option value="vertical">Vertical panel</option></select></label>
             <label class="overlay-opacity-control"><span><strong>Background opacity</strong><small>Transparent at 0%; completely solid at 100%.</small></span><input type="range" id="streamOverlayBackgroundOpacity" min="0" max="100" step="5"><output id="streamOverlayBackgroundOpacityValue">70%</output></label>
             <div class="overlay-dimensions"><span><small>OBS BROWSER SOURCE SIZE</small><strong id="overlayDimensions">1600 × 180</strong></span><em id="overlayDimensionsHelp">Set Width to 1600 and Height to 180 in OBS.</em></div>
-            <section class="custom-overlay-builder" id="customOverlayBuilder" hidden>
+            <section class="custom-overlay-builder" id="customOverlayBuilder">
               <div class="custom-builder-heading">
-                <div><small>FREEFORM CANVAS</small><strong>Custom Overlay Builder</strong><p>Turn fields on, drag and resize them, then fine-tune every selected element.</p></div>
+                <div><small>YOUR OVERLAY</small><strong>Custom Overlay Builder</strong><p>Choose every visible element here, then drag, resize, and style it for your own stream.</p></div>
                 <button class="ghost-button" id="resetCustomOverlay">Reset layout</button>
+              </div>
+              <div class="overlay-profile-tabs" role="tablist" aria-label="Overlay orientation">
+                <button type="button" class="active" data-overlay-profile="landscape" role="tab" aria-selected="true"><strong>Landscape</strong><span>Twitch · YouTube · 16:9 scenes</span></button>
+                <button type="button" data-overlay-profile="portrait" role="tab" aria-selected="false"><strong>Portrait</strong><span>TikTok · Shorts · 9:16 scenes</span></button>
               </div>
               <div class="custom-canvas-controls">
                 <label><span id="customOverlayWidthLabel">Canvas width</span><input type="number" id="customOverlayWidth" min="320" max="1920" step="10"></label>
@@ -391,18 +406,6 @@
               </div>
               <p class="custom-builder-note">Changes save automatically. With Reactive Vision enabled, OBS uses the largest width and height as a safe envelope while Between Games, In Game, and Post Match keep independent canvas sizes.</p>
             </section>
-            <div class="overlay-options-heading"><div><small>VISIBLE FIELDS</small><strong>Build your overlay</strong></div><span>Every field updates live</span></div>
-            <div class="overlay-field-grid">
-              <label class="toggle-row"><span><strong>Riot name</strong><small>Off by default for stream privacy.</small></span><input type="checkbox" id="streamOverlayShowIdentity"><i></i></label>
-              <label class="toggle-row"><span><strong>W/L</strong><small>Session wins, losses, and games.</small></span><input type="checkbox" id="streamOverlayShowWl"><i></i></label>
-              <label class="toggle-row"><span><strong>K/D</strong><small>Current session kill/death ratio.</small></span><input type="checkbox" id="streamOverlayShowKd"><i></i></label>
-              <label class="toggle-row"><span><strong>Current RR</strong><small>Your current rank-rating total.</small></span><input type="checkbox" id="streamOverlayShowRR"><i></i></label>
-              <label class="toggle-row"><span><strong>Peak rank</strong><small>Your all-time peak rank and the act it was earned.</small></span><input type="checkbox" id="streamOverlayShowPeakRank"><i></i></label>
-              <label class="toggle-row"><span><strong>RR gain/loss</strong><small>Session movement and last-match RR.</small></span><input type="checkbox" id="streamOverlayShowRrChange"><i></i></label>
-              <label class="toggle-row"><span><strong>Animated RR energy beam</strong><small>Animate the current 0–100 RR bar; turn off for a clean static bar.</small></span><input type="checkbox" id="streamOverlayAnimatedRrBeam"><i></i></label>
-              <label class="toggle-row"><span><strong>Agent</strong><small>Your selected agent and portrait.</small></span><input type="checkbox" id="streamOverlayShowAgent"><i></i></label>
-              <label class="toggle-row"><span><strong>Map</strong><small>The map for your active match.</small></span><input type="checkbox" id="streamOverlayShowMap"><i></i></label>
-            </div>
             <section class="reactive-vision-options" id="reactiveVisionOptions" hidden>
               <div class="overlay-options-heading"><div><small>REACTIVE VISION</small><strong>Motion and match states</strong></div><span>Each feature is optional</span></div>
               <div class="overlay-field-grid">
@@ -420,11 +423,18 @@
                 <button type="button" class="ghost-button overlay-preview-button" id="previewOverlayTransitions">Preview transitions &amp; beam</button>
               </div>
             </section>
-            <div class="overlay-url-row">
-              <div><small>PRIVATE OBS URL</small><strong id="overlayUrl">Enable the overlay to create your URL.</strong></div>
-              <button class="ghost-button overlay-preview-button" id="previewOverlay">Preview overlay</button>
-              <button class="primary-button" id="copyOverlayUrl" disabled>Copy OBS URL</button>
-              <button class="ghost-button" id="regenerateOverlayUrl" disabled>Regenerate</button>
+            <div class="overlay-url-stack">
+              <div class="overlay-url-row">
+                <div><small>LANDSCAPE OBS URL</small><strong id="overlayUrl">Enable the overlay to create your Landscape URL.</strong></div>
+                <button class="ghost-button overlay-preview-button" id="previewOverlay">Preview Landscape</button>
+                <button class="primary-button" id="copyOverlayUrl" disabled>Copy Landscape URL</button>
+              </div>
+              <div class="overlay-url-row">
+                <div><small>PORTRAIT OBS URL</small><strong id="overlayPortraitUrl">Enable the overlay to create your Portrait URL.</strong></div>
+                <button class="ghost-button overlay-preview-button" id="previewPortraitOverlay">Preview Portrait</button>
+                <button class="primary-button" id="copyPortraitOverlayUrl" disabled>Copy Portrait URL</button>
+              </div>
+              <button class="ghost-button overlay-regenerate-button" id="regenerateOverlayUrl" disabled>Regenerate both private URLs</button>
             </div>
             <p class="overlay-security-note" id="overlaySecurityNote">The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.</p>
           </article>

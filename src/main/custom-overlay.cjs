@@ -64,6 +64,65 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
   ])
 });
 
+const DEFAULT_CUSTOM_OVERLAY_PORTRAIT = Object.freeze({
+  width: 540,
+  height: 960,
+  inGameWidth: 540,
+  inGameHeight: 960,
+  postMatchWidth: 540,
+  postMatchHeight: 960,
+  backgroundColor: '#0b0d1d',
+  elements: Object.freeze([
+    { id: 'branding', visible: true, x: 6, y: 4, width: 88, height: 10, fontSize: 28, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'playerName', visible: false, x: 6, y: 15, width: 88, height: 8, fontSize: 24, opacity: 100, align: 'left', color: '#c9bcff' },
+    { id: 'currentRank', visible: true, x: 6, y: 24, width: 88, height: 18, fontSize: 34, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'currentRR', visible: true, x: 58, y: 43, width: 36, height: 7, fontSize: 22, opacity: 100, align: 'right', color: '#c9bcff' },
+    { id: 'peakRank', visible: true, x: 6, y: 51, width: 88, height: 11, fontSize: 20, opacity: 100, align: 'left', color: '#eeeaff' },
+    { id: 'sessionWL', visible: true, x: 6, y: 64, width: 41, height: 10, fontSize: 25, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'sessionKD', visible: true, x: 53, y: 64, width: 41, height: 10, fontSize: 25, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'rrChange', visible: false, x: 58, y: 76, width: 36, height: 8, fontSize: 22, opacity: 100, align: 'right', color: '#38e6c1' },
+    { id: 'lastMatch', visible: true, x: 6, y: 76, width: 88, height: 8, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'agent', visible: false, x: 6, y: 74, width: 41, height: 12, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'map', visible: false, x: 53, y: 74, width: 41, height: 8, fontSize: 22, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'matchPulse', visible: false, x: 6, y: 76, width: 88, height: 7, fontSize: 16, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'matchScore', visible: false, x: 36, y: 76, width: 28, height: 8, fontSize: 22, opacity: 100, align: 'center', color: '#ffffff' },
+    { id: 'rrBeam', visible: true, x: 6, y: 87, width: 88, height: 8, fontSize: 16, opacity: 100, align: 'left', color: '#70dfff', showMarker: true }
+  ]),
+  reactive: false,
+  inGameElements: Object.freeze([
+    { id: 'branding', visible: false, x: 6, y: 4, width: 88, height: 9, fontSize: 24, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'playerName', visible: false, x: 6, y: 14, width: 88, height: 8, fontSize: 22, opacity: 100, align: 'left', color: '#c9bcff' },
+    { id: 'currentRank', visible: true, x: 6, y: 8, width: 88, height: 18, fontSize: 30, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'currentRR', visible: false, x: 58, y: 28, width: 36, height: 7, fontSize: 22, opacity: 100, align: 'right', color: '#c9bcff' },
+    { id: 'peakRank', visible: false, x: 6, y: 36, width: 88, height: 10, fontSize: 20, opacity: 100, align: 'left', color: '#eeeaff' },
+    { id: 'sessionWL', visible: true, x: 6, y: 30, width: 41, height: 10, fontSize: 24, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'sessionKD', visible: true, x: 53, y: 30, width: 41, height: 10, fontSize: 24, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'rrChange', visible: false, x: 58, y: 42, width: 36, height: 8, fontSize: 22, opacity: 100, align: 'right', color: '#38e6c1' },
+    { id: 'lastMatch', visible: false, x: 6, y: 42, width: 88, height: 8, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'agent', visible: false, x: 6, y: 42, width: 41, height: 12, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'map', visible: false, x: 53, y: 42, width: 41, height: 8, fontSize: 22, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'matchPulse', visible: false, x: 6, y: 43, width: 88, height: 7, fontSize: 16, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'matchScore', visible: false, x: 36, y: 43, width: 28, height: 8, fontSize: 22, opacity: 100, align: 'center', color: '#ffffff' },
+    { id: 'rrBeam', visible: true, x: 6, y: 54, width: 88, height: 9, fontSize: 20, opacity: 100, align: 'left', color: '#70dfff', showMarker: true }
+  ]),
+  postMatchElements: Object.freeze([
+    { id: 'branding', visible: true, x: 6, y: 4, width: 88, height: 10, fontSize: 28, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'playerName', visible: false, x: 6, y: 15, width: 88, height: 8, fontSize: 24, opacity: 100, align: 'left', color: '#c9bcff' },
+    { id: 'currentRank', visible: true, x: 6, y: 38, width: 88, height: 16, fontSize: 28, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'currentRR', visible: true, x: 58, y: 55, width: 36, height: 7, fontSize: 20, opacity: 100, align: 'right', color: '#c9bcff' },
+    { id: 'peakRank', visible: false, x: 6, y: 63, width: 88, height: 10, fontSize: 19, opacity: 100, align: 'left', color: '#eeeaff' },
+    { id: 'sessionWL', visible: true, x: 6, y: 65, width: 41, height: 10, fontSize: 26, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'sessionKD', visible: true, x: 53, y: 65, width: 41, height: 10, fontSize: 26, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'rrChange', visible: false, x: 58, y: 77, width: 36, height: 8, fontSize: 24, opacity: 100, align: 'right', color: '#38e6c1' },
+    { id: 'lastMatch', visible: true, x: 6, y: 18, width: 88, height: 17, fontSize: 31, opacity: 100, align: 'center', color: '#ffffff' },
+    { id: 'agent', visible: false, x: 6, y: 76, width: 41, height: 12, fontSize: 20, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'map', visible: false, x: 53, y: 76, width: 41, height: 8, fontSize: 22, opacity: 100, align: 'right', color: '#ffffff' },
+    { id: 'matchPulse', visible: false, x: 6, y: 77, width: 88, height: 7, fontSize: 16, opacity: 100, align: 'left', color: '#ffffff' },
+    { id: 'matchScore', visible: true, x: 36, y: 77, width: 28, height: 8, fontSize: 24, opacity: 100, align: 'center', color: '#ffffff' },
+    { id: 'rrBeam', visible: true, x: 6, y: 87, width: 88, height: 8, fontSize: 20, opacity: 100, align: 'left', color: '#70dfff', showMarker: true }
+  ])
+});
+
 function numberWithin(value, fallback, minimum, maximum) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.round(Math.max(minimum, Math.min(maximum, parsed)) * 10) / 10 : fallback;
@@ -104,7 +163,7 @@ function normalizeElement(candidate, fallback) {
   return normalized;
 }
 
-function normalizeCustomOverlay(value) {
+function normalizeCustomOverlay(value, defaults = DEFAULT_CUSTOM_OVERLAY) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const supplied = Array.isArray(source.elements) ? source.elements : [];
   const suppliedInGame = Array.isArray(source.inGameElements) ? source.inGameElements : [];
@@ -113,23 +172,23 @@ function normalizeCustomOverlay(value) {
   const legacyReactiveBetween = supplied.find((element) => element?.id === 'reactiveBetween');
   const legacyReactiveInGame = supplied.find((element) => element?.id === 'reactiveInGame');
   return {
-    width: numberWithin(source.width, DEFAULT_CUSTOM_OVERLAY.width, 320, 1920),
-    height: numberWithin(source.height, DEFAULT_CUSTOM_OVERLAY.height, 120, 1080),
-    inGameWidth: numberWithin(source.inGameWidth, source.width || DEFAULT_CUSTOM_OVERLAY.inGameWidth, 320, 1920),
-    inGameHeight: numberWithin(source.inGameHeight, source.height || DEFAULT_CUSTOM_OVERLAY.inGameHeight, 120, 1080),
-    postMatchWidth: numberWithin(source.postMatchWidth, source.width || DEFAULT_CUSTOM_OVERLAY.postMatchWidth, 320, 1920),
-    postMatchHeight: numberWithin(source.postMatchHeight, source.height || DEFAULT_CUSTOM_OVERLAY.postMatchHeight, 120, 1080),
-    backgroundColor: safeColor(source.backgroundColor, DEFAULT_CUSTOM_OVERLAY.backgroundColor),
+    width: numberWithin(source.width, defaults.width, 320, 1920),
+    height: numberWithin(source.height, defaults.height, 120, 1080),
+    inGameWidth: numberWithin(source.inGameWidth, source.width || defaults.inGameWidth, 320, 1920),
+    inGameHeight: numberWithin(source.inGameHeight, source.height || defaults.inGameHeight, 120, 1080),
+    postMatchWidth: numberWithin(source.postMatchWidth, source.width || defaults.postMatchWidth, 320, 1920),
+    postMatchHeight: numberWithin(source.postMatchHeight, source.height || defaults.postMatchHeight, 120, 1080),
+    backgroundColor: safeColor(source.backgroundColor, defaults.backgroundColor),
     reactive: typeof source.reactive === 'boolean'
       ? source.reactive
       : Boolean(legacyReactiveDock?.visible || legacyReactiveBetween?.visible || legacyReactiveInGame?.visible),
-    elements: DEFAULT_CUSTOM_OVERLAY.elements.map((fallback) => normalizeElement(
+    elements: defaults.elements.map((fallback) => normalizeElement(
       supplied.find((element) => element?.id === fallback.id), fallback
     )),
-    inGameElements: DEFAULT_CUSTOM_OVERLAY.inGameElements.map((fallback) => normalizeElement(
+    inGameElements: defaults.inGameElements.map((fallback) => normalizeElement(
       suppliedInGame.find((element) => element?.id === fallback.id), fallback
     )),
-    postMatchElements: DEFAULT_CUSTOM_OVERLAY.postMatchElements.map((fallback) => normalizeElement(
+    postMatchElements: defaults.postMatchElements.map((fallback) => normalizeElement(
       suppliedPostMatch.find((element) => element?.id === fallback.id), fallback
     ))
   };
@@ -142,4 +201,10 @@ function customElementVisible(config, id, inGame = false) {
   return Boolean(elements?.find((element) => element.id === id)?.visible);
 }
 
-module.exports = { CUSTOM_ELEMENT_TYPES, DEFAULT_CUSTOM_OVERLAY, normalizeCustomOverlay, customElementVisible };
+module.exports = {
+  CUSTOM_ELEMENT_TYPES,
+  DEFAULT_CUSTOM_OVERLAY,
+  DEFAULT_CUSTOM_OVERLAY_PORTRAIT,
+  normalizeCustomOverlay,
+  customElementVisible
+};

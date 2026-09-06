@@ -369,6 +369,19 @@ button { color: inherit; }
 .stream-overlay-card .settings-heading { align-items: center; }
 .remote-viewer-card { grid-column: 1 / -1; }
 .remote-viewer-card .settings-heading { align-items: center; }
+.dual-pc-guide { margin: 16px 0 4px; padding: 16px; border: 1px solid rgba(57,230,193,.16); border-radius: 13px; background: linear-gradient(120deg,rgba(57,230,193,.045),rgba(139,108,255,.04)); }
+.dual-pc-guide-heading small, .dual-pc-guide-heading strong, .dual-pc-guide-heading span { display: block; }
+.dual-pc-guide-heading small { color: var(--teal); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
+.dual-pc-guide-heading strong { margin-top: 5px; font-size: 14px; }
+.dual-pc-guide-heading span { margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.5; }
+.dual-pc-guide ol { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; counter-reset: dual-pc-step; }
+.dual-pc-guide li { position: relative; min-height: 72px; padding: 12px 12px 12px 43px; border: 1px solid rgba(194,180,255,.11); border-radius: 11px; background: rgba(4,8,18,.42); counter-increment: dual-pc-step; }
+.dual-pc-guide li::before { content: counter(dual-pc-step); position: absolute; left: 12px; top: 12px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 7px; background: rgba(139,108,255,.18); color: var(--violet-light); font-size: 9px; font-weight: 900; }
+.dual-pc-guide li b, .dual-pc-guide li span { display: block; }
+.dual-pc-guide li b { color: white; font-size: 8px; }
+.dual-pc-guide li span { margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.45; }
+.dual-pc-guide li strong { color: var(--violet-light); font-weight: 750; }
+.dual-pc-guide > p { margin: 11px 0 0; color: var(--muted-2); font-size: 8px; line-height: 1.5; }
 .remote-connection-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; min-height: 78px; padding-top: 12px; border-top: 1px solid var(--border); }
 .remote-connection-row small, .remote-connection-row strong { display: block; }
 .remote-connection-row small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .13em; }
@@ -415,6 +428,13 @@ button { color: inherit; }
 .custom-builder-heading small { color: var(--violet-light); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
 .custom-builder-heading strong { margin-top: 4px; font-size: 14px; }
 .custom-builder-heading p { margin: 5px 0 0; color: var(--muted); font-size: 8px; }
+.overlay-profile-tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 12px 0 0; }
+.overlay-profile-tabs button { min-width: 0; padding: 10px 12px; border: 1px solid rgba(194,180,255,.14); border-radius: 10px; background: rgba(255,255,255,.015); color: var(--muted); text-align: left; cursor: pointer; }
+.overlay-profile-tabs button:hover { border-color: rgba(139,108,255,.42); color: white; }
+.overlay-profile-tabs button.active { border-color: rgba(56,230,193,.42); background: linear-gradient(135deg,rgba(56,230,193,.08),rgba(139,108,255,.08)); color: white; box-shadow: inset 0 0 0 1px rgba(56,230,193,.06); }
+.overlay-profile-tabs strong, .overlay-profile-tabs span { display: block; }
+.overlay-profile-tabs strong { font-size: 10px; }
+.overlay-profile-tabs span { margin-top: 4px; color: var(--muted-2); font-size: 7px; }
 .custom-canvas-controls { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; padding: 12px 0; }
 .custom-canvas-controls > [hidden] { display: none !important; }
 .custom-canvas-controls label, .custom-element-inspector label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 8px; }
@@ -507,13 +527,15 @@ button { color: inherit; }
 .overlay-preview > span small { color: var(--muted); font-size: 7px; font-weight: 800; letter-spacing: .1em; }
 .overlay-preview > span strong { margin-top: 5px; font-size: 18px; }
 .overlay-preview > span:last-child strong { color: var(--teal); }
-.overlay-url-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); align-items: center; gap: 9px; padding-top: 15px; border-top: 1px solid var(--border); }
+.overlay-url-stack { display: grid; gap: 9px; padding-top: 15px; border-top: 1px solid var(--border); }
+.overlay-url-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(2, auto); align-items: center; gap: 9px; padding: 10px 11px; border: 1px solid rgba(194,180,255,.1); border-radius: 10px; background: rgba(255,255,255,.012); }
 .overlay-url-row > div { min-width: 0; }
 .overlay-url-row small, .overlay-url-row strong { display: block; }
 .overlay-url-row small { color: var(--muted-2); font-size: 7px; font-weight: 850; letter-spacing: .12em; }
 .overlay-url-row strong { overflow: hidden; margin-top: 5px; color: var(--muted); font-family: Consolas, monospace; font-size: 8px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .overlay-url-row .primary-button { min-height: 38px; font-size: 9px; }
 .overlay-url-row .ghost-button { padding-inline: 13px; }
+.overlay-regenerate-button { justify-self: end; }
 .overlay-preview-button { border-color: rgba(194,180,255,.24); color: var(--violet-light); }
 .overlay-security-note { margin: 12px 0 0; color: var(--muted-2); font-size: 8px; line-height: 1.55; }
 .about-card { text-align: center; }
@@ -610,6 +632,7 @@ button { color: inherit; }
   .nav-item i { margin: auto; }
   .hero-grid, .social-layout, .settings-grid, .roster-grid { grid-template-columns: 1fr; }
   .stream-overlay-card, .remote-viewer-card { grid-column: auto; }
+  .dual-pc-guide ol { grid-template-columns: 1fr; }
   .remote-connection-row { grid-template-columns: 1fr; padding-bottom: 12px; }
   .overlay-dimensions { align-items: flex-start; flex-direction: column; }
   .overlay-dimensions em { text-align: left; }
@@ -623,6 +646,7 @@ button { color: inherit; }
   .overlay-url-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .overlay-url-row > div { grid-column: 1 / -1; }
   .overlay-url-row .ghost-button, .overlay-url-row .primary-button { width: 100%; }
+  .overlay-regenerate-button { width: 100%; justify-self: stretch; }
   .update-banner { grid-template-columns: auto 1fr; }
   .update-banner .primary-button, .update-banner-progress { grid-column: 1 / -1; }
   .loadout-grid, .agent-grid { grid-template-columns: repeat(2, 1fr); }

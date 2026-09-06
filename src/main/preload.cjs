@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   getOverlayStatus: () => ipcRenderer.invoke('overlay:status'),
-  copyOverlayUrl: () => ipcRenderer.invoke('overlay:copy-url'),
+  copyOverlayUrl: (profile = 'landscape') => ipcRenderer.invoke('overlay:copy-url', profile),
   regenerateOverlayToken: () => ipcRenderer.invoke('overlay:regenerate-token'),
   previewOverlay: (options = {}) => ipcRenderer.invoke('overlay:preview', options),
   getRemoteStatus: () => ipcRenderer.invoke('remote:status'),

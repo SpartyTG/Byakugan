@@ -31,13 +31,13 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(updated.gamingRelayMode, true);
     assert.equal(updated.remoteViewerEnabled, true);
     assert.match(updated.remoteSourceUrl, /^http:\/\/192\.168\.50\.99/);
-    assert.equal(updated.streamOverlayLayout, 'rank');
-    assert.equal(updated.streamOverlayShowWl, false);
-    assert.equal(updated.streamOverlayShowKd, false);
-    assert.equal(updated.streamOverlayShowAgent, false);
-    assert.equal(updated.streamOverlayShowMap, false);
-    assert.equal(updated.streamOverlayShowPeakRank, false);
-    assert.equal(updated.streamOverlayShowRrChange, false);
+    assert.equal(updated.streamOverlayLayout, 'custom');
+    assert.equal(updated.streamOverlayShowWl, undefined);
+    assert.equal(updated.streamOverlayShowKd, undefined);
+    assert.equal(updated.streamOverlayShowAgent, undefined);
+    assert.equal(updated.streamOverlayShowMap, undefined);
+    assert.equal(updated.streamOverlayShowPeakRank, undefined);
+    assert.equal(updated.streamOverlayShowRrChange, undefined);
     assert.equal(updated.streamOverlayAnimatedRrBeam, false);
     assert.equal(updated.streamOverlaySmoothTransitions, false);
     assert.equal(updated.streamOverlayTransitionSound, true);
@@ -54,10 +54,10 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(restored.privacyMode, true);
     assert.equal(restored.streamOverlayLanEnabled, true);
     assert.equal(restored.gamingRelayMode, true);
-    assert.equal(restored.streamOverlayLayout, 'rank');
-    assert.equal(restored.streamOverlayShowAgent, false);
-    assert.equal(restored.streamOverlayShowMap, false);
-    assert.equal(restored.streamOverlayShowPeakRank, false);
+    assert.equal(restored.streamOverlayLayout, 'custom');
+    assert.equal(restored.streamOverlayShowAgent, undefined);
+    assert.equal(restored.streamOverlayShowMap, undefined);
+    assert.equal(restored.streamOverlayShowPeakRank, undefined);
     assert.equal(restored.streamOverlayAnimatedRrBeam, false);
     assert.equal(restored.streamOverlayTransitionSound, true);
     assert.equal(restored.streamOverlayMatchPulse, true);
@@ -81,8 +81,8 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(rejected.streamOverlayPostMatchRecapSeconds, 10);
     assert.match(rejected.remoteSourceUrl, /^http:\/\/192\.168\.50\.99/);
 
-    const reactive = store.update({ streamOverlayLayout: 'reactive' });
-    assert.equal(reactive.streamOverlayLayout, 'reactive');
+    const legacyPreset = store.update({ streamOverlayLayout: 'reactive' });
+    assert.equal(legacyPreset.streamOverlayLayout, 'custom');
 
     const custom = store.update({
       streamOverlayLayout: 'custom',
@@ -109,18 +109,48 @@ test('SettingsStore persists allowlisted, type-safe settings', () => {
     assert.equal(customName.align, 'left');
     assert.equal(customName.color, '#c9bcff');
     assert.equal(custom.streamOverlayCustom.elements.some((element) => element.id === 'reactiveDock'), false);
+
+    const portrait = store.update({
+      streamOverlayCustomPortrait: {
+        width: 600, height: 1000,
+        elements: [{ id: 'playerName', visible: true, x: 10, y: 12 }]
+      }
+    });
+    assert.equal(portrait.streamOverlayCustomPortrait.width, 600);
+    assert.equal(portrait.streamOverlayCustomPortrait.height, 1000);
+    assert.equal(portrait.streamOverlayCustomPortrait.elements.find((element) => element.id === 'playerName').visible, true);
+    assert.equal(portrait.streamOverlayCustom.width, 1920);
+    const restoredProfiles = new SettingsStore(directory).get();
+    assert.equal(restoredProfiles.streamOverlayCustom.width, 1920);
+    assert.equal(restoredProfiles.streamOverlayCustomPortrait.width, 600);
+    assert.equal(restoredProfiles.streamOverlayCustomPortrait.height, 1000);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test('SettingsStore migrates the combined legacy agent and map preference', () => {
+test('SettingsStore migrates legacy preset visibility into the custom builder', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'companion-settings-migration-'));
   try {
-    fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({ dataMode: 'mock', streamOverlayShowAgentMap: false }));
+    fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({
+      dataMode: 'mock', streamOverlayLayout: 'reactive', streamOverlayShowAgentMap: false,
+      streamOverlayShowIdentity: true, streamOverlayShowWl: false
+    }));
     const restored = new SettingsStore(directory).get();
-    assert.equal(restored.streamOverlayShowAgent, false);
-    assert.equal(restored.streamOverlayShowMap, false);
+    assert.equal(restored.streamOverlayLayout, 'custom');
+    assert.equal(restored.streamOverlayCustom.reactive, true);
+    for (const elements of [
+      restored.streamOverlayCustom.elements,
+      restored.streamOverlayCustom.inGameElements,
+      restored.streamOverlayCustom.postMatchElements
+    ]) {
+      assert.equal(elements.find((element) => element.id === 'agent').visible, false);
+      assert.equal(elements.find((element) => element.id === 'map').visible, false);
+      assert.equal(elements.find((element) => element.id === 'playerName').visible, true);
+      assert.equal(elements.find((element) => element.id === 'sessionWL').visible, false);
+    }
+    assert.equal(restored.streamOverlayShowAgent, undefined);
+    assert.equal(restored.streamOverlayShowMap, undefined);
     assert.equal(restored.streamOverlayShowAgentMap, undefined);
     assert.equal(restored.dataMode, undefined);
   } finally {

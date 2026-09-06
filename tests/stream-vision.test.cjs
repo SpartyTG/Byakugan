@@ -17,24 +17,37 @@ test('Live Stream Vision owns the overlay and dual-PC controls', () => {
   const streamView = html.slice(streamStart, settingsStart);
   const settingsView = html.slice(settingsStart);
   assert.match(streamView, /Dual PC Streaming Mode/);
+  assert.match(streamView, /STEP-BY-STEP SETUP/);
+  assert.match(streamView, /Gaming PC — Host/);
+  assert.match(streamView, /Allow Remote Viewer/);
+  assert.match(streamView, /Copy connection URL/);
+  assert.match(streamView, /Streaming PC — Viewer/);
+  assert.match(streamView, /Gaming PC connected/);
+  assert.match(streamView, /OBS on streaming PC/);
   assert.match(streamView, /remote-viewer-card/);
   assert.match(streamView, /stream-overlay-card/);
   assert.doesNotMatch(settingsView, /remote-viewer-card|stream-overlay-card/);
   assert.doesNotMatch(html, /Two-PC mode/);
 });
 
-test('Awakened Rank recommends the reduced-width OBS canvas', () => {
-  assert.match(app, /rank:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
-});
-
-test('Reactive Vision Dock is offered separately on the same fixed OBS canvas', () => {
-  assert.match(html, /<option value="rank">Awakened rank card<\/option><option value="reactive">Reactive Vision Dock<\/option>/);
-  assert.match(app, /reactive:\s*\{\s*width:\s*480,\s*height:\s*190\s*\}/);
-  assert.match(app, /The dock animates inside this fixed canvas/);
+test('Custom Overlay Builder is the only Stream Vision layout and owns visibility', () => {
+  assert.doesNotMatch(html, /id="streamOverlayLayout"/);
+  assert.doesNotMatch(html, /Awakened rank card|Horizontal bar|Compact card|Vertical panel/);
+  assert.doesNotMatch(html, /VISIBLE FIELDS/);
+  assert.doesNotMatch(html, /id="streamOverlayShow(?:Identity|Wl|Kd|Agent|Map|RR|PeakRank|RrChange)"/);
+  assert.match(html, /<section class="custom-overlay-builder" id="customOverlayBuilder">/);
+  assert.match(html, /data-overlay-profile="landscape"/);
+  assert.match(html, /data-overlay-profile="portrait"/);
+  assert.match(html, /Twitch · YouTube · 16:9 scenes/);
+  assert.match(html, /TikTok · Shorts · 9:16 scenes/);
+  assert.match(html, /id="copyOverlayUrl"[^>]*>Copy Landscape URL/);
+  assert.match(html, /id="copyPortraitOverlayUrl"[^>]*>Copy Portrait URL/);
+  assert.match(app, /activeCustomOverlayKey/);
+  assert.match(app, /streamOverlayCustomPortrait/);
   assert.match(html, /id="streamOverlaySmoothTransitions"/);
   assert.match(html, /id="streamOverlayTransitionSound"/);
   assert.match(html, /id="previewOverlayTransitions"/);
-  assert.match(app, /previewOverlay\(\{ animation: true \}\)/);
+  assert.match(app, /previewOverlay\(\{ animation: true, profile: state\.customOverlayProfile \}\)/);
   assert.match(html, /id="streamOverlayMatchPulse"/);
   assert.match(html, /id="streamOverlayPostMatchRecap"/);
   assert.match(html, /id="streamOverlayPostMatchRecapSeconds"/);
@@ -74,6 +87,13 @@ test('completed Match History roster displays every available account level', ()
   assert.match(app, /: 'LVL PRIVATE'/);
 });
 
+test('Loadout distinguishes an empty Riot collection from an unavailable response', () => {
+  assert.match(app, /const status = state\.snapshot\?\.loadoutStatus/);
+  assert.match(app, /Riot returned an empty equipped collection/);
+  assert.match(app, /Riot did not return your equipped collection/);
+  assert.match(app, /Keep Riot Client and VALORANT open, then select Refresh Data/);
+});
+
 test('routine snapshots stay silent and act completion notifies only after real hydration', () => {
   const snapshotHandler = app.match(/window\.companion\.onSnapshot\(\(snapshot\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
   assert.doesNotMatch(snapshotHandler, /toast\(/);
@@ -83,7 +103,7 @@ test('routine snapshots stay silent and act completion notifies only after real 
 });
 
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
-  assert.match(html, /<option value="custom">Custom Overlay Builder<\/option>/);
+  assert.match(html, /<strong>Custom Overlay Builder<\/strong>/);
   assert.match(html, /id="customOverlayWidth"/);
   assert.match(html, /id="customOverlayHeight"/);
   assert.match(html, /id="customOverlayInGameWidth"/);

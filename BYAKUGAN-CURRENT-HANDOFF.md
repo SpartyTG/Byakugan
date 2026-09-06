@@ -2,15 +2,34 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.125`
-- Previous release: `v0.8.0-beta.124`
+- Target: `v0.8.0-beta.126`
+- Previous release: `v0.8.0-beta.125`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `180` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `182` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.126 changes
+
+### Loadout recovery
+
+- Personalization requests use the exact client version exposed by the running VALORANT session instead of relying only on third-party version metadata.
+- Equipped loadout normalization accepts Riot's wrapped and alternate-casing payloads plus chroma, skin, and skin-level UUIDs.
+- Metadata maps skin-level and chroma UUIDs to their correct names and artwork.
+- Loadout distinguishes an empty Riot collection from an unavailable response and tells the user how to refresh it.
+
+### Custom-only multistream overlays
+
+- Custom Overlay Builder is the only selectable Stream Vision layout; the old preset selector and duplicate Visible Fields controls are removed.
+- Existing preset visibility and Reactive Vision settings migrate into the Landscape custom design.
+- Landscape and Portrait tabs save completely independent element placement, visibility, state canvases, and dimensions.
+- Landscape keeps the user's existing custom design. Portrait begins with a vertical `540 × 960` design.
+- The overlay server exposes distinct token-protected `profile=landscape` and `profile=portrait` Browser Source URLs and filters each payload using only that profile's enabled elements.
+- Both URLs can remain connected and update simultaneously for Twitch/YouTube plus TikTok/Shorts multistreaming.
+- Stream Vision includes a visible seven-step Dual PC Streaming Mode guide covering host, firewall, URL transfer, viewer verification, and OBS setup.
 
 ## Beta.125 changes
 
@@ -99,13 +118,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.125 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.126 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.125
-git push origin v0.8.0-beta.125
+git tag v0.8.0-beta.126
+git push origin v0.8.0-beta.126
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -113,7 +132,10 @@ git push origin v0.8.0-beta.125
 
 ## Manual verification
 
-1. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
-2. Regenerate the same match twice and add existing VOD evidence. Confirm the mission does not reassign and the leak count does not grow for the same match.
-3. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.
-4. If VOD is selected, confirm the app clearly reports missing FFmpeg until the complete FFmpeg package is installed.
+1. With Riot Client and VALORANT open, select **Refresh Data** and confirm Loadout shows the signed-in account's equipped skins. If Riot withholds the collection, confirm the page shows the unavailable message rather than a false empty loadout.
+2. Open Stream Vision and confirm only Custom Overlay Builder appears. Verify the duplicate Visible Fields section and preset selector are gone.
+3. Customize Landscape, switch to Portrait, customize it differently, then switch back and confirm both designs persist independently.
+4. Enable Browser Source, add the Landscape and Portrait URLs to separate OBS Browser Sources, and confirm both update simultaneously with their correct canvas and privacy settings.
+5. Follow the in-app dual-PC guide on both computers and confirm the streaming PC displays **Gaming PC connected** before copying its OBS URLs.
+6. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
+7. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.

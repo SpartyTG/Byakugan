@@ -691,7 +691,12 @@ function registerIpc() {
     const overlay = await syncOverlay();
     if (before.streamOverlayLanEnabled !== after.streamOverlayLanEnabled
       && overlayPreviewWindow && !overlayPreviewWindow.isDestroyed() && overlay.url) {
-      const previewUrl = new URL(overlay.url);
+      let previewProfile = 'landscape';
+      try {
+        previewProfile = new URL(overlayPreviewWindow.webContents.getURL()).searchParams.get('profile') === 'portrait'
+          ? 'portrait' : 'landscape';
+      } catch {}
+      const previewUrl = new URL(previewProfile === 'portrait' ? overlay.portraitUrl : overlay.landscapeUrl);
       previewUrl.searchParams.set('preview', '1');
       await overlayPreviewWindow.loadURL(previewUrl.href);
     }
@@ -700,11 +705,13 @@ function registerIpc() {
   });
 
   ipcMain.handle('overlay:status', () => overlayServer?.status() || { enabled: false, running: false, url: '', error: '' });
-  ipcMain.handle('overlay:copy-url', () => {
+  ipcMain.handle('overlay:copy-url', (_event, requestedProfile = 'landscape') => {
     const status = overlayServer?.status();
-    if (!status?.running || !status.url) throw new Error(status?.error || 'Enable the stream overlay first.');
-    clipboard.writeText(status.url);
-    return status;
+    const profile = requestedProfile === 'portrait' ? 'portrait' : 'landscape';
+    const url = profile === 'portrait' ? status?.portraitUrl : status?.landscapeUrl;
+    if (!status?.running || !url) throw new Error(status?.error || 'Enable the stream overlay first.');
+    clipboard.writeText(url);
+    return { ...status, copiedProfile: profile };
   });
   ipcMain.handle('overlay:regenerate-token', async () => {
     settings.update({ streamOverlayToken: createOverlayToken() });
@@ -722,13 +729,19 @@ function registerIpc() {
   });
   ipcMain.handle('overlay:preview', async (_event, options = {}) => {
     const animationPreview = options?.animation === true;
+    const profile = options?.profile === 'portrait' ? 'portrait' : 'landscape';
     await overlayServer.start();
     overlayServer.publish();
     const overlaySettings = settings.get();
-    const layout = overlaySettings.streamOverlayLayout || 'horizontal';
-    const customCanvas = overlaySettings.streamOverlayCustom || { width: 960, height: 360, inGameWidth: 960, inGameHeight: 360, postMatchWidth: 960, postMatchHeight: 360 };
-    const reactiveLayout = layout === 'reactive' || (layout === 'custom' && Boolean(customCanvas.reactive));
-    if (animationPreview && !reactiveLayout) throw new Error('Choose Reactive Vision Dock or enable Reactive Vision Mode in the Custom Overlay Builder first.');
+    const layout = 'custom';
+    const configuredCanvas = profile === 'portrait'
+      ? overlaySettings.streamOverlayCustomPortrait
+      : overlaySettings.streamOverlayCustom;
+    const customCanvas = configuredCanvas || (profile === 'portrait'
+      ? { width: 540, height: 960, inGameWidth: 540, inGameHeight: 960, postMatchWidth: 540, postMatchHeight: 960, reactive: false }
+      : { width: 960, height: 360, inGameWidth: 960, inGameHeight: 360, postMatchWidth: 960, postMatchHeight: 360, reactive: false });
+    const reactiveLayout = Boolean(customCanvas.reactive);
+    if (animationPreview && !reactiveLayout) throw new Error('Enable Reactive Vision Mode in the Custom Overlay Builder first.');
     if (animationPreview && overlaySettings.streamOverlaySmoothTransitions === false) throw new Error('Turn on BYAKUGAN Shift transitions before starting the animation preview.');
     const customPreviewWidth = customCanvas.reactive
       ? Math.max(Number(customCanvas.width) || 960, Number(customCanvas.inGameWidth) || 960, Number(customCanvas.postMatchWidth) || 960)
@@ -736,13 +749,9 @@ function registerIpc() {
     const customPreviewHeight = customCanvas.reactive
       ? Math.max(Number(customCanvas.height) || 360, Number(customCanvas.inGameHeight) || 360, Number(customCanvas.postMatchHeight) || 360)
       : Number(customCanvas.height) || 360;
-    const sizes = {
-      rank: [590, 270], reactive: animationPreview ? [620, 300] : [620, overlaySettings.streamOverlayPostMatchRecap === false ? 490 : 700],
-      custom: [Math.min(1400, Math.max(520, customPreviewWidth + 80)), Math.min(900, Math.max(300, customPreviewHeight + 100))],
-      horizontal: [1420, 270], compact: [700, 390], vertical: [500, 800]
-    };
-    const [width, height] = sizes[layout] || sizes.horizontal;
+    const [width, height] = [Math.min(1400, Math.max(520, customPreviewWidth + 80)), Math.min(900, Math.max(300, customPreviewHeight + 100))];
     const previewUrl = new URL(overlayServer.status().url);
+    previewUrl.searchParams.set('profile', profile);
     previewUrl.searchParams.set('preview', '1');
     if (animationPreview) previewUrl.searchParams.set('animation', '1');
     if (overlayPreviewWindow && !overlayPreviewWindow.isDestroyed()) {

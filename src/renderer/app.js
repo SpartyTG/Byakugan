@@ -14,6 +14,7 @@ const state = {
   selectedSynergyFriendId: '',
   customOverlaySelectedId: 'branding',
   customOverlayCanvasState: 'between',
+  customOverlayProfile: 'landscape',
   overlayStatus: null,
   remoteStatus: null,
   updateStatus: null,
@@ -36,14 +37,6 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const text = (selector, value) => { const element = $(selector); if (element) element.textContent = String(value ?? '—'); };
 const SENSEI_VOD_CHECKPOINT_VERSIONS = Object.freeze({ adaptive: 5, exhaustive: 3 });
-const OVERLAY_DIMENSIONS = Object.freeze({
-  rank: { width: 480, height: 190 },
-  reactive: { width: 480, height: 190 },
-  custom: { width: 960, height: 360 },
-  horizontal: { width: 1600, height: 180 },
-  compact: { width: 560, height: 240 },
-  vertical: { width: 380, height: 660 }
-});
 const CUSTOM_OVERLAY_LABELS = Object.freeze({
   branding: 'BYAKUGAN branding', playerName: 'Riot name', currentRank: 'Current rank', currentRR: 'Current RR',
   peakRank: 'Peak rank', sessionWL: 'Session W/L', sessionKD: 'Session K/D', rrChange: 'Session RR change',
@@ -79,6 +72,40 @@ const DEFAULT_CUSTOM_OVERLAY = Object.freeze({
     ['map',false,25,65,20,16,22,100,'left','#ffffff'], ['matchPulse',false,3,62,44,11,16,100,'left','#ffffff'],
     ['matchScore',true,50,40,18,14,24,100,'center','#ffffff'], ['rrBeam',true,3,76,94,18,20,100,'left','#70dfff',true]
   ].map(([id,visible,x,y,width,height,fontSize,opacity,align,color,showMarker]) => ({ id,visible,x,y,width,height,fontSize,labelFontSize:Math.max(6,Math.round(fontSize*.38)),detailFontSize:Math.max(6,Math.round(fontSize*.42)),showLabel:true,showDetail:true,opacity,align,color,...(id === 'rrBeam' ? { showMarker: showMarker !== false } : {}),...(id === 'currentRank' ? { showCurrentRR:false } : {}) }))
+});
+function portraitElements(elements, placements) {
+  return elements.map((element) => ({ ...element, ...(placements[element.id] || {}) }));
+}
+const DEFAULT_CUSTOM_OVERLAY_PORTRAIT = Object.freeze({
+  ...DEFAULT_CUSTOM_OVERLAY,
+  width: 540, height: 960, inGameWidth: 540, inGameHeight: 960, postMatchWidth: 540, postMatchHeight: 960,
+  elements: portraitElements(DEFAULT_CUSTOM_OVERLAY.elements, {
+    branding: { x: 6, y: 4, width: 88, height: 10 }, playerName: { x: 6, y: 15, width: 88, height: 8 },
+    currentRank: { x: 6, y: 24, width: 88, height: 18 }, currentRR: { x: 58, y: 43, width: 36, height: 7 },
+    peakRank: { x: 6, y: 51, width: 88, height: 11 }, sessionWL: { x: 6, y: 64, width: 41, height: 10 },
+    sessionKD: { x: 53, y: 64, width: 41, height: 10, align: 'right' }, rrChange: { x: 58, y: 76, width: 36, height: 8 },
+    lastMatch: { x: 6, y: 76, width: 88, height: 8, align: 'left' }, agent: { x: 6, y: 74, width: 41, height: 12 },
+    map: { x: 53, y: 74, width: 41, height: 8, align: 'right' }, matchPulse: { x: 6, y: 76, width: 88, height: 7 },
+    matchScore: { x: 36, y: 76, width: 28, height: 8 }, rrBeam: { x: 6, y: 87, width: 88, height: 8 }
+  }),
+  inGameElements: portraitElements(DEFAULT_CUSTOM_OVERLAY.inGameElements, {
+    branding: { x: 6, y: 4, width: 88, height: 9 }, playerName: { x: 6, y: 14, width: 88, height: 8 },
+    currentRank: { x: 6, y: 8, width: 88, height: 18 }, currentRR: { x: 58, y: 28, width: 36, height: 7 },
+    peakRank: { x: 6, y: 36, width: 88, height: 10 }, sessionWL: { x: 6, y: 30, width: 41, height: 10, align: 'left' },
+    sessionKD: { x: 53, y: 30, width: 41, height: 10, align: 'right' }, rrChange: { x: 58, y: 42, width: 36, height: 8 },
+    lastMatch: { x: 6, y: 42, width: 88, height: 8, align: 'left' }, agent: { x: 6, y: 42, width: 41, height: 12 },
+    map: { x: 53, y: 42, width: 41, height: 8, align: 'right' }, matchPulse: { x: 6, y: 43, width: 88, height: 7 },
+    matchScore: { x: 36, y: 43, width: 28, height: 8 }, rrBeam: { x: 6, y: 54, width: 88, height: 9 }
+  }),
+  postMatchElements: portraitElements(DEFAULT_CUSTOM_OVERLAY.postMatchElements, {
+    branding: { x: 6, y: 4, width: 88, height: 10 }, playerName: { x: 6, y: 15, width: 88, height: 8 },
+    currentRank: { x: 6, y: 38, width: 88, height: 16 }, currentRR: { x: 58, y: 55, width: 36, height: 7 },
+    peakRank: { x: 6, y: 63, width: 88, height: 10 }, sessionWL: { x: 6, y: 65, width: 41, height: 10 },
+    sessionKD: { x: 53, y: 65, width: 41, height: 10, align: 'right' }, rrChange: { x: 58, y: 77, width: 36, height: 8 },
+    lastMatch: { x: 6, y: 18, width: 88, height: 17 }, agent: { x: 6, y: 76, width: 41, height: 12 },
+    map: { x: 53, y: 76, width: 41, height: 8, align: 'right' }, matchPulse: { x: 6, y: 77, width: 88, height: 7 },
+    matchScore: { x: 36, y: 77, width: 28, height: 8 }, rrBeam: { x: 6, y: 87, width: 88, height: 8 }
+  })
 });
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 const safeImage = (value) => {
@@ -296,7 +323,11 @@ function renderFriends() {
 
 function renderLoadout() {
   const loadout = state.snapshot?.loadout || [];
-  $('#loadoutGrid').innerHTML = loadout.map((item) => `<article class="weapon-card" style="--card-color:${escapeHtml(item.color)}"><small>${escapeHtml(item.slot)}</small>${safeImage(item.image) ? `<div class="weapon-image"><img src="${safeImage(item.image)}" alt="${escapeHtml(item.skin)}"></div>` : '<div class="weapon-shape"></div>'}<small>${escapeHtml(item.edition)}</small><strong>${escapeHtml(item.skin)}</strong></article>`).join('') || '<div class="empty-state glass">No equipped loadout was returned.</div>';
+  const status = state.snapshot?.loadoutStatus;
+  const emptyMessage = status === 'empty'
+    ? 'Riot returned an empty equipped collection. Equip a weapon skin in VALORANT, then select Refresh Data.'
+    : 'Riot did not return your equipped collection. Keep Riot Client and VALORANT open, then select Refresh Data.';
+  $('#loadoutGrid').innerHTML = loadout.map((item) => `<article class="weapon-card" style="--card-color:${escapeHtml(item.color)}"><small>${escapeHtml(item.slot)}</small>${safeImage(item.image) ? `<div class="weapon-image"><img src="${safeImage(item.image)}" alt="${escapeHtml(item.skin)}"></div>` : '<div class="weapon-shape"></div>'}<small>${escapeHtml(item.edition)}</small><strong>${escapeHtml(item.skin)}</strong></article>`).join('') || `<div class="empty-state glass">${escapeHtml(emptyMessage)}</div>`;
 }
 
 function renderAgents() {
@@ -1078,7 +1109,7 @@ function navigate(view) {
   text('#pageEyebrow', viewMeta[view][0]);
   text('#pageTitle', viewMeta[view][1]);
   $('.main').scrollTo({ top: 0, behavior: 'smooth' });
-  if (view === 'stream' && state.settings?.streamOverlayLayout === 'custom') requestAnimationFrame(renderCustomOverlayBuilder);
+  if (view === 'stream') requestAnimationFrame(renderCustomOverlayBuilder);
   if (view === 'settings') refreshSenseiStatus();
   if (view === 'sensei') hydrateSenseiHub();
 }
@@ -1151,71 +1182,69 @@ function syncSettingsForm() {
   $('#remoteViewerControls').hidden = settings.pcRole !== 'viewer';
   $('#streamOverlayEnabled').checked = Boolean(settings.streamOverlayEnabled);
   $('#streamOverlayLanEnabled').checked = Boolean(settings.streamOverlayLanEnabled);
-  $('#streamOverlayLayout').value = settings.streamOverlayLayout || 'horizontal';
-  renderOverlayDimensions(settings.streamOverlayLayout);
-  const customLayout = settings.streamOverlayLayout === 'custom';
-  $('#customOverlayBuilder').hidden = !customLayout;
-  $('.overlay-options-heading').hidden = customLayout;
-  $('.overlay-field-grid').hidden = customLayout;
-  $('#streamOverlayShowIdentity').checked = Boolean(settings.streamOverlayShowIdentity);
-  $('#streamOverlayShowWl').checked = settings.streamOverlayShowWl !== false;
-  $('#streamOverlayShowKd').checked = settings.streamOverlayShowKd !== false;
-  $('#streamOverlayShowAgent').checked = settings.streamOverlayShowAgent !== false;
-  $('#streamOverlayShowMap').checked = settings.streamOverlayShowMap !== false;
-  $('#streamOverlayShowRR').checked = settings.streamOverlayShowRR !== false;
-  $('#streamOverlayShowPeakRank').checked = settings.streamOverlayShowPeakRank !== false;
-  $('#streamOverlayShowRrChange').checked = settings.streamOverlayShowRrChange !== false;
-  $('#streamOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
+  renderOverlayDimensions();
+  $('#customOverlayBuilder').hidden = false;
   $('#streamOverlaySmoothTransitions').checked = settings.streamOverlaySmoothTransitions !== false;
   $('#streamOverlayTransitionSound').checked = settings.streamOverlayTransitionSound === true;
   $('#streamOverlayMatchPulse').checked = Boolean(settings.streamOverlayMatchPulse);
   $('#streamOverlayMatchPulseStyle').value = settings.streamOverlayMatchPulseStyle || 'segments';
   $('#streamOverlayPostMatchRecap').checked = settings.streamOverlayPostMatchRecap !== false;
   $('#streamOverlayPostMatchRecapSeconds').value = String(settings.streamOverlayPostMatchRecapSeconds || 7);
-  $('#reactiveVisionOptions').hidden = !['reactive', 'custom'].includes(settings.streamOverlayLayout);
+  $('#reactiveVisionOptions').hidden = false;
   syncTransitionPreviewControl(settings);
   $('#customOverlayAnimatedRrBeam').checked = settings.streamOverlayAnimatedRrBeam !== false;
   const backgroundOpacity = Number.isFinite(Number(settings.streamOverlayBackgroundOpacity)) ? Number(settings.streamOverlayBackgroundOpacity) : 70;
   $('#streamOverlayBackgroundOpacity').value = String(backgroundOpacity);
   text('#streamOverlayBackgroundOpacityValue', `${backgroundOpacity}%`);
-  if (customLayout) requestAnimationFrame(renderCustomOverlayBuilder);
+  requestAnimationFrame(renderCustomOverlayBuilder);
 }
 
-function renderOverlayDimensions(layout) {
-  const custom = state.settings?.streamOverlayCustom || DEFAULT_CUSTOM_OVERLAY;
-  const selected = layout === 'custom'
-    ? {
-        width: custom.reactive ? Math.max(Number(custom.width) || 960, Number(custom.inGameWidth) || Number(custom.width) || 960, Number(custom.postMatchWidth) || Number(custom.width) || 960) : Number(custom.width) || 960,
-        height: custom.reactive ? Math.max(Number(custom.height) || 360, Number(custom.inGameHeight) || Number(custom.height) || 360, Number(custom.postMatchHeight) || Number(custom.height) || 360) : Number(custom.height) || 360
-      }
-    : OVERLAY_DIMENSIONS[layout] || OVERLAY_DIMENSIONS.horizontal;
-  text('#overlayDimensions', `${selected.width} × ${selected.height}`);
-  text('#overlayDimensionsHelp', layout === 'custom'
-    ? custom.reactive
-      ? `Use this safe envelope in OBS. Between Games, In Game, and Post Match keep their own visible canvas sizes inside it.`
-      : `Use these exact custom canvas dimensions in OBS. You can still resize the finished source on your scene.`
-    : layout === 'reactive'
-    ? `Set Width to ${selected.width} and Height to ${selected.height} in OBS. The dock animates inside this fixed canvas.`
-    : `Set Width to ${selected.width} and Height to ${selected.height} in OBS.`);
+function renderOverlayDimensions() {
+  const custom = activeCustomOverlay();
+  const selected = {
+    width: custom.reactive ? Math.max(Number(custom.width) || 960, Number(custom.inGameWidth) || Number(custom.width) || 960, Number(custom.postMatchWidth) || Number(custom.width) || 960) : Number(custom.width) || 960,
+    height: custom.reactive ? Math.max(Number(custom.height) || 360, Number(custom.inGameHeight) || Number(custom.height) || 360, Number(custom.postMatchHeight) || Number(custom.height) || 360) : Number(custom.height) || 360
+  };
+  const profileLabel = state.customOverlayProfile === 'portrait' ? 'Portrait' : 'Landscape';
+  text('#overlayDimensions', `${profileLabel} • ${selected.width} × ${selected.height}`);
+  text('#overlayDimensionsHelp', custom.reactive
+    ? `Use this safe envelope in OBS. Between Games, In Game, and Post Match keep their own visible canvas sizes inside it.`
+    : `Use these exact custom canvas dimensions in OBS. You can still resize the finished source on your scene.`);
 }
 
 function syncTransitionPreviewControl(settings = state.settings || {}) {
   const button = $('#previewOverlayTransitions');
   if (!button) return;
   const audioToggle = $('#streamOverlayTransitionSound');
-  const layout = settings.streamOverlayLayout || 'horizontal';
-  const reactiveLayout = layout === 'reactive' || (layout === 'custom' && Boolean(settings.streamOverlayCustom?.reactive));
+  const reactiveLayout = Boolean(activeCustomOverlay(settings).reactive);
   const transitionsEnabled = settings.streamOverlaySmoothTransitions !== false;
   button.disabled = !reactiveLayout || !transitionsEnabled;
   if (audioToggle) audioToggle.disabled = !reactiveLayout || !transitionsEnabled;
   text('#transitionPreviewHelp', !reactiveLayout
-    ? 'Enable Reactive Vision Dock or Reactive Vision Mode in the Custom Overlay Builder to preview its state changes.'
+    ? 'Enable Reactive Vision Mode in the Custom Overlay Builder to preview its state changes.'
     : !transitionsEnabled
       ? 'Turn on BYAKUGAN Shift transitions to preview the animated sequence. OBS will remain instant while it is off.'
       : 'Watch Between Games, In Game, Post Match, and RR beam movement without changing OBS or live match data.');
 }
 
-function cloneCustomOverlay(value = state.settings?.streamOverlayCustom || DEFAULT_CUSTOM_OVERLAY) {
+function activeCustomOverlayKey(profile = state.customOverlayProfile) {
+  return profile === 'portrait' ? 'streamOverlayCustomPortrait' : 'streamOverlayCustom';
+}
+
+function defaultCustomOverlay(profile = state.customOverlayProfile) {
+  return profile === 'portrait' ? DEFAULT_CUSTOM_OVERLAY_PORTRAIT : DEFAULT_CUSTOM_OVERLAY;
+}
+
+function activeCustomOverlay(settings = state.settings || {}, profile = state.customOverlayProfile) {
+  return settings?.[activeCustomOverlayKey(profile)] || defaultCustomOverlay(profile);
+}
+
+function assignActiveCustomOverlay(config) {
+  if (state.settings) state.settings[activeCustomOverlayKey()] = config;
+  return config;
+}
+
+function cloneCustomOverlay(value = activeCustomOverlay()) {
   return JSON.parse(JSON.stringify(value));
 }
 
@@ -1313,12 +1342,12 @@ function customDimensionsForState(config, canvasState = state.customOverlayCanva
   const inGame = canvasState === 'ingame' && config?.reactive;
   const postMatch = canvasState === 'postmatch' && config?.reactive;
   return {
-    width: Number(postMatch ? config.postMatchWidth : inGame ? config.inGameWidth : config.width) || DEFAULT_CUSTOM_OVERLAY.width,
-    height: Number(postMatch ? config.postMatchHeight : inGame ? config.inGameHeight : config.height) || DEFAULT_CUSTOM_OVERLAY.height
+    width: Number(postMatch ? config.postMatchWidth : inGame ? config.inGameWidth : config.width) || defaultCustomOverlay().width,
+    height: Number(postMatch ? config.postMatchHeight : inGame ? config.inGameHeight : config.height) || defaultCustomOverlay().height
   };
 }
 
-function selectedCustomElement(config = state.settings?.streamOverlayCustom) {
+function selectedCustomElement(config = activeCustomOverlay()) {
   return customElementsForState(config)?.find((element) => element.id === state.customOverlaySelectedId) || null;
 }
 
@@ -1366,8 +1395,13 @@ function renderCustomEditorCanvas(canvas, elements, canvasState, config, scale, 
 }
 
 function renderCustomOverlayBuilder() {
-  if (!state.settings || state.settings.streamOverlayLayout !== 'custom') return;
-  const config = state.settings.streamOverlayCustom || cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY);
+  if (!state.settings) return;
+  const config = activeCustomOverlay();
+  $$('[data-overlay-profile]').forEach((button) => {
+    const active = button.dataset.overlayProfile === state.customOverlayProfile;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
   $('#customOverlayWidth').value = String(config.width);
   $('#customOverlayHeight').value = String(config.height);
   $('#customOverlayInGameWidth').value = String(config.inGameWidth || config.width);
@@ -1414,10 +1448,11 @@ function renderCustomOverlayBuilder() {
 }
 
 async function persistCustomOverlay(config, feedback = false) {
-  state.settings = await window.companion.updateSettings({ streamOverlayCustom: config });
+  const profile = state.customOverlayProfile;
+  state.settings = await window.companion.updateSettings({ [activeCustomOverlayKey(profile)]: config });
   renderCustomOverlayBuilder();
   await refreshOverlayStatus();
-  if (feedback) toast('Custom overlay saved', 'Your canvas and element layout were updated.');
+  if (feedback) toast(`${profile === 'portrait' ? 'Portrait' : 'Landscape'} overlay saved`, 'Your canvas and element layout were updated.');
 }
 
 function updateSelectedCustomElement(property, rawValue) {
@@ -1426,7 +1461,7 @@ function updateSelectedCustomElement(property, rawValue) {
   if (!element) return null;
   if (['x','y','width','height','fontSize','labelFontSize','detailFontSize','opacity'].includes(property)) element[property] = Number(rawValue);
   else element[property] = rawValue;
-  state.settings.streamOverlayCustom = config;
+  assignActiveCustomOverlay(config);
   renderCustomOverlayBuilder();
   return config;
 }
@@ -1435,16 +1470,16 @@ function resetCustomElement(id) {
   const config = cloneCustomOverlay();
   const elements = customElementsForState(config);
   const fallbackElements = state.customOverlayCanvasState === 'postmatch' && config.reactive
-    ? DEFAULT_CUSTOM_OVERLAY.postMatchElements
+    ? defaultCustomOverlay().postMatchElements
     : state.customOverlayCanvasState === 'ingame' && config.reactive
-      ? DEFAULT_CUSTOM_OVERLAY.inGameElements : DEFAULT_CUSTOM_OVERLAY.elements;
+      ? defaultCustomOverlay().inGameElements : defaultCustomOverlay().elements;
   const element = elements.find((entry) => entry.id === id);
   const fallback = fallbackElements.find((entry) => entry.id === id);
   if (!element || !fallback) return null;
   const visible = element.visible;
   Object.assign(element, JSON.parse(JSON.stringify(fallback)), { visible });
   state.customOverlaySelectedId = id;
-  state.settings.streamOverlayCustom = config;
+  assignActiveCustomOverlay(config);
   return config;
 }
 
@@ -1480,7 +1515,7 @@ function beginCustomElementDrag(event) {
       element.x = Math.max(0, Math.min(100 - element.width, Math.round((start.element.x + dx) * 10) / 10));
       element.y = Math.max(0, Math.min(100 - element.height, Math.round((start.element.y + dy) * 10) / 10));
     }
-    state.settings.streamOverlayCustom = config;
+    assignActiveCustomOverlay(config);
     const liveItem = $(`[data-custom-element="${id}"]`, pointerTarget);
     if (liveItem) {
       liveItem.style.left = `${element.x}%`;
@@ -1527,17 +1562,22 @@ async function refreshRemoteStatus() {
 
 function renderOverlayStatus(status = {}) {
   state.overlayStatus = status;
-  const ready = Boolean(status.enabled && status.running && status.url);
+  const ready = Boolean(status.enabled && status.running && status.landscapeUrl);
+  const portraitReady = Boolean(status.enabled && status.running && status.portraitUrl);
   const statusElement = $('#overlayStatus');
   statusElement.textContent = ready ? 'LIVE' : status.error ? 'ERROR' : 'OFF';
   statusElement.classList.toggle('live', ready);
   text('#overlayUrl', ready
-    ? `http://${status.host || '127.0.0.1'}:${status.port}/overlay/••••••••••••`
-    : status.error || 'Enable the overlay to create your URL.');
+    ? `http://${status.host || '127.0.0.1'}:${status.port}/overlay/••••••••••••?profile=landscape`
+    : status.error || 'Enable the overlay to create your Landscape URL.');
+  text('#overlayPortraitUrl', portraitReady
+    ? `http://${status.host || '127.0.0.1'}:${status.port}/overlay/••••••••••••?profile=portrait`
+    : status.error || 'Enable the overlay to create your Portrait URL.');
   text('#overlaySecurityNote', status.access === 'network' || state.settings?.streamOverlayLanEnabled
-    ? 'Same-network mode is active. Keep BYAKUGAN open on the gaming PC, allow Private networks if Windows asks, and regenerate this URL if it is ever shown publicly.'
-    : 'The URL is token protected and works only on this computer. Regenerate it if it is ever shown on stream.');
+    ? 'Same-network overlay hosting is active on this computer. Allow Private networks if Windows asks, keep both profile URLs private, and regenerate them if either is shown publicly.'
+    : 'Both profile URLs are token protected and work only on this computer. Regenerate them if either is ever shown on stream.');
   $('#copyOverlayUrl').disabled = !ready;
+  $('#copyPortraitOverlayUrl').disabled = !portraitReady;
   $('#regenerateOverlayUrl').disabled = !status.enabled;
 }
 
@@ -2040,11 +2080,14 @@ function bindEvents() {
     await saveSettingsPatch({ streamOverlayLanEnabled: event.target.checked }, false);
     if (event.target.checked) toast('Streaming PC mode enabled', 'Use Copy OBS URL, then paste it into a Browser Source on the other PC. Allow Private networks if Windows asks.');
   });
-  $('#streamOverlayLayout').addEventListener('change', (event) => {
-    renderOverlayDimensions(event.target.value);
-    $('#reactiveVisionOptions').hidden = !['reactive', 'custom'].includes(event.target.value);
-    syncTransitionPreviewControl({ ...state.settings, streamOverlayLayout: event.target.value });
-    saveSettingsPatch({ streamOverlayLayout: event.target.value }, false);
+  $('.overlay-profile-tabs').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-overlay-profile]');
+    if (!button) return;
+    state.customOverlayProfile = button.dataset.overlayProfile === 'portrait' ? 'portrait' : 'landscape';
+    state.customOverlayCanvasState = 'between';
+    state.customOverlaySelectedId = 'branding';
+    renderCustomOverlayBuilder();
+    syncTransitionPreviewControl(state.settings);
   });
   $('#customElementPalette').addEventListener('click', async (event) => {
     const reset = event.target.closest('[data-custom-reset]');
@@ -2070,7 +2113,7 @@ function bindEvents() {
       const config = cloneCustomOverlay();
       config.reactive = reactiveToggle.checked;
       state.customOverlayCanvasState = 'between';
-      state.settings.streamOverlayCustom = config;
+      assignActiveCustomOverlay(config);
       syncTransitionPreviewControl(state.settings);
       await persistCustomOverlay(config);
       return;
@@ -2082,7 +2125,7 @@ function bindEvents() {
       const config = cloneCustomOverlay();
       const element = customElementsForState(config).find((entry) => entry.id === event.target.dataset.customVisible);
       if (element) element.visible = event.target.checked;
-      state.settings.streamOverlayCustom = config;
+      assignActiveCustomOverlay(config);
       await persistCustomOverlay(config);
     } else {
       renderCustomOverlayBuilder();
@@ -2102,20 +2145,20 @@ function bindEvents() {
       if (!Number.isFinite(value) || value < minimum || value > maximum) return;
       const config = cloneCustomOverlay();
       config[property] = value;
-      state.settings.streamOverlayCustom = config;
+      assignActiveCustomOverlay(config);
       renderCustomOverlayBuilder();
     });
     input.addEventListener('change', async (event) => {
       const config = cloneCustomOverlay();
       config[property] = Number(event.target.value);
-      state.settings.streamOverlayCustom = config;
+      assignActiveCustomOverlay(config);
       await persistCustomOverlay(config);
     });
   }
   $('#customOverlayBackgroundColor').addEventListener('change', async (event) => {
     const config = cloneCustomOverlay();
     config.backgroundColor = event.target.value;
-    state.settings.streamOverlayCustom = config;
+    assignActiveCustomOverlay(config);
     await persistCustomOverlay(config);
   });
   $('#customOverlayAnimatedRrBeam').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayAnimatedRrBeam: event.target.checked }, false));
@@ -2124,7 +2167,7 @@ function bindEvents() {
     const beam = customElementsForState(config).find((element) => element.id === 'rrBeam');
     if (!beam) return;
     beam.showMarker = event.target.checked;
-    state.settings.streamOverlayCustom = config;
+    assignActiveCustomOverlay(config);
     await persistCustomOverlay(config);
   });
   for (const [id, property] of [
@@ -2161,24 +2204,15 @@ function bindEvents() {
   });
   $('#resetCustomOverlay').addEventListener('click', async () => {
     state.customOverlaySelectedId = 'branding';
-    const config = cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY);
-    state.settings.streamOverlayCustom = config;
+    const config = cloneCustomOverlay(defaultCustomOverlay());
+    assignActiveCustomOverlay(config);
     await persistCustomOverlay(config, true);
   });
   window.addEventListener('resize', () => {
-    if (state.settings?.streamOverlayLayout === 'custom' && state.currentView === 'stream') renderCustomOverlayBuilder();
+    if (state.currentView === 'stream') renderCustomOverlayBuilder();
   });
   $('#streamOverlayBackgroundOpacity').addEventListener('input', (event) => text('#streamOverlayBackgroundOpacityValue', `${event.target.value}%`));
   $('#streamOverlayBackgroundOpacity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayBackgroundOpacity: Number(event.target.value) }, false));
-  $('#streamOverlayShowIdentity').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowIdentity: event.target.checked }, false));
-  $('#streamOverlayShowWl').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowWl: event.target.checked }, false));
-  $('#streamOverlayShowKd').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowKd: event.target.checked }, false));
-  $('#streamOverlayShowAgent').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowAgent: event.target.checked }, false));
-  $('#streamOverlayShowMap').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowMap: event.target.checked }, false));
-  $('#streamOverlayShowRR').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRR: event.target.checked }, false));
-  $('#streamOverlayShowPeakRank').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowPeakRank: event.target.checked }, false));
-  $('#streamOverlayShowRrChange').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayShowRrChange: event.target.checked }, false));
-  $('#streamOverlayAnimatedRrBeam').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayAnimatedRrBeam: event.target.checked }, false));
   $('#streamOverlaySmoothTransitions').addEventListener('change', (event) => saveSettingsPatch({ streamOverlaySmoothTransitions: event.target.checked }, false));
   $('#streamOverlayTransitionSound').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayTransitionSound: event.target.checked }, false));
   $('#streamOverlayMatchPulse').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayMatchPulse: event.target.checked }, false));
@@ -2187,9 +2221,18 @@ function bindEvents() {
   $('#streamOverlayPostMatchRecapSeconds').addEventListener('change', (event) => saveSettingsPatch({ streamOverlayPostMatchRecapSeconds: Number(event.target.value) }, false));
   $('#copyOverlayUrl').addEventListener('click', async () => {
     try {
-      const status = await window.companion.copyOverlayUrl();
+      const status = await window.companion.copyOverlayUrl('landscape');
       renderOverlayStatus(status);
-      toast('OBS URL copied', 'Add a Browser Source in OBS and paste the copied address.');
+      toast('Landscape OBS URL copied', 'Add it as the Browser Source for your landscape scene.');
+    } catch (error) {
+      toast('Overlay unavailable', error.message, 'error');
+    }
+  });
+  $('#copyPortraitOverlayUrl').addEventListener('click', async () => {
+    try {
+      const status = await window.companion.copyOverlayUrl('portrait');
+      renderOverlayStatus(status);
+      toast('Portrait OBS URL copied', 'Add it as the Browser Source for your vertical scene.');
     } catch (error) {
       toast('Overlay unavailable', error.message, 'error');
     }
@@ -2198,22 +2241,30 @@ function bindEvents() {
     try {
       const status = await window.companion.regenerateOverlayToken();
       renderOverlayStatus(status);
-      toast('Private URL regenerated', 'Copy the new URL and replace the old Browser Source address in OBS.');
+      toast('Private URLs regenerated', 'Replace both Landscape and Portrait Browser Source addresses in OBS.');
     } catch (error) {
       toast('Could not regenerate URL', error.message, 'error');
     }
   });
   $('#previewOverlay').addEventListener('click', async () => {
     try {
-      await window.companion.previewOverlay({ animation: false });
-      toast('Overlay preview opened', 'This window uses the same live layout and data that OBS receives.');
+      await window.companion.previewOverlay({ animation: false, profile: 'landscape' });
+      toast('Landscape preview opened', 'This window uses the same live design and data that OBS receives.');
+    } catch (error) {
+      toast('Preview unavailable', error.message, 'error');
+    }
+  });
+  $('#previewPortraitOverlay').addEventListener('click', async () => {
+    try {
+      await window.companion.previewOverlay({ animation: false, profile: 'portrait' });
+      toast('Portrait preview opened', 'This window uses the same live vertical design and data that OBS receives.');
     } catch (error) {
       toast('Preview unavailable', error.message, 'error');
     }
   });
   $('#previewOverlayTransitions').addEventListener('click', async () => {
     try {
-      await window.companion.previewOverlay({ animation: true });
+      await window.companion.previewOverlay({ animation: true, profile: state.customOverlayProfile });
       toast('Animation preview started', 'The preview safely simulates Between Games, In Game, Post Match, and RR beam movement. Click again to replay it.');
     } catch (error) {
       toast('Animation preview unavailable', error.message, 'error');
@@ -2340,16 +2391,14 @@ async function initialize() {
       autoRefresh: false, refreshSeconds: 30,
       launchAtStartup: false, privacyMode: false, compactMatches: false, uiScale: 100,
       pcRole: 'gaming', gamingRelayMode: false, remoteViewerEnabled: false, remoteSourceUrl: '',
-      streamOverlayEnabled: false, streamOverlayLayout: 'horizontal',
-      streamOverlayLanEnabled: false, streamOverlayShowIdentity: false,
-      streamOverlayShowWl: true, streamOverlayShowKd: true,
-      streamOverlayShowAgent: true, streamOverlayShowMap: true,
-      streamOverlayShowRR: true, streamOverlayShowPeakRank: true, streamOverlayShowRrChange: true,
+      streamOverlayEnabled: false, streamOverlayLayout: 'custom',
+      streamOverlayLanEnabled: false,
       streamOverlayAnimatedRrBeam: true, streamOverlaySmoothTransitions: true, streamOverlayTransitionSound: false,
       streamOverlayMatchPulse: false, streamOverlayMatchPulseStyle: 'segments',
       streamOverlayPostMatchRecap: true, streamOverlayPostMatchRecapSeconds: 7,
       streamOverlayBackgroundOpacity: 70,
-      streamOverlayCustom: cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY)
+      streamOverlayCustom: cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY),
+      streamOverlayCustomPortrait: cloneCustomOverlay(DEFAULT_CUSTOM_OVERLAY_PORTRAIT)
     }));
     syncSettingsForm();
     applyPrivacy();

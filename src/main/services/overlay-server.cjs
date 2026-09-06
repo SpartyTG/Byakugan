@@ -5,7 +5,11 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
-const { normalizeCustomOverlay, customElementVisible } = require('../custom-overlay.cjs');
+const {
+  DEFAULT_CUSTOM_OVERLAY_PORTRAIT,
+  normalizeCustomOverlay,
+  customElementVisible
+} = require('../custom-overlay.cjs');
 
 const LOOPBACK_HOST = '127.0.0.1';
 const DEFAULT_PORT = 43871;
@@ -84,18 +88,22 @@ function overlayBackgroundOpacity(value) {
   return Number.isFinite(opacity) ? Math.round(Math.max(0, Math.min(100, opacity))) : 70;
 }
 
-function buildOverlayPayload(snapshot = {}, settings = {}) {
+function overlayProfile(value) {
+  return String(value || '').toLowerCase() === 'portrait' ? 'portrait' : 'landscape';
+}
+
+function buildOverlayPayload(snapshot = {}, settings = {}, requestedProfile = 'landscape') {
   const profile = snapshot.profile || {};
   const session = snapshot.analytics?.session || {};
   const live = snapshot.live || {};
   const self = (live.players || []).find((player) => player?.isSelf)
     || (live.players || []).find((player) => player?.name === 'You') || {};
-  const layout = ['rank', 'reactive', 'custom', 'horizontal', 'compact', 'vertical'].includes(settings.streamOverlayLayout)
-    ? settings.streamOverlayLayout
-    : 'horizontal';
-  const customOverlay = normalizeCustomOverlay(settings.streamOverlayCustom);
-  const custom = layout === 'custom';
-  const customInGame = custom && customOverlay.reactive
+  const layout = 'custom';
+  const outputProfile = overlayProfile(requestedProfile);
+  const customOverlay = outputProfile === 'portrait'
+    ? normalizeCustomOverlay(settings.streamOverlayCustomPortrait, DEFAULT_CUSTOM_OVERLAY_PORTRAIT)
+    : normalizeCustomOverlay(settings.streamOverlayCustom);
+  const customInGame = customOverlay.reactive
     && ['INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase());
   const customStateElements = customInGame ? customOverlay.inGameElements : customOverlay.elements;
   const customStateElement = (id) => customStateElements.find((element) => element.id === id);
@@ -103,32 +111,26 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const customRank = customStateElement('currentRank');
   const customPeak = customStateElement('peakRank');
   const customLastMatch = customStateElement('lastMatch');
-  const showBeamLastMatchRr = Boolean(custom && customBeam?.visible && customBeam.showMarker !== false);
-  const showIdentity = custom ? customElementVisible(customOverlay, 'playerName', customInGame) : Boolean(settings.streamOverlayShowIdentity);
-  const showWl = custom ? customElementVisible(customOverlay, 'sessionWL', customInGame) : settings.streamOverlayShowWl !== false;
-  const showKd = custom ? customElementVisible(customOverlay, 'sessionKD', customInGame) : settings.streamOverlayShowKd !== false;
-  const showAgent = custom ? customElementVisible(customOverlay, 'agent', customInGame) : settings.streamOverlayShowAgent !== false;
-  const showMap = custom ? customElementVisible(customOverlay, 'map', customInGame) : settings.streamOverlayShowMap !== false;
-  const showRR = custom
-    ? customElementVisible(customOverlay, 'currentRR', customInGame)
-      || customElementVisible(customOverlay, 'rrBeam', customInGame)
-      || Boolean(customRank?.visible && customRank.showCurrentRR)
-    : settings.streamOverlayShowRR !== false;
-  const showPeakRank = custom ? customElementVisible(customOverlay, 'peakRank', customInGame) : settings.streamOverlayShowPeakRank !== false;
-  const showPeakDetail = custom ? Boolean(customPeak?.visible && customPeak.showDetail !== false) : showPeakRank;
-  const showLastMatch = custom ? Boolean(customLastMatch?.visible) : settings.streamOverlayShowRrChange !== false;
-  const showMatchScore = custom ? customElementVisible(customOverlay, 'matchScore', customInGame) : true;
-  const showRrChange = custom
-    ? customElementVisible(customOverlay, 'rrChange', customInGame)
-      || Boolean(customLastMatch?.visible && customLastMatch.showDetail !== false)
-      || showBeamLastMatchRr
-    : settings.streamOverlayShowRrChange !== false;
+  const showBeamLastMatchRr = Boolean(customBeam?.visible && customBeam.showMarker !== false);
+  const showIdentity = customElementVisible(customOverlay, 'playerName', customInGame);
+  const showWl = customElementVisible(customOverlay, 'sessionWL', customInGame);
+  const showKd = customElementVisible(customOverlay, 'sessionKD', customInGame);
+  const showAgent = customElementVisible(customOverlay, 'agent', customInGame);
+  const showMap = customElementVisible(customOverlay, 'map', customInGame);
+  const showRR = customElementVisible(customOverlay, 'currentRR', customInGame)
+    || customElementVisible(customOverlay, 'rrBeam', customInGame)
+    || Boolean(customRank?.visible && customRank.showCurrentRR);
+  const showPeakRank = customElementVisible(customOverlay, 'peakRank', customInGame);
+  const showPeakDetail = Boolean(customPeak?.visible && customPeak.showDetail !== false);
+  const showLastMatch = Boolean(customLastMatch?.visible);
+  const showMatchScore = customElementVisible(customOverlay, 'matchScore', customInGame);
+  const showRrChange = customElementVisible(customOverlay, 'rrChange', customInGame)
+    || Boolean(customLastMatch?.visible && customLastMatch.showDetail !== false)
+    || showBeamLastMatchRr;
   const animatedRrBeam = settings.streamOverlayAnimatedRrBeam !== false;
   const smoothTransitions = settings.streamOverlaySmoothTransitions !== false;
   const transitionSound = settings.streamOverlayTransitionSound === true;
-  const matchPulse = custom
-    ? Boolean(settings.streamOverlayMatchPulse) && customOverlay.reactive && customElementVisible(customOverlay, 'matchPulse', true)
-    : Boolean(settings.streamOverlayMatchPulse);
+  const matchPulse = Boolean(settings.streamOverlayMatchPulse) && customOverlay.reactive && customElementVisible(customOverlay, 'matchPulse', true);
   const matchPulseStyle = settings.streamOverlayMatchPulseStyle === 'dots' ? 'dots' : 'segments';
   const postMatchRecap = settings.streamOverlayPostMatchRecap !== false;
   const postMatchRecapSeconds = Math.round(Math.max(3, Math.min(15, Number(settings.streamOverlayPostMatchRecapSeconds) || 7)));
@@ -140,36 +142,31 @@ function buildOverlayPayload(snapshot = {}, settings = {}) {
   const fallbackAgentAvailable = recentMatch.agent && recentMatch.agent !== '—';
   const overlayAgent = liveAgentAvailable ? self : fallbackAgentAvailable ? recentMatch : {};
   const agentLabel = liveAgentAvailable ? liveLabel(live.state) : fallbackAgentAvailable ? 'LAST PLAYED' : 'WAITING FOR AGENT';
-  const recapElements = custom && customOverlay.reactive ? customOverlay.postMatchElements : [];
+  const recapElements = customOverlay.reactive ? customOverlay.postMatchElements : [];
   const recapElement = (id) => recapElements.find((element) => element.id === id);
   const recapVisible = (id) => recapElements.some((element) => element.id === id && element.visible);
   const recapBeam = recapElement('rrBeam');
   const recapRank = recapElement('currentRank');
   const recapPeak = recapElement('peakRank');
   const recapLastMatch = recapElement('lastMatch');
-  const recapShowIdentity = custom ? recapVisible('playerName') : showIdentity;
-  const recapShowCurrentRank = custom ? recapVisible('currentRank') : true;
-  const recapShowWl = custom ? recapVisible('sessionWL') : showWl;
-  const recapShowKd = custom ? recapVisible('sessionKD') : showKd;
-  const recapShowRR = custom
-    ? recapVisible('currentRR') || recapVisible('rrBeam') || Boolean(recapRank?.visible && recapRank.showCurrentRR)
-    : showRR;
-  const recapShowPeak = custom ? recapVisible('peakRank') : showPeakRank;
-  const recapShowPeakDetail = custom ? Boolean(recapPeak?.visible && recapPeak.showDetail !== false) : recapShowPeak;
-  const recapShowLastMatch = custom ? Boolean(recapLastMatch?.visible) : showLastMatch;
-  const recapShowChange = custom
-    ? recapVisible('rrChange')
-      || Boolean(recapLastMatch?.visible && recapLastMatch.showDetail !== false)
-      || Boolean(recapBeam?.visible && recapBeam.showMarker !== false)
-    : showRrChange;
-  const recapShowAgent = custom ? recapVisible('agent') : showAgent;
-  const recapShowMap = custom ? recapVisible('map') : showMap;
-  const recapShowScore = custom ? recapVisible('matchScore') : true;
-  const recapShowPulse = custom
-    ? Boolean(settings.streamOverlayMatchPulse) && recapVisible('matchPulse')
-    : matchPulse;
+  const recapShowIdentity = recapVisible('playerName');
+  const recapShowCurrentRank = recapVisible('currentRank');
+  const recapShowWl = recapVisible('sessionWL');
+  const recapShowKd = recapVisible('sessionKD');
+  const recapShowRR = recapVisible('currentRR') || recapVisible('rrBeam') || Boolean(recapRank?.visible && recapRank.showCurrentRR);
+  const recapShowPeak = recapVisible('peakRank');
+  const recapShowPeakDetail = Boolean(recapPeak?.visible && recapPeak.showDetail !== false);
+  const recapShowLastMatch = Boolean(recapLastMatch?.visible);
+  const recapShowChange = recapVisible('rrChange')
+    || Boolean(recapLastMatch?.visible && recapLastMatch.showDetail !== false)
+    || Boolean(recapBeam?.visible && recapBeam.showMarker !== false);
+  const recapShowAgent = recapVisible('agent');
+  const recapShowMap = recapVisible('map');
+  const recapShowScore = recapVisible('matchScore');
+  const recapShowPulse = Boolean(settings.streamOverlayMatchPulse) && recapVisible('matchPulse');
   return {
     version: 1,
+    profile: outputProfile,
     updatedAt: new Date().toISOString(),
     layout,
     customOverlay,
@@ -262,7 +259,7 @@ class OverlayServer {
     this.updateSession = updateSession || null;
     this.port = port;
     this.server = null;
-    this.clients = new Set();
+    this.clients = new Map();
     this.heartbeat = null;
     this.lastError = '';
   }
@@ -275,6 +272,8 @@ class OverlayServer {
     const remoteToken = this.getSettings().remoteViewerToken || '';
     const overlayEnabled = Boolean(this.getSettings().streamOverlayEnabled);
     const remoteEnabled = Boolean(this.getSettings().remoteViewerEnabled);
+    const overlayBaseUrl = running && overlayEnabled && token
+      ? `http://${this.host}:${port}/overlay/${encodeURIComponent(token)}` : '';
     return {
       enabled: overlayEnabled,
       remoteEnabled,
@@ -282,7 +281,9 @@ class OverlayServer {
       port,
       host: running ? this.host : '',
       access: running && this.host !== LOOPBACK_HOST ? 'network' : 'local',
-      url: running && overlayEnabled && token ? `http://${this.host}:${port}/overlay/${encodeURIComponent(token)}` : '',
+      url: overlayBaseUrl ? `${overlayBaseUrl}?profile=landscape` : '',
+      landscapeUrl: overlayBaseUrl ? `${overlayBaseUrl}?profile=landscape` : '',
+      portraitUrl: overlayBaseUrl ? `${overlayBaseUrl}?profile=portrait` : '',
       remoteUrl: running && remoteEnabled && remoteToken ? `http://${this.host}:${port}/remote/${encodeURIComponent(remoteToken)}` : '',
       error: this.lastError
     };
@@ -324,7 +325,7 @@ class OverlayServer {
     }
 
     this.heartbeat = setInterval(() => {
-      for (const client of this.clients) client.write(`event: ping\ndata: ${Date.now()}\n\n`);
+      for (const client of this.clients.keys()) client.write(`event: ping\ndata: ${Date.now()}\n\n`);
     }, 15_000);
     this.heartbeat.unref?.();
     return this.status();
@@ -333,7 +334,7 @@ class OverlayServer {
   async stop() {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
-    for (const client of this.clients) client.end();
+    for (const client of this.clients.keys()) client.end();
     this.clients.clear();
     if (!this.server) return;
     const server = this.server;
@@ -342,8 +343,10 @@ class OverlayServer {
   }
 
   publish() {
-    const payload = `event: session\ndata: ${JSON.stringify(buildOverlayPayload(this.getSnapshot(), this.getSettings()))}\n\n`;
-    for (const client of this.clients) client.write(payload);
+    for (const [client, profile] of this.clients) {
+      const payload = buildOverlayPayload(this.getSnapshot(), this.getSettings(), profile);
+      client.write(`event: session\ndata: ${JSON.stringify(payload)}\n\n`);
+    }
   }
 
   authorize(url, pathToken = '') {
@@ -458,7 +461,9 @@ class OverlayServer {
     if (url.pathname === '/snapshot') {
       if (!this.authorize(url)) return this.notFound(response);
       response.writeHead(200, this.headers('application/json; charset=utf-8'));
-      response.end(JSON.stringify(buildOverlayPayload(this.getSnapshot(), this.getSettings())));
+      response.end(JSON.stringify(buildOverlayPayload(
+        this.getSnapshot(), this.getSettings(), overlayProfile(url.searchParams.get('profile'))
+      )));
       return;
     }
 
@@ -469,9 +474,10 @@ class OverlayServer {
         Connection: 'keep-alive'
       });
       response.write('retry: 2000\n\n');
-      this.clients.add(response);
+      const profile = overlayProfile(url.searchParams.get('profile'));
+      this.clients.set(response, profile);
       request.on('close', () => this.clients.delete(response));
-      const payload = buildOverlayPayload(this.getSnapshot(), this.getSettings());
+      const payload = buildOverlayPayload(this.getSnapshot(), this.getSettings(), profile);
       response.write(`event: session\ndata: ${JSON.stringify(payload)}\n\n`);
       return;
     }
@@ -495,6 +501,7 @@ module.exports = {
   findLanHost,
   isPrivateIpv4,
   overlayBackgroundOpacity,
+  overlayProfile,
   rrBeamProgress,
   tokenMatches
 };

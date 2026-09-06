@@ -1,14 +1,23 @@
 # BYAKUGAN Source Handoff
 
 This historical release log is retained for context. The active handoff is
-`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.125`.
+`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.126`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.124`
-- Automated tests: `180 passed, 0 failed`, plus `10` Sensei Brain smoke checks
+- Previous canonical version: `v0.8.0-beta.125`
+- Automated tests: `182 passed, 0 failed`, plus `10` Sensei Brain smoke checks
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
+
+## Beta.126 loadout and Stream Vision cleanup
+
+Beta.126 restores equipped-skin resolution using the running VALORANT client
+version and broader Riot loadout/metadata normalization. Stream Vision now uses
+only the Custom Overlay Builder, includes an in-app dual-PC setup guide, and
+offers independent Landscape and Portrait designs plus two simultaneous OBS
+Browser Source URLs for multistreaming. Legacy preset visibility migrates into
+the Landscape design without overwriting existing custom work.
 
 ## Beta.125 automatic fresh-model recovery
 
@@ -249,7 +258,7 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.125 on both PCs and follow the manual verification in
+Install beta.126 on both PCs and follow the manual verification in
 `BYAKUGAN-CURRENT-HANDOFF.md`. For the beta.114 roster feature, every roster
 row should show **LVL [number]** when Riot supplied the account level and **LVL
 PRIVATE** when it did not. Confirm that the level badge remains alongside party

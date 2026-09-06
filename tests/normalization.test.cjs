@@ -11,7 +11,7 @@ const {
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
-  parseLiveScore, advanceRoundPulse
+  parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -315,6 +315,20 @@ test('resolves weapon and skin UUIDs in a Riot loadout', () => {
   assert.equal(result[0].slot, 'Vandal');
   assert.equal(result[0].skin, 'Prime Vandal');
   assert.equal(result[0].image, 'prime.png');
+  const wrapped = normalizeLoadout({ PlayerLoadout: { guns: [{ id: 'gun-vandal', skinLevelID: 'skin-prime' }] } }, metadata());
+  assert.equal(wrapped[0].skin, 'Prime Vandal');
+});
+
+test('uses the running VALORANT session version for strict personalization requests', () => {
+  const sessions = {
+    unrelated: { productId: 'league_of_legends', version: 'release-99.99-shipping-1-1' },
+    valorant: {
+      productId: 'valorant',
+      version: 'release-26.05-shipping-17-3456789',
+      launchConfiguration: { arguments: ['-ares-deployment=na'] }
+    }
+  };
+  assert.equal(valorantClientVersionFromSessions(sessions), 'release-26.05-shipping-17-3456789');
 });
 
 test('calculates recent statistics and agent pick rate', () => {

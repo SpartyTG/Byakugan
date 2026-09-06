@@ -34,6 +34,35 @@ function senseiAccountKey(puuid) {
   return `riot-${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
 }
 
+function valorantClientVersionFromSessions(sessions) {
+  const versions = [];
+  const seen = new Set();
+  const visit = (value, valorantContext = false, depth = 0) => {
+    if (!value || depth > 8 || seen.has(value)) return;
+    if (typeof value === 'string') {
+      if (valorantContext && /^release-[\w.-]+-shipping-[\w.-]+$/i.test(value.trim())) versions.push(value.trim());
+      return;
+    }
+    if (typeof value !== 'object') return;
+    seen.add(value);
+    const values = Object.values(value);
+    const localValorantContext = valorantContext || values.some((item) => (
+      typeof item === 'string' && /(?:^|\b)(?:valorant|ares)(?:\b|$)/i.test(item)
+    ));
+    for (const [key, item] of Object.entries(value)) {
+      if (typeof item === 'string'
+          && /version/i.test(key)
+          && /^release-[\w.-]+-shipping-[\w.-]+$/i.test(item.trim())
+          && localValorantContext) {
+        versions.push(item.trim());
+      }
+      visit(item, localValorantContext, depth + 1);
+    }
+  };
+  visit(sessions);
+  return versions[0] || '';
+}
+
 function decodeJwtPayload(token) {
   try {
     const encoded = token.split('.')[1];
@@ -1499,9 +1528,12 @@ class RiotClientService extends EventEmitter {
       tagLine: identity?.tagLine || ''
     };
 
+    const sessions = sessionsResult.status === 'fulfilled' ? sessionsResult.value.data : {};
+    const runningClientVersion = valorantClientVersionFromSessions(sessions);
+    if (runningClientVersion) this.clientVersion = runningClientVersion;
     this.region = deriveRegion(
       metadataResult.status === 'fulfilled' ? metadataResult.value.data : {},
-      sessionsResult.status === 'fulfilled' ? sessionsResult.value.data : {}
+      sessions
     );
   }
 
@@ -2408,6 +2440,7 @@ class RiotClientService extends EventEmitter {
     const synergyMatches = actMatches
       .filter((match) => sharedMatchIds.has(match.id))
       .map(({ teammateIds: _teammateIds, ...match }) => match);
+    const equippedLoadout = normalizeLoadout(loadout, this.metadata);
 
     this.persistSession();
 
@@ -2445,7 +2478,8 @@ class RiotClientService extends EventEmitter {
       matches: publicMatches,
       synergyMatches,
       friends,
-      loadout: normalizeLoadout(loadout, this.metadata),
+      loadout: equippedLoadout,
+      loadoutStatus: equippedLoadout.length ? 'ready' : loadout ? 'empty' : 'unavailable',
       agents: analytics.agents,
       analytics,
       diagnostics: this.diagnostics.slice(0, 20)
@@ -2655,10 +2689,15 @@ class RiotClientService extends EventEmitter {
 }
 
 function normalizeLoadout(loadout, metadata = { weapons: new Map(), skins: new Map() }) {
-  const guns = loadout?.Guns || loadout?.guns || [];
+  const candidates = [loadout, loadout?.PlayerLoadout, loadout?.playerLoadout, loadout?.Loadout, loadout?.loadout, loadout?.data];
+  const source = candidates.find((candidate) => Array.isArray(candidate?.Guns) || Array.isArray(candidate?.guns)) || {};
+  const guns = source.Guns || source.guns || [];
   return guns.slice(0, 20).map((gun, index) => {
     const weapon = resolveById(metadata.weapons, gun.ID || gun.id, { name: `Weapon ${index + 1}`, image: '' });
-    const skin = resolveById(metadata.skins, gun.SkinID || gun.skinId || gun.ChromaID || gun.chromaId, {
+    const skin = resolveById(metadata.skins,
+      gun.ChromaID || gun.chromaID || gun.chromaId
+      || gun.SkinID || gun.skinID || gun.skinId
+      || gun.SkinLevelID || gun.skinLevelID || gun.skinLevelId, {
       name: 'Equipped skin', weapon: weapon.name, image: weapon.image
     });
     return {
@@ -2718,6 +2757,7 @@ function buildAgentMastery(matches) {
 module.exports = {
   RiotClientService,
   senseiAccountKey,
+  valorantClientVersionFromSessions,
   isAllowedRemoteHost,
   decodeJwtPayload,
   normalizeMatchHistory,

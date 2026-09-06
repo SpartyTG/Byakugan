@@ -4,7 +4,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { CUSTOM_ELEMENT_TYPES, normalizeCustomOverlay } = require('../src/main/custom-overlay.cjs');
+const {
+  CUSTOM_ELEMENT_TYPES,
+  DEFAULT_CUSTOM_OVERLAY_PORTRAIT,
+  normalizeCustomOverlay
+} = require('../src/main/custom-overlay.cjs');
 
 const overlayHtml = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'index.html'), 'utf8');
 const overlayScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'overlay', 'overlay.js'), 'utf8');
@@ -18,6 +22,15 @@ test('custom overlay schema always returns the complete allowlisted element set'
   assert.deepEqual(normalized.elements.map((element) => element.id), [...CUSTOM_ELEMENT_TYPES]);
   assert.equal(normalized.elements.find((element) => element.id === 'branding').visible, false);
   assert.equal(normalized.elements.some((element) => element.id === 'evil'), false);
+});
+
+test('portrait overlay has an independent vertical default canvas', () => {
+  const portrait = normalizeCustomOverlay({}, DEFAULT_CUSTOM_OVERLAY_PORTRAIT);
+  assert.equal(portrait.width, 540);
+  assert.equal(portrait.height, 960);
+  assert.deepEqual(portrait.elements.map((element) => element.id), [...CUSTOM_ELEMENT_TYPES]);
+  assert.equal(portrait.elements.find((element) => element.id === 'currentRank').width, 88);
+  assert.notDeepEqual(portrait.elements, normalizeCustomOverlay({}).elements);
 });
 
 test('custom OBS renderer uses validated layout data and safe DOM construction', () => {

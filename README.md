@@ -96,7 +96,14 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.125
+## Included in version 0.8.0-beta.126
+
+- Loadout now uses the running VALORANT session's exact client version for personalization requests, accepts Riot's wrapped and alternate-casing loadout shapes, and resolves equipped chroma or skin-level UUIDs in addition to base skin UUIDs
+- The Loadout page distinguishes a genuinely empty equipped collection from an unavailable Riot response and gives an actionable refresh message instead of silently appearing blank
+- Stream Vision now includes an in-app, step-by-step dual-PC guide covering host setup, Private-network firewall access, connection URL transfer, viewer verification, and OBS Browser Source setup
+- Custom Overlay Builder is now the only Stream Vision layout. The redundant preset selector and duplicate Visible Fields controls were removed; element visibility, placement, sizing, and styling live in one editor
+- Existing preset settings migrate safely into the Custom Overlay Builder, including the old visibility switches and Reactive Vision state, while the private OBS URL and reactive transitions continue to work
+- Landscape and Portrait tabs provide two independently saved custom overlays for multistreaming, with separate token-protected OBS URLs and a ready-to-edit `540 × 960` vertical starting design
 
 - When Full Sensei and its JSON repair both fail validation, BYAKUGAN now unloads only the selected text model and performs one fresh generation before falling back to Sensei Lite; Ollama itself stays running
 
@@ -112,7 +119,7 @@ registered trademarks of Riot Games, Inc.
 - Regenerating a report or applying VOD evidence to the same match no longer increments the same leak occurrence more than once
 - The Sensei setup wizard follows only trusted HTTPS installer redirects, uses a fresh temporary download stream, reports download progress, blocks overlapping setup jobs, validates the Windows executable, and removes the installer after use
 - **Sensei Vision Ready** now reflects Ollama and model availability; incomplete optional VOD requirements are labeled separately
-- GitHub Actions now verifies every tracked JavaScript file, Brain pack JSON, 180 automated tests, and all 10 Sensei Brain smoke checks before building an installer
+- GitHub Actions now verifies every tracked JavaScript file, Brain pack JSON, the complete automated test suite, and all 10 Sensei Brain smoke checks before building an installer
 
 Beta.121 added concrete Keep / Wrong / Done mission-card guidance. Beta.120 and earlier Sensei Brain phases introduced the persistent one-mission curriculum, cooldowns, editable meta pack, VOD leak merging, mission-aware Ask Sensei, and the opt-in local setup wizard.
 
@@ -297,12 +304,12 @@ Beta.121 added concrete Keep / Wrong / Done mission-card guidance. Beta.120 and 
 - Act Journey RR visualization with rank and match milestones
 - Evidence-based BYAKUGAN Insights with explicit sample sizes
 - Personal challenges, current-session tracking, and post-match summaries
-- OBS Browser Source overlay with Awakened Rank, horizontal, compact, and vertical stream layouts
+- One customizable OBS Browser Source overlay whose fields, placement, sizing, styling, and optional reactive states are controlled by the Custom Overlay Builder
 - Separate **Reactive Vision Dock** layout that stays fully awakened through menus, queue, Agent Select, and loading, then compresses only when Riot reports the active core game at the first buy phase
 - Post-match Reactive Vision sequence with a result-syncing state, completed-match detection, RR/result awakening pulse, and a 45-second safe fallback when Riot history is delayed
 - Compact Reactive Vision state with current rank, RR beam, session W/L, and K/D while peak rank and last-match details collapse out of gameplay
-- Reduced-motion support for Reactive Vision without changing the original Awakened Rank Card option
-- One-click live overlay preview window with a transparent-grid backdrop and the exact data/layout OBS receives
+- Reduced-motion support for custom Reactive Vision transitions
+- One-click live overlay preview window with a transparent-grid backdrop and the exact custom design OBS receives
 - Original Awakened Rank stream card with current and peak-rank emblems, larger peak text, RR, session W/L, and K/D
 - Animated GIF-based Awakened Rank energy beam, horizontally flipped so its blast head faces right, that is empty at 0 RR and extends or retracts with the player's current 0–100 RR progress
 - Larger Awakened Rank beam with a taller footer, nearly doubled beam thickness, a stronger layered glow, and a more legible moving RR marker
@@ -321,9 +328,9 @@ Beta.121 added concrete Keep / Wrong / Done mission-card guidance. Beta.120 and 
 - Active-match ID tracking so a game completed during the BYAKUGAN session counts toward W/L and K/D even when the app launched, reconnected, or restarted after that match had already begun
 - Frameless lower-left agent presentation without the decorative diamond backdrop
 - Live session W/L, K/D, RR movement, rank, and optional current agent/map on stream
-- Recommended OBS Browser Source dimensions shown live for the selected overlay layout
-- Independent live overlay switches for Riot name, W/L, K/D, current RR, peak rank, RR gain/loss, agent, and map
-- Frameless agent artwork on the Awakened Rank overlay
+- Recommended OBS Browser Source dimensions shown live for the selected Landscape or Portrait design
+- Independent element visibility inside the Custom Overlay Builder for Riot name, W/L, K/D, current RR, peak rank, RR gain/loss, agent, map, and other stream components
+- Frameless agent artwork available as an optional custom overlay element
 - Token-protected overlay server with local-only mode, optional same-network streaming-PC mode, and no roster data
 - Assisted Windows installer with desktop and Start menu shortcuts
 - In-app beta update banner, release confirmation, download progress, automatic installation, and relaunch
@@ -373,7 +380,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.125-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.126-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -402,10 +409,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.125`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.126`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.125`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.126`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -413,8 +420,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.125
-git push origin v0.8.0-beta.125
+git tag v0.8.0-beta.126
+git push origin v0.8.0-beta.126
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the
@@ -437,18 +444,19 @@ releases.
 ## OBS Browser Source
 
 1. Open **Stream Vision → OBS stream overlay** in BYAKUGAN.
-2. Choose a layout and select **Preview overlay** to inspect the exact live output.
-3. Choose exactly which fields are visible. Riot name, W/L, K/D, current RR, peak rank, RR gain/loss, agent, and map are independent switches. The animated RR energy beam can also be replaced with a static RR bar.
+2. Choose the **Landscape** or **Portrait** tab in **Custom Overlay Builder**. Each profile saves its own visible elements, placement, sizing, canvas dimensions, and optional Between Games, In Game, and Post Match designs.
+3. Select the matching preview button to inspect the exact custom output.
 4. Turn on **Enable Browser Source**.
-5. When OBS is on another computer, also turn on **Allow streaming PC**. Both PCs must be connected to the same private network. If Windows Firewall asks, allow BYAKUGAN on **Private networks** only.
-6. Select **Copy OBS URL**.
-7. BYAKUGAN displays the recommended width and height beneath the selected layout. In OBS, add **Sources → Browser**, paste the URL, and use the displayed size:
-   - Awakened rank card: `480 × 190`
-   - Reactive Vision Dock: `480 × 190` fixed canvas; its visible card compresses automatically during play
-   - Horizontal bar: `1600 × 180`
-   - Compact card: `560 × 240`
-   - Vertical panel: `380 × 660`
-8. Leave BYAKUGAN running on the gaming PC while streaming.
+5. Copy the **Landscape OBS URL** for a conventional Twitch/YouTube scene or the **Portrait OBS URL** for a TikTok/Shorts scene. Add both when multistreaming.
+6. In OBS, add **Sources → Browser** for each copied URL and enter the dimensions displayed while editing that profile. Reactive designs use the largest enabled state as the safe transparent OBS envelope.
+7. Leave BYAKUGAN running while streaming.
+
+When BYAKUGAN and OBS run on the same streaming PC in Dual PC Streaming Mode,
+leave **Allow streaming PC** off: the gaming PC sends its dashboard snapshot to
+the viewer, and the streaming PC hosts the local OBS overlay. Enable **Allow
+streaming PC** only when OBS must open an overlay URL hosted by a different
+computer. Both computers must be on the same private network, and Windows
+Firewall access should be granted for **Private networks** only.
 
 By default, the overlay listens only on `127.0.0.1:43871`. Streaming-PC mode
 instead binds to an automatically detected private IPv4 address such as

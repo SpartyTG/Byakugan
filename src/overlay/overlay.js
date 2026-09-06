@@ -6,6 +6,7 @@ const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).at
 const previewParameters = new URLSearchParams(location.search);
 const previewMode = previewParameters.get('preview') === '1';
 const transitionPreviewMode = previewMode && previewParameters.get('animation') === '1';
+const overlayProfile = previewParameters.get('profile') === 'portrait' ? 'portrait' : 'landscape';
 document.body.classList.toggle('preview-mode', previewMode);
 document.body.classList.toggle('transition-preview-mode', transitionPreviewMode);
 let staleTimer = null;
@@ -627,12 +628,12 @@ function setOffline() {
   document.querySelector('#connectionDot').title = 'Reconnecting to BYAKUGAN';
 }
 
-fetch(`/snapshot?token=${encodeURIComponent(token)}`, { cache: 'no-store' })
+fetch(`/snapshot?token=${encodeURIComponent(token)}&profile=${encodeURIComponent(overlayProfile)}`, { cache: 'no-store' })
   .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unauthorized overlay URL')))
   .then((data) => transitionPreviewMode ? startTransitionPreview(data) : render(data))
   .catch(setOffline);
 
-const events = new EventSource(`/events?token=${encodeURIComponent(token)}`);
+const events = new EventSource(`/events?token=${encodeURIComponent(token)}&profile=${encodeURIComponent(overlayProfile)}`);
 events.addEventListener('session', (event) => {
   try {
     const data = JSON.parse(event.data);

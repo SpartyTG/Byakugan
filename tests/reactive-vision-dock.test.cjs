@@ -36,15 +36,12 @@ test('compact Reactive Vision Dock remains legible at webcam width', () => {
   assert.match(styles, /@media \(max-width:\s*900px\)[\s\S]*\.layout-horizontal\.layout-reactive[^}]*grid-template-columns:\s*minmax\(0,1fr\) 112px/);
 });
 
-test('Reactive Vision preview simultaneously shows between-games, in-game, and optional post-match docks', () => {
-  assert.match(script, /function renderReactivePreviewComparison/);
-  assert.match(script, /BETWEEN GAMES/);
-  assert.match(script, /IN GAME/);
-  assert.match(script, /POST MATCH/);
-  assert.match(script, /preferences\.postMatchRecap === false/);
-  assert.match(script, /cloneNode\(true\)/);
-  assert.match(styles, /\.reactive-preview-comparison/);
-  assert.match(main, /reactive:\s*animationPreview \? \[620, 300\] : \[620, overlaySettings\.streamOverlayPostMatchRecap === false \? 490 : 700\]/);
+test('custom Reactive Vision preview uses the largest state canvas as its safe envelope', () => {
+  assert.match(main, /const layout = 'custom'/);
+  assert.match(main, /const reactiveLayout = Boolean\(customCanvas\.reactive\)/);
+  assert.match(main, /Math\.max\(Number\(customCanvas\.width\).*Number\(customCanvas\.inGameWidth\).*Number\(customCanvas\.postMatchWidth\)/s);
+  assert.match(main, /Math\.max\(Number\(customCanvas\.height\).*Number\(customCanvas\.inGameHeight\).*Number\(customCanvas\.postMatchHeight\)/s);
+  assert.match(main, /Enable Reactive Vision Mode in the Custom Overlay Builder first/);
 });
 
 test('Reactive Vision Dock expands, waits for post-match data, then awakens', () => {
@@ -102,7 +99,7 @@ test('Reactive Vision can safely preview the complete transition and RR beam seq
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf8');
   const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'preload.cjs'), 'utf8');
   assert.match(renderer, /function syncTransitionPreviewControl/);
-  assert.match(renderer, /previewOverlay\(\{ animation: true \}\)/);
+  assert.match(renderer, /previewOverlay\(\{ animation: true, profile: state\.customOverlayProfile \}\)/);
   assert.match(preload, /previewOverlay: \(options = \{\}\)/);
   assert.match(main, /const animationPreview = options\?\.animation === true/);
   assert.match(main, /previewUrl\.searchParams\.set\('animation', '1'\)/);
@@ -134,11 +131,12 @@ test('Reactive Vision Match Pulse and post-match recap are animated, optional st
   assert.match(styles, /\.layout-reactive\.motion-instant/);
 });
 
-test('Awakened Rank remains a separate untouched layout selector', () => {
+test('legacy preset styles remain isolated from the active custom overlay', () => {
   assert.match(styles, /\/\* Awakened Rank/);
   assert.match(styles, /\.layout-rank\s*\{/);
   assert.match(styles, /\/\* Reactive Vision Dock/);
   assert.doesNotMatch(styles, /\.layout-rank\.reactive-compact/);
+  assert.match(styles, /\.layout-custom/);
 });
 
 test('expanded Reactive Vision Dock groups last match with session and vertically stacks equal ranks', () => {
