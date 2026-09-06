@@ -24,6 +24,12 @@ const REMOTE_HOST_PATTERNS = [
   /^valorant-api\.com$/i
 ];
 
+const MENU_POLL_INTERVAL_MS = 15_000;
+const MAX_POLL_BACKOFF_MS = 60_000;
+const HISTORICAL_PEAK_LOOKUP_BUDGET = 10;
+const ROSTER_RANK_CACHE_MS = 10 * 60_000;
+const ROSTER_PEAK_CACHE_MS = 24 * 60 * 60_000;
+
 function isAllowedRemoteHost(hostname) {
   return REMOTE_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
 }
@@ -53,6 +59,24 @@ function preserveResolvedProfile(nextProfile = {}, previousProfile = {}, availab
   }
   if (!availability.level && Number(previous.level) > 0) next.level = previous.level;
   return next;
+}
+
+function selectHistoricalPeakSubjects(subjects, rankCache, budget = HISTORICAL_PEAK_LOOKUP_BUDGET, now = Date.now()) {
+  const unique = [...new Set((subjects || []).filter(Boolean))];
+  const cached = [];
+  const unresolved = [];
+  for (const subject of unique) {
+    const entry = rankCache?.get?.(subject);
+    if (entry?.expiresAt > now || (entry?.peakRank && entry?.peakExpiresAt > now)) cached.push(subject);
+    else unresolved.push(subject);
+  }
+  return [...cached, ...unresolved.slice(0, Math.max(0, Number(budget) || 0))];
+}
+
+function livePollInterval(state, activeInterval = 5000, menuInterval = MENU_POLL_INTERVAL_MS) {
+  return ['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(state || '').toUpperCase())
+    ? activeInterval
+    : menuInterval;
 }
 
 function valorantClientVersionFromSessions(sessions) {
@@ -1382,13 +1406,24 @@ class RiotClientService extends EventEmitter {
     super();
     this.lockfilePath = options.lockfilePath || getLockfilePath();
     this.pollIntervalMs = options.pollIntervalMs || 5000;
+    this.menuPollIntervalMs = options.menuPollIntervalMs || MENU_POLL_INTERVAL_MS;
+    this.historicalPeakLookupBudget = Number.isFinite(Number(options.historicalPeakLookupBudget))
+      ? Math.max(0, Number(options.historicalPeakLookupBudget))
+      : HISTORICAL_PEAK_LOOKUP_BUDGET;
     this.lockfile = null;
     this.tokens = null;
     this.identity = null;
     this.region = { region: 'na', shard: 'na' };
     this.clientVersion = options.clientVersion || '';
     this.pollTimer = null;
+    this.pollFailureCount = 0;
+    this.lastLivePollFailed = false;
+    this.liveStatePromise = null;
+    this.refreshPromise = null;
     this.lastSnapshot = null;
+    this.liveStatePromise = null;
+    this.refreshPromise = null;
+    this.lastLivePollFailed = false;
     this.metadata = null;
     this.diagnostics = [];
     this.nameCache = new Map();
@@ -1397,9 +1432,12 @@ class RiotClientService extends EventEmitter {
     this.matchDetailCache = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
     this.partyHistoryFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'party-history.json') : '';
+    this.rankSummaryCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'rank-summary-cache.json') : '';
     this.sessionStore = options.cacheDirectory ? new SessionStore(options.cacheDirectory) : null;
     this.partyHistory = [];
     this.partyHistoryLoadedFor = '';
+    this.rankSummaryCacheLoadedFor = '';
+    this.rankSummaryCacheLoadedFor = '';
     this.actStatsDiskLoadedFor = '';
     this.actStatsProgress = { loaded: 0, total: 0 };
     this.actStatsCache = null;
@@ -1465,6 +1503,64 @@ class RiotClientService extends EventEmitter {
       const temporary = `${this.partyHistoryFile}.tmp`;
       fs.writeFileSync(temporary, JSON.stringify(data, null, 2), 'utf8');
       fs.renameSync(temporary, this.partyHistoryFile);
+    } catch {}
+  }
+
+  loadPersistedRankSummaries() {
+    const accountId = senseiAccountKey(this.identity?.puuid);
+    if (!accountId || this.rankSummaryCacheLoadedFor === accountId) return this.rankCache;
+    this.rankSummaryCacheLoadedFor = accountId;
+    if (!this.rankSummaryCacheFile) return this.rankCache;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.rankSummaryCacheFile, 'utf8'));
+      const rows = parsed?.schema === 1 && parsed.accounts && typeof parsed.accounts === 'object'
+        ? parsed.accounts[accountId]
+        : null;
+      const now = Date.now();
+      for (const [subject, row] of Object.entries(rows && typeof rows === 'object' ? rows : {}).slice(0, 1000)) {
+        if (!/^[a-z0-9-]{1,128}$/i.test(subject) || !row || typeof row !== 'object') continue;
+        const peakExpiresAt = Number(row.peakExpiresAt) || 0;
+        if (!row.peakRank || peakExpiresAt <= now) continue;
+        this.rankCache.set(subject, {
+          tier: 0,
+          peakRank: String(row.peakRank).slice(0, 80),
+          peakRankImage: String(row.peakRankImage || '').slice(0, 500),
+          peakEpisode: String(row.peakEpisode || '').slice(0, 80),
+          peakAct: String(row.peakAct || '').slice(0, 80),
+          expiresAt: 0,
+          peakExpiresAt
+        });
+      }
+    } catch {}
+    return this.rankCache;
+  }
+
+  persistRankSummaries() {
+    const accountId = senseiAccountKey(this.identity?.puuid);
+    if (!accountId || !this.rankSummaryCacheFile) return;
+    try {
+      let data = { schema: 1, accounts: {} };
+      try {
+        const parsed = JSON.parse(fs.readFileSync(this.rankSummaryCacheFile, 'utf8'));
+        if (parsed?.schema === 1 && parsed.accounts && typeof parsed.accounts === 'object') data = parsed;
+      } catch {}
+      const now = Date.now();
+      const rows = {};
+      for (const [subject, summary] of [...this.rankCache.entries()].slice(-1000)) {
+        if (!/^[a-z0-9-]{1,128}$/i.test(subject) || !summary?.peakRank || Number(summary.peakExpiresAt) <= now) continue;
+        rows[subject] = {
+          peakRank: String(summary.peakRank).slice(0, 80),
+          peakRankImage: String(summary.peakRankImage || '').slice(0, 500),
+          peakEpisode: String(summary.peakEpisode || '').slice(0, 80),
+          peakAct: String(summary.peakAct || '').slice(0, 80),
+          peakExpiresAt: Number(summary.peakExpiresAt)
+        };
+      }
+      data.accounts[accountId] = rows;
+      fs.mkdirSync(path.dirname(this.rankSummaryCacheFile), { recursive: true });
+      const temporary = `${this.rankSummaryCacheFile}.tmp`;
+      fs.writeFileSync(temporary, JSON.stringify(data), 'utf8');
+      fs.renameSync(temporary, this.rankSummaryCacheFile);
     } catch {}
   }
 
@@ -1760,8 +1856,9 @@ class RiotClientService extends EventEmitter {
     const fallbackTier = Number(player.CompetitiveTier ?? player.competitiveTier ?? 0);
     if (!subject) return { tier: fallbackTier, peakRank: '', peakRankImage: '', peakEpisode: '', peakAct: '' };
 
+    const now = Date.now();
     const cached = this.rankCache.get(subject);
-    if (cached?.expiresAt > Date.now()) return cached;
+    if (cached?.expiresAt > now) return cached;
 
     let mmr = null;
     let updates = null;
@@ -1789,16 +1886,27 @@ class RiotClientService extends EventEmitter {
     }
 
     const peak = selectAllTimePeak(mmr, this.metadata || { tiers: new Map(), seasons: new Map() });
+    const hasFreshPeak = Boolean(peak.tier);
+    const hasCachedPeak = Boolean(cached?.peakRank && cached?.peakExpiresAt > now);
     const summary = {
       tier,
-      peakRank: peak.tier ? peak.rank : '',
-      peakRankImage: peak.tier ? peak.image : '',
-      peakEpisode: peak.tier ? peak.episode : '',
-      peakAct: peak.tier ? peak.act : '',
-      expiresAt: Date.now() + (tier && peak.tier ? 10 * 60_000 : 2 * 60_000)
+      peakRank: hasFreshPeak ? peak.rank : hasCachedPeak ? cached.peakRank : '',
+      peakRankImage: hasFreshPeak ? peak.image : hasCachedPeak ? cached.peakRankImage : '',
+      peakEpisode: hasFreshPeak ? peak.episode : hasCachedPeak ? cached.peakEpisode : '',
+      peakAct: hasFreshPeak ? peak.act : hasCachedPeak ? cached.peakAct : '',
+      expiresAt: now + (responded && tier ? ROSTER_RANK_CACHE_MS : 2 * 60_000),
+      peakExpiresAt: hasFreshPeak ? now + ROSTER_PEAK_CACHE_MS : hasCachedPeak ? cached.peakExpiresAt : 0
     };
     this.rankCache.set(subject, summary);
+    if (hasFreshPeak) this.persistRankSummaries();
     return summary;
+  }
+
+  async fetchRosterPeakSummary(player, activeSeasonId) {
+    const subject = player.Subject || player.subject || player.puuid;
+    const cached = subject ? this.rankCache.get(subject) : null;
+    if (cached?.peakRank && cached?.peakExpiresAt > Date.now()) return cached;
+    return this.fetchRosterRankSummary(player, activeSeasonId);
   }
 
   async fetchRosterTier(player, activeSeasonId) {
@@ -1928,13 +2036,27 @@ class RiotClientService extends EventEmitter {
   }
 
   async fetchLiveState() {
+    if (this.liveStatePromise) return this.liveStatePromise;
+    const pending = this.fetchLiveStateOnce();
+    this.liveStatePromise = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.liveStatePromise === pending) this.liveStatePromise = null;
+    }
+  }
+
+  async fetchLiveStateOnce() {
     const puuid = this.identity.puuid;
+    const diagnosticsBefore = this.diagnostics.length;
     const session = await this.safeRemote(`/session/v1/sessions/${puuid}`, 'glz');
     if (!session) {
+      this.lastLivePollFailed = this.diagnostics.length > diagnosticsBefore;
       this.inspectablePlayers.clear();
       this.liveRoundPulse = null;
       return { state: 'MENUS', queue: 'Not queued', map: '—', partySize: 1, matchId: '', elapsed: '—', players: [] };
     }
+    this.lastLivePollFailed = false;
 
     const loopState = String(session.loopState || session.LoopState || 'MENUS').toUpperCase();
     let match = null;
@@ -2050,12 +2172,15 @@ class RiotClientService extends EventEmitter {
       .map((player) => player.Subject || player.subject || player.puuid)
       .filter(Boolean));
     const hydrateRosterPeaks = subject === this.identity.puuid;
+    const peakSubjects = hydrateRosterPeaks
+      ? selectHistoricalPeakSubjects(visibleSubjects, this.rankCache, this.historicalPeakLookupBudget)
+      : [];
     const [names, rosterPeakRows] = await Promise.all([
       this.lookupNames(visibleSubjects),
       hydrateRosterPeaks
         ? this.fetchActiveSeasonId().then((activeSeasonId) => mapWithConcurrency(
-          [...new Set(visibleSubjects)], 5,
-          async (playerSubject) => [playerSubject, await this.fetchRosterRankSummary({ Subject: playerSubject }, activeSeasonId)]
+          peakSubjects, 2,
+          async (playerSubject) => [playerSubject, await this.fetchRosterPeakSummary({ Subject: playerSubject }, activeSeasonId)]
         ))
         : []
     ]);
@@ -2616,6 +2741,7 @@ class RiotClientService extends EventEmitter {
     await this.bootstrapIdentityAndRegion();
     this.restorePersistedSession();
     this.loadPersistedPartyHistory();
+    this.loadPersistedRankSummaries();
     this.lastSnapshot = await this.buildSnapshot();
     this.startPolling();
     return this.lastSnapshot;
@@ -2623,11 +2749,20 @@ class RiotClientService extends EventEmitter {
 
   async refresh() {
     if (!this.lockfile) return this.connect();
-    if (this.tokens?.expiresAt && this.tokens.expiresAt < Math.floor(Date.now() / 1000) + 60) {
-      await this.obtainTokens();
+    if (this.refreshPromise) return this.refreshPromise;
+    const pending = (async () => {
+      if (this.tokens?.expiresAt && this.tokens.expiresAt < Math.floor(Date.now() / 1000) + 60) {
+        await this.obtainTokens();
+      }
+      this.lastSnapshot = await this.buildSnapshot();
+      return this.lastSnapshot;
+    })();
+    this.refreshPromise = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.refreshPromise === pending) this.refreshPromise = null;
     }
-    this.lastSnapshot = await this.buildSnapshot();
-    return this.lastSnapshot;
   }
 
   async updateSession({ selectedMatchIds = [], candidateMatchIds = [], reset = false } = {}) {
@@ -2668,9 +2803,22 @@ class RiotClientService extends EventEmitter {
     let previousState = this.lastSnapshot?.live?.state || '';
     let activeMatchId = ['INGAME', 'CORE_GAME'].includes(String(previousState).toUpperCase())
       ? this.lastSnapshot?.live?.matchId || '' : '';
-    this.pollTimer = setInterval(async () => {
+    const schedule = (delay) => {
+      if (!this.lockfile) return;
+      this.pollTimer = setTimeout(poll, Math.max(250, Number(delay) || this.pollIntervalMs));
+      this.pollTimer.unref?.();
+    };
+    const poll = async () => {
+      let nextDelay = livePollInterval(previousState, this.pollIntervalMs, this.menuPollIntervalMs);
       try {
         const live = await this.fetchLiveState();
+        if (this.lastLivePollFailed) {
+          this.pollFailureCount = Math.min(this.pollFailureCount + 1, 3);
+          nextDelay = Math.min(MAX_POLL_BACKOFF_MS, nextDelay * (2 ** this.pollFailureCount));
+        } else {
+          this.pollFailureCount = 0;
+          nextDelay = livePollInterval(live.state, this.pollIntervalMs, this.menuPollIntervalMs);
+        }
         const ended = didActiveMatchEnd(previousState, live.state);
         const endedMatchId = activeMatchId;
         if (['INGAME', 'CORE_GAME'].includes(String(live.state || '').toUpperCase())) activeMatchId = live.matchId || activeMatchId;
@@ -2682,15 +2830,20 @@ class RiotClientService extends EventEmitter {
           this.emit('match-ended', { matchId: endedMatchId });
         }
       } catch (error) {
+        this.pollFailureCount = Math.min(this.pollFailureCount + 1, 3);
+        nextDelay = Math.min(MAX_POLL_BACKOFF_MS, nextDelay * (2 ** this.pollFailureCount));
         this.emit('warning', error.message);
+      } finally {
+        schedule(nextDelay);
       }
-    }, this.pollIntervalMs);
-    this.pollTimer.unref?.();
+    };
+    schedule(livePollInterval(previousState, this.pollIntervalMs, this.menuPollIntervalMs));
   }
 
   stopPolling() {
-    if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
+    this.pollFailureCount = 0;
   }
 
   disconnect() {
@@ -2793,6 +2946,8 @@ module.exports = {
   RiotClientService,
   senseiAccountKey,
   preserveResolvedProfile,
+  selectHistoricalPeakSubjects,
+  livePollInterval,
   valorantClientVersionFromSessions,
   isAllowedRemoteHost,
   decodeJwtPayload,

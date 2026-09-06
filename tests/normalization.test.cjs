@@ -11,7 +11,8 @@ const {
   selectCompetitiveTier, selectCurrentActUpdates, selectAllTimePeak,
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
-  parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions, preserveResolvedProfile
+  parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions, preserveResolvedProfile,
+  selectHistoricalPeakSubjects, livePollInterval
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -121,6 +122,81 @@ test('accepts successful career changes and never carries data between Riot acco
     peak: false,
     level: false
   }), differentAccount);
+});
+
+test('uses state-aware live polling and budgets uncached historical peak requests', () => {
+  assert.equal(livePollInterval('MENUS', 5_000, 15_000), 15_000);
+  assert.equal(livePollInterval('PREGAME', 5_000, 15_000), 5_000);
+  assert.equal(livePollInterval('CORE_GAME', 5_000, 15_000), 5_000);
+
+  const now = Date.now();
+  const cache = new Map([
+    ['cached-rank', { expiresAt: now + 1_000 }],
+    ['cached-peak', { expiresAt: 0, peakRank: 'Immortal 1', peakExpiresAt: now + 1_000 }]
+  ]);
+  const subjects = ['cached-rank', 'new-1', 'new-2', 'cached-peak', 'new-3', 'new-4', 'new-5'];
+  assert.deepEqual(selectHistoricalPeakSubjects(subjects, cache, 3, now), [
+    'cached-rank', 'cached-peak', 'new-1', 'new-2', 'new-3'
+  ]);
+});
+
+test('coalesces overlapping live polls and full refreshes', async () => {
+  const service = new RiotClientService();
+  let releaseLive;
+  let liveCalls = 0;
+  service.fetchLiveStateOnce = async () => {
+    liveCalls += 1;
+    return new Promise((resolve) => { releaseLive = resolve; });
+  };
+  const liveOne = service.fetchLiveState();
+  const liveTwo = service.fetchLiveState();
+  assert.equal(liveCalls, 1);
+  releaseLive({ state: 'MENUS' });
+  assert.deepEqual(await liveOne, { state: 'MENUS' });
+  assert.deepEqual(await liveTwo, { state: 'MENUS' });
+
+  service.lockfile = { port: 1 };
+  let releaseRefresh;
+  let refreshCalls = 0;
+  service.buildSnapshot = async () => {
+    refreshCalls += 1;
+    return new Promise((resolve) => { releaseRefresh = resolve; });
+  };
+  const refreshOne = service.refresh();
+  const refreshTwo = service.refresh();
+  assert.equal(refreshCalls, 1);
+  releaseRefresh({ profile: { rank: 'Ascendant 1' } });
+  assert.equal((await refreshOne).profile.rank, 'Ascendant 1');
+  assert.equal((await refreshTwo).profile.rank, 'Ascendant 1');
+});
+
+test('persists successful peak summaries per Riot account', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-rank-cache-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const expiresAt = Date.now() + 60_000;
+  const service = new RiotClientService({ cacheDirectory: directory });
+  service.identity = { puuid: 'account-a' };
+  service.rankCache.set('player-one', {
+    tier: 21,
+    peakRank: 'Immortal 1',
+    peakRankImage: 'peak.png',
+    peakEpisode: 'Episode 9',
+    peakAct: 'Act 2',
+    expiresAt: Date.now() + 1_000,
+    peakExpiresAt: expiresAt
+  });
+  service.persistRankSummaries();
+
+  const restored = new RiotClientService({ cacheDirectory: directory });
+  restored.identity = { puuid: 'account-a' };
+  restored.loadPersistedRankSummaries();
+  assert.equal(restored.rankCache.get('player-one').peakRank, 'Immortal 1');
+  assert.equal(restored.rankCache.get('player-one').peakExpiresAt, expiresAt);
+
+  const otherAccount = new RiotClientService({ cacheDirectory: directory });
+  otherAccount.identity = { puuid: 'account-b' };
+  otherAccount.loadPersistedRankSummaries();
+  assert.equal(otherAccount.rankCache.size, 0);
 });
 
 test('detects a completed live match and merges it ahead of stale act-cache data', () => {

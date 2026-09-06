@@ -219,14 +219,13 @@ function snapshotHasMatch(matchId) {
 }
 
 function schedulePostMatchRefresh(matchId, attempt = 0) {
-  const delays = [6_000, 12_000, 24_000];
+  const delays = [12_000, 24_000, 45_000];
   clearPostMatchRefresh();
   postMatchRefreshTimer = setTimeout(async () => {
     postMatchRefreshTimer = null;
     if (!(service instanceof RiotClientService)) return;
     try {
-      snapshot = await service.refresh();
-      overlayServer?.publish();
+      snapshot = await refreshDataSource();
       mainWindow?.webContents.send('riot:snapshot', snapshot);
       if (!snapshotHasMatch(matchId) && attempt + 1 < delays.length) schedulePostMatchRefresh(matchId, attempt + 1);
     } catch (error) {

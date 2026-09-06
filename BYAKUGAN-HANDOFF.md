@@ -1,14 +1,23 @@
 # BYAKUGAN Source Handoff
 
 This historical release log is retained for context. The active handoff is
-`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.127`.
+`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.128`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.126`
-- Automated tests: `184 passed, 0 failed`, plus `10` Sensei Brain smoke checks
+- Previous canonical version: `v0.8.0-beta.127`
+- Automated tests: `187 passed, 0 failed`, plus `10` Sensei Brain smoke checks
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
+
+## Beta.128 Riot Client-friendly scheduling
+
+Beta.128 serializes live and full Riot reads, uses a slower 15-second menu
+cadence while preserving 5-second Agent Select and active-match polling, backs
+off after failures, and delays the first post-match refresh until Riot Client
+has had 12 seconds to rebuild its lobby. Historical peak-rank enrichment is
+budgeted to ten new players per refresh at concurrency two, and successful
+peaks persist locally for 24 hours per Riot account.
 
 ## Beta.127 stable profile snapshots
 
@@ -266,7 +275,7 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.127 on both PCs and follow the manual verification in
+Install beta.128 on both PCs and follow the manual verification in
 `BYAKUGAN-CURRENT-HANDOFF.md`. For the beta.114 roster feature, every roster
 row should show **LVL [number]** when Riot supplied the account level and **LVL
 PRIVATE** when it did not. Confirm that the level badge remains alongside party
