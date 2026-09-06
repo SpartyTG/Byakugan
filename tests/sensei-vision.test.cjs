@@ -140,7 +140,8 @@ test('Sensei verdicts stay specific and focus rules remain memorable', () => {
   assert.throws(() => validateReport(report), /two or three/i);
   const next = liteReport(match('long-focus'), buildContextPack(match('long-focus'), []));
   next.focusRule = Array.from({ length: 25 }, () => 'word').join(' ');
-  assert.throws(() => validateReport(next), /24 words/i);
+  const trimmed = validateReport(next);
+  assert.equal(trimmed.focusRule.split(/\s+/).length, 24);
 });
 
 test('Sensei grounds a 21/13 Omen performance to the deterministic metric rubric', () => {

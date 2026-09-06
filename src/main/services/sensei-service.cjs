@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFile, execFileSync, spawn } = require('node:child_process');
+const { buildLiteAsk, buildFullAskPrompt, formatAskResponse } = require('../sensei-brain/ask-prompt.cjs');
 
 const SCORE_VALUES = new Set(['high', 'average', 'low']);
 const SCORE_KEYS = ['impact', 'aim', 'entry', 'utility', 'econ'];
@@ -216,9 +217,11 @@ function validateReport(value) {
       || /\b(?:8\d|9\d|100)%\s+(?:headshot|body(?:shot)?|kill|survival|utility|assist)(?:\s+(?:accuracy|rate|score))?/i.test(drillText)) {
     throw new Error('Sensei drills must use realistic short practice blocks and must not invent extreme percentage or 100-round targets.');
   }
-  const focusRule = typeof value.focusRule === 'string' ? value.focusRule.trim() : '';
+  let focusRule = typeof value.focusRule === 'string' ? value.focusRule.trim() : '';
   if (!focusRule) throw new Error('The local model report did not include a focus rule.');
-  if (focusRule.split(/\s+/).length > 24 || (focusRule.match(/[.!?]/g) || []).length > 1) throw new Error('The local model focus rule must be one concise rule of 24 words or fewer.');
+  focusRule = focusRule.split(/[.!?]/)[0].trim() || focusRule;
+  const focusWords = focusRule.split(/\s+/).filter(Boolean);
+  if (focusWords.length > 24) focusRule = focusWords.slice(0, 24).join(' ');
   return {
     verdict: verdict.slice(0, 1_200), scorecard: Object.fromEntries(SCORE_KEYS.map((key) => [key, value.scorecard[key]])),
     strengths: value.strengths.slice(0, 3).map((item) => String(item).slice(0, 500)),
@@ -1013,14 +1016,20 @@ class SenseiService {
     const clean = String(question || '').trim().slice(0, 1_000);
     if (!clean) throw new Error('Enter a question for Sensei.');
     if (tier === 'lite') {
-      return `Stay on this mission: ${mission && mission.title ? mission.title : report.focusRule} The strongest evidence for this match is ${report.citations.slice(0, 3).join('; ')}.`;
+      return buildLiteAsk({ mission, report });
     }
     if (!model) throw new Error('The local Sensei model is not configured.');
     const response = await requestJson(`${this.endpoint}/api/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, stream: false, think: false, options: { temperature: .25, num_predict: 450 }, prompt: `Answer one short follow-up about this completed VALORANT match. Use only the saved report, match card, and open mission. Do not start a new analysis. Do not assign a new primary lesson unless the player says the current mission is wrong. If evidence is missing, say so.\nOPEN MISSION:${JSON.stringify(mission || null)}\nMATCH:${JSON.stringify(compactMatch(match))}\nREPORT:${JSON.stringify(report)}\nQUESTION:${clean}` })
+      body: JSON.stringify({
+        model,
+        stream: false,
+        think: false,
+        options: { temperature: .25, num_predict: 500 },
+        prompt: buildFullAskPrompt({ question: clean, report, match: compactMatch(match), mission })
+      })
     });
-    return String(response.response || '').trim().slice(0, 2000);
+    return formatAskResponse(String(response.response || '').trim(), mission).slice(0, 2000);
   }
 
   async analyzeVod({ match, statisticalReport, frameFiles, frameTimestamps = [], frameIntervalSeconds = 120, model = '', repairModel = '', signal = null, onProgress = () => {} }) {
