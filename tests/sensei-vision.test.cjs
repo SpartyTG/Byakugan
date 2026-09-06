@@ -154,6 +154,14 @@ test('Sensei repairs verdict length without splitting decimal statistics', () =>
     normalizeVerdict('One. Two. Three. Four.', fallback),
     'One. Two. Three.'
   );
+  assert.equal(
+    normalizeVerdict('A 1.62 K/D created reliable fight value', fallback),
+    'A 1.62 K/D created reliable fight value. You won with a 1.62 K/D.'
+  );
+  assert.equal(
+    normalizeVerdict('You controlled the opening fights。 Keep using supported first contact！', fallback),
+    'You controlled the opening fights. Keep using supported first contact!'
+  );
 });
 
 test('Full Sensei uses Brain packs and deterministically aligns a repairable report to the selected mission', async () => {

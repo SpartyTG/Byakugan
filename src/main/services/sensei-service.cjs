@@ -238,8 +238,11 @@ function verdictSentences(value) {
   const sentences = [];
   let start = 0;
   for (let index = 0; index < text.length; index += 1) {
-    if (!/[.!?]/.test(text[index])) continue;
-    if (index + 1 < text.length && !/\s/.test(text[index + 1])) continue;
+    const punctuation = text[index];
+    const isAsciiBoundary = /[.!?]/.test(punctuation)
+      && (index + 1 === text.length || /\s/.test(text[index + 1]));
+    const isUnicodeBoundary = /[。！？]/.test(punctuation);
+    if (!isAsciiBoundary && !isUnicodeBoundary) continue;
     const sentence = text.slice(start, index + 1).trim();
     if (sentence) sentences.push(sentence);
     start = index + 1;
@@ -247,6 +250,15 @@ function verdictSentences(value) {
   const remainder = text.slice(start).trim();
   if (remainder) sentences.push(remainder);
   return sentences;
+}
+
+function normalizeSentenceEnding(value) {
+  const sentence = String(value || '').trim();
+  if (!sentence) return '';
+  if (/[。]$/.test(sentence)) return `${sentence.slice(0, -1)}.`;
+  if (/[！]$/.test(sentence)) return `${sentence.slice(0, -1)}!`;
+  if (/[？]$/.test(sentence)) return `${sentence.slice(0, -1)}?`;
+  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
 }
 
 function normalizeVerdict(value, fallbackReport = null) {
@@ -259,7 +271,7 @@ function normalizeVerdict(value, fallbackReport = null) {
     const support = fallback.find((sentence) => sentence.replace(/[.!?]+$/, '').toLowerCase() !== normalizedFirst);
     if (support) sentences.push(support);
   }
-  return sentences.join(' ').trim();
+  return sentences.map(normalizeSentenceEnding).filter(Boolean).join(' ').trim();
 }
 
 function validateGroundedReport(value, matchCard = {}, fallbackReport = null) {

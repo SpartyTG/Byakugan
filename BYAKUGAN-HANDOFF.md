@@ -1,14 +1,22 @@
 # BYAKUGAN Source Handoff
 
 This historical release log is retained for context. The active handoff is
-`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.122`.
+`BYAKUGAN-CURRENT-HANDOFF.md`, and this package targets `v0.8.0-beta.123`.
 
 ## Verified baseline
 
-- Previous canonical version: `v0.8.0-beta.121`
+- Previous canonical version: `v0.8.0-beta.122`
 - Automated tests: `178 passed, 0 failed`, plus `10` Sensei Brain smoke checks
 - Syntax validation: passed
 - Repository: `https://github.com/SpartyTG/Byakugan`
+
+## Beta.123 verdict punctuation repair
+
+Beta.123 closes the remaining verdict sentence-count fallback exposed by a
+real `sensei:latest` regeneration. Verdict normalization now recognizes
+Unicode sentence endings and adds standard terminal punctuation to any model
+sentence that omitted it, so a repaired two-sentence verdict passes the same
+validator that requested the repair. Decimal statistics remain unsplit.
 
 ## Beta.122 stabilization
 
@@ -227,7 +235,7 @@ missed. Ollama models remain loaded for 30 minutes between requests.
 
 ## Next verification
 
-Install beta.122 on both PCs and follow the manual verification in
+Install beta.123 on both PCs and follow the manual verification in
 `BYAKUGAN-CURRENT-HANDOFF.md`. For the beta.114 roster feature, every roster
 row should show **LVL [number]** when Riot supplied the account level and **LVL
 PRIVATE** when it did not. Confirm that the level badge remains alongside party

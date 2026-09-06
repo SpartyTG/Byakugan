@@ -96,7 +96,9 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.122
+## Included in version 0.8.0-beta.123
+
+- Full Sensei verdict repair now accepts punctuation-free sentences and Unicode sentence endings, then emits the standard punctuation required by the local validator instead of falling back to Sensei Lite
 
 - Full Sensei now receives the complete Sensei Brain context: the selected mission, local match memory, leak ledger, rank calibration, coaching doctrine, and manually maintained `meta.current.json`
 - Repairable one-sentence and overlong verdicts are normalized locally instead of unnecessarily dropping a statistically valid report to Sensei Lite
@@ -367,7 +369,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.122-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.123-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -396,10 +398,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.122`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.123`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.122`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.123`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -407,8 +409,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.122
-git push origin v0.8.0-beta.122
+git tag v0.8.0-beta.123
+git push origin v0.8.0-beta.123
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

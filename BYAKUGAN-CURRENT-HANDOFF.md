@@ -2,8 +2,8 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.122`
-- Previous release: `v0.8.0-beta.121`
+- Target: `v0.8.0-beta.123`
+- Previous release: `v0.8.0-beta.122`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
@@ -11,6 +11,15 @@
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.123 changes
+
+### Verdict punctuation repair
+
+- Full Sensei verdict normalization now recognizes standard and Unicode sentence endings.
+- Each repaired sentence receives a validator-compatible terminal mark when the model omits punctuation.
+- Decimal values such as `1.62 K/D` remain intact.
+- A punctuation-free one-sentence model verdict receives one grounded Lite sentence and remains Full Sensei.
 
 ## Beta.122 changes
 
@@ -71,13 +80,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.122 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.123 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.122
-git push origin v0.8.0-beta.122
+git tag v0.8.0-beta.123
+git push origin v0.8.0-beta.123
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -85,7 +94,7 @@ git push origin v0.8.0-beta.122
 
 ## Manual verification
 
-1. Regenerate a Full Sensei report that previously failed the verdict sentence-count rule. Confirm it remains Full Sensei and the mission, focus rule, and first drill agree.
+1. Regenerate the Full Sensei report that exposed the punctuation-free verdict sentence-count failure. Confirm it remains Full Sensei and the mission, focus rule, and first drill agree.
 2. Regenerate the same match twice and add existing VOD evidence. Confirm the mission does not reassign and the leak count does not grow for the same match.
 3. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.
 4. If VOD is selected, confirm the app clearly reports missing FFmpeg until the complete FFmpeg package is installed.
