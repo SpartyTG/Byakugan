@@ -229,8 +229,20 @@ function setConnection(connection) {
 
 function renderStats(profile) {
   const scope = profile.statsScope || 'ACT';
+  const hasActWins = profile.actRecordWins !== null && profile.actRecordWins !== undefined
+    && Number.isFinite(Number(profile.actRecordWins));
+  const hasActGames = profile.actRecordGames !== null && profile.actRecordGames !== undefined
+    && Number.isFinite(Number(profile.actRecordGames)) && Number(profile.actRecordGames) >= Number(profile.actRecordWins || 0);
+  const detailedGames = Number(profile.actDetailedGames ?? profile.actStatsLoaded) || 0;
+  const recordLabel = hasActWins ? (hasActGames ? 'ACT WINS / GAMES' : 'ACT WINS') : 'WIN / LOSS';
+  const recordValue = hasActWins
+    ? (hasActGames ? `${Number(profile.actRecordWins)} / ${Number(profile.actRecordGames)}` : String(Number(profile.actRecordWins)))
+    : `${profile.wins} / ${profile.losses}`;
+  const recordScope = hasActWins && scope !== 'ACT'
+    ? `${detailedGames} DETAILS • ${Number(profile.actDetailedWins ?? profile.wins) || 0}W / ${Number(profile.actDetailedLosses ?? profile.losses) || 0}L`
+    : scope;
   const values = [
-    ['WIN / LOSS', `${profile.wins} / ${profile.losses}`, scope],
+    [recordLabel, recordValue, recordScope],
     ['K/D RATIO', profile.kd, scope],
     ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, scope],
     ['RANK RATING', `${profile.rr} RR`, 'CURRENT'],
@@ -2318,7 +2330,12 @@ function bindEvents() {
         statsScope: progress.stats.scope,
         actStatsLoading: progress.loading !== false,
         actStatsLoaded: loaded,
-        actStatsTotal: total
+        actStatsTotal: total,
+        actRecordWins: progress.coverage?.expectedWins ?? state.snapshot.profile.actRecordWins,
+        actRecordGames: progress.coverage?.expectedGames ?? state.snapshot.profile.actRecordGames,
+        actDetailedWins: progress.coverage?.detailedWins ?? progress.stats.wins,
+        actDetailedLosses: progress.coverage?.detailedLosses ?? progress.stats.losses,
+        actDetailedGames: progress.coverage?.detailedGames ?? loaded
       });
       renderStats(state.snapshot.profile);
     }

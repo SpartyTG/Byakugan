@@ -1243,21 +1243,64 @@ function didActiveMatchEnd(previousState, nextState) {
     && !active.has(String(nextState || '').toUpperCase());
 }
 
+function optionalNonnegativeCount(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, numeric) : null;
+}
+
 function buildActStatsData(matches, observedProfiles, complete, progress = {}) {
   const completedMatches = (matches || []).filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result));
   const loaded = Number(progress.loaded) || completedMatches.length;
   const total = Number(progress.total) || (matches || []).length;
+  const expectedWins = optionalNonnegativeCount(progress.expectedWins);
+  const expectedGames = optionalNonnegativeCount(progress.expectedGames);
+  const calculated = calculateStats(completedMatches);
+  const coverageComplete = complete
+    && (expectedWins === null || calculated.wins >= expectedWins)
+    && (expectedGames === null || completedMatches.length >= expectedGames);
   return {
     stats: {
-      ...calculateStats(completedMatches),
+      ...calculated,
       games: completedMatches.length,
-      scope: complete ? 'ACT' : 'PARTIAL ACT'
+      scope: coverageComplete ? 'ACT' : 'PARTIAL ACT'
     },
     matches: matches || [],
     observedProfiles: observedProfiles || {},
-    progress: { loaded, total },
-    complete
+    progress: { loaded, total: Math.max(total, expectedGames || 0) },
+    coverage: {
+      expectedWins,
+      expectedGames,
+      detailedWins: calculated.wins,
+      detailedLosses: calculated.losses,
+      detailedGames: completedMatches.length,
+      complete: coverageComplete
+    },
+    complete: coverageComplete
   };
+}
+
+function currentActCompetitiveRecord(mmr, activeSeasonId) {
+  const seasonal = mmr?.QueueSkills?.competitive?.SeasonalInfoBySeasonID
+    || mmr?.queueSkills?.competitive?.seasonalInfoBySeasonId
+    || {};
+  const season = seasonal?.[activeSeasonId];
+  if (!season) return { wins: null, games: null };
+  const rawWins = season.NumberOfWins ?? season.numberOfWins;
+  const rawGames = season.NumberOfGames ?? season.numberOfGames;
+  const wins = optionalNonnegativeCount(rawWins);
+  const parsedGames = optionalNonnegativeCount(rawGames);
+  const games = parsedGames !== null && (wins === null || parsedGames >= wins) ? parsedGames : null;
+  return { wins, games };
+}
+
+function actDataCoversRecord(data, record = {}) {
+  if (!data?.complete) return false;
+  const wins = optionalNonnegativeCount(record.wins);
+  const games = optionalNonnegativeCount(record.games);
+  if (wins !== null && Number(data?.stats?.wins || 0) < wins) return false;
+  if (games !== null && Number(data?.stats?.games || 0) < games) return false;
+  return true;
 }
 
 function selectActCacheState(cache, activeSeasonId, newestMatchId, now = Date.now()) {
@@ -1447,6 +1490,7 @@ class RiotClientService extends EventEmitter {
     this.levelCache = new Map();
     this.matchDetailCache = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
+    this.actStatsArchiveFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-archive.json') : '';
     this.partyHistoryFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'party-history.json') : '';
     this.rankSummaryCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'rank-summary-cache.json') : '';
     this.sessionStore = options.cacheDirectory ? new SessionStore(options.cacheDirectory) : null;
@@ -1458,6 +1502,7 @@ class RiotClientService extends EventEmitter {
     this.actStatsProgress = { loaded: 0, total: 0 };
     this.actStatsCache = null;
     this.actStatsPromise = null;
+    this.actStatsHydrating = false;
     this.dodgeStatsCache = null;
     this.dodgeStatsPromise = null;
     this.inspectablePlayers = new Map();
@@ -2248,26 +2293,45 @@ class RiotClientService extends EventEmitter {
     }
     this.actStatsDiskLoadedFor = accountKey;
     try {
-      const cached = JSON.parse(fs.readFileSync(this.actStatsCacheFile, 'utf8'));
-      const valid = [5, 6, 7].includes(Number(cached?.schema))
+      const candidates = [this.actStatsArchiveFile, this.actStatsCacheFile]
+        .filter(Boolean)
+        .map((file) => {
+          try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+        })
+        .filter(Boolean);
+      const validCandidates = candidates.filter((cached) => [5, 6, 7, 8].includes(Number(cached?.schema))
         && cached.puuid === this.identity.puuid
         && cached.seasonId === activeSeasonId
         && typeof cached.newestMatchId === 'string'
         && typeof cached.data?.complete === 'boolean'
         && cached.data?.stats && Array.isArray(cached.data?.matches)
-        && cached.data.matches.length <= 1000;
-      if (valid) {
-        const requiresReindex = Number(cached.schema) < 7;
+        && cached.data.matches.length <= 1000);
+      if (validCandidates.length) {
+        const cached = validCandidates.at(-1);
+        const mergedMatches = mergeSessionMatches(...validCandidates.map((entry) => entry.data.matches));
+        const mergedObserved = mergeObservedProfiles(...validCandidates.map((entry) => entry.data.observedProfiles));
+        const requiresReindex = validCandidates.some((entry) => Number(entry.schema) < 8);
+        const expectedWins = cached.data?.coverage?.expectedWins;
+        const expectedGames = cached.data?.coverage?.expectedGames;
+        const mergedData = buildActStatsData(mergedMatches, mergedObserved, !requiresReindex && validCandidates.every((entry) => entry.data.complete), {
+          loaded: mergedMatches.length,
+          total: Math.max(...validCandidates.map((entry) => Number(entry.data?.progress?.total) || 0), mergedMatches.length),
+          expectedWins,
+          expectedGames
+        });
         const data = requiresReindex ? {
-          ...cached.data,
+          ...mergedData,
           complete: false,
-          stats: { ...cached.data.stats, scope: 'PARTIAL ACT' }
-        } : cached.data;
+          stats: { ...cached.data.stats, scope: 'PARTIAL ACT' },
+          coverage: { ...mergedData.coverage, complete: false }
+        } : mergedData;
         this.actStatsCache = {
           seasonId: cached.seasonId,
           newestMatchId: cached.newestMatchId,
           data,
-          expiresAt: data.complete ? Number.MAX_SAFE_INTEGER : 0
+          expiresAt: data.complete
+            ? Number.MAX_SAFE_INTEGER
+            : requiresReindex ? 0 : Math.max(0, Number(cached.savedAt) + 30 * 60_000)
         };
         this.actStatsProgress = data.progress || {
           loaded: data.matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result)).length,
@@ -2282,16 +2346,40 @@ class RiotClientService extends EventEmitter {
     if (!this.actStatsCacheFile || !this.identity?.puuid || !cache?.data) return;
     try {
       fs.mkdirSync(path.dirname(this.actStatsCacheFile), { recursive: true });
-      const temporary = `${this.actStatsCacheFile}.tmp`;
-      fs.writeFileSync(temporary, JSON.stringify({
-        schema: 7,
+      let archived = null;
+      try {
+        const parsed = JSON.parse(fs.readFileSync(this.actStatsArchiveFile, 'utf8'));
+        if (parsed?.puuid === this.identity.puuid && parsed?.seasonId === cache.seasonId && Array.isArray(parsed?.data?.matches)) archived = parsed;
+      } catch {}
+      if (archived) {
+        const expectedWins = cache.data?.coverage?.expectedWins ?? archived.data?.coverage?.expectedWins;
+        const expectedGames = cache.data?.coverage?.expectedGames ?? archived.data?.coverage?.expectedGames;
+        const mergedMatches = mergeSessionMatches(archived.data.matches, cache.data.matches);
+        cache.data = buildActStatsData(
+          mergedMatches,
+          mergeObservedProfiles(archived.data.observedProfiles, cache.data.observedProfiles),
+          cache.data.complete,
+          {
+            loaded: Math.max(Number(cache.data?.progress?.loaded) || 0, mergedMatches.length),
+            total: Math.max(Number(cache.data?.progress?.total) || 0, mergedMatches.length),
+            expectedWins,
+            expectedGames
+          }
+        );
+      }
+      const payload = JSON.stringify({
+        schema: 8,
         puuid: this.identity.puuid,
         seasonId: cache.seasonId,
         newestMatchId: cache.newestMatchId,
         savedAt: Date.now(),
         data: cache.data
-      }), 'utf8');
-      fs.renameSync(temporary, this.actStatsCacheFile);
+      });
+      for (const file of [this.actStatsCacheFile, this.actStatsArchiveFile]) {
+        const temporary = `${file}.tmp`;
+        fs.writeFileSync(temporary, payload, 'utf8');
+        fs.renameSync(temporary, file);
+      }
     } catch {}
   }
 
@@ -2370,13 +2458,14 @@ class RiotClientService extends EventEmitter {
     return { rows, complete };
   }
 
-  async fetchActStats(initialUpdates, activeSeasonId) {
+  async fetchActStats(initialUpdates, activeSeasonId, expectedRecord = {}) {
     if (!initialUpdates || !activeSeasonId) return null;
     const initialRows = initialUpdates?.Matches || initialUpdates?.matches || [];
     const newestMatchId = newestCompetitiveMatchId(initialRows);
     this.loadPersistedActStats(activeSeasonId);
     if (this.actStatsCache?.seasonId === activeSeasonId && this.actStatsCache?.data?.complete
       && (!newestMatchId || this.actStatsCache.newestMatchId === newestMatchId)
+      && actDataCoversRecord(this.actStatsCache.data, expectedRecord)
       && this.actStatsCache.expiresAt > Date.now()) {
       return this.actStatsCache.data;
     }
@@ -2434,7 +2523,9 @@ class RiotClientService extends EventEmitter {
         seen.add(matchId);
         updates.push(row);
       }
-      complete = historyIndex.complete || ratingIndex.complete || page.reachedPreviousAct;
+      // An empty Riot page can be a retention ceiling. Only an explicit Act
+      // boundary, or coverage of Riot's seasonal totals, establishes a full Act.
+      complete = historyIndex.complete || page.reachedPreviousAct;
     } else {
       complete = true;
     }
@@ -2442,10 +2533,13 @@ class RiotClientService extends EventEmitter {
     const hydrated = [];
     const batchSize = 40;
     const carriedMatches = previousCache?.data?.matches || [];
-    const totalMatches = new Set([
+    const indexedMatches = new Set([
       ...updates.map(updateMatchId),
       ...carriedMatches.map((match) => match?.id)
     ].filter(Boolean)).size;
+    const expectedGames = optionalNonnegativeCount(expectedRecord.games);
+    const expectedWins = optionalNonnegativeCount(expectedRecord.wins);
+    const totalMatches = Math.max(indexedMatches, expectedGames);
     this.actStatsProgress = { loaded: carriedMatches.length, total: totalMatches };
     this.emit('act-progress', { ...this.actStatsProgress, loading: true });
 
@@ -2473,7 +2567,9 @@ class RiotClientService extends EventEmitter {
         ...hydrated.map((row) => row.observedProfiles)
       );
       const loaded = Math.min(totalMatches, carriedMatches.length + Math.min(offset + batch.length, updates.length));
-      const partialData = buildActStatsData(partialMatches, partialObserved, false, { loaded, total: totalMatches });
+      const partialData = buildActStatsData(partialMatches, partialObserved, false, {
+        loaded, total: totalMatches, expectedWins, expectedGames
+      });
       this.actStatsCache = {
         seasonId: activeSeasonId,
         newestMatchId,
@@ -2482,7 +2578,7 @@ class RiotClientService extends EventEmitter {
       };
       this.actStatsProgress = { loaded, total: totalMatches };
       this.persistActStats(this.actStatsCache);
-      this.emit('act-progress', { ...this.actStatsProgress, loading: true, stats: partialData.stats });
+      this.emit('act-progress', { ...this.actStatsProgress, loading: true, stats: partialData.stats, coverage: partialData.coverage });
     }
     const details = hydrated.map((row) => row.match);
     const hydratedMatches = details.map((detail, index) => detail || normalizeRatingUpdate(updates[index], this.metadata));
@@ -2492,16 +2588,23 @@ class RiotClientService extends EventEmitter {
     const freshObservedProfiles = mergeObservedProfiles(...hydrated.map((row) => row.observedProfiles));
     const observedProfiles = mergeObservedProfiles(previousCache?.data?.observedProfiles, freshObservedProfiles);
     if (details.some((detail) => !detail) || (reachedCachedData && !previousCache.data.complete)) complete = false;
-    const data = buildActStatsData(matches, observedProfiles, complete, { loaded: totalMatches, total: totalMatches });
+    const detailedGames = matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result)).length;
+    const detailedStats = calculateStats(matches);
+    if (expectedGames !== null && detailedGames >= expectedGames
+      && (expectedWins === null || detailedStats.wins >= expectedWins)) complete = true;
+    const data = buildActStatsData(matches, observedProfiles, complete, {
+      loaded: detailedGames, total: totalMatches, expectedWins, expectedGames
+    });
     this.actStatsCache = {
       seasonId: activeSeasonId,
       newestMatchId,
       data,
-      expiresAt: complete ? Number.MAX_SAFE_INTEGER : Date.now() + 30 * 60_000
+      expiresAt: data.complete ? Number.MAX_SAFE_INTEGER : Date.now() + 30 * 60_000
     };
     this.persistActStats(this.actStatsCache);
-    this.actStatsProgress = { loaded: totalMatches, total: totalMatches };
-    this.emit('act-progress', { ...this.actStatsProgress, loading: !complete, stats: data.stats });
+    this.actStatsProgress = { loaded: detailedGames, total: totalMatches };
+    this.actStatsHydrating = false;
+    this.emit('act-progress', { ...this.actStatsProgress, loading: false, stats: data.stats, coverage: data.coverage });
     return data;
   }
 
@@ -2550,16 +2653,23 @@ class RiotClientService extends EventEmitter {
     return data;
   }
 
-  startActStatsHydration(initialUpdates, activeSeasonId) {
+  startActStatsHydration(initialUpdates, activeSeasonId, expectedRecord = {}) {
     if (!initialUpdates || !activeSeasonId || this.actStatsPromise) return;
-    this.actStatsPromise = this.fetchActStats(initialUpdates, activeSeasonId)
+    this.actStatsHydrating = true;
+    this.actStatsPromise = this.fetchActStats(initialUpdates, activeSeasonId, expectedRecord)
       .then(async () => {
         if (!this.lockfile) return;
         this.lastSnapshot = await this.buildSnapshot({ hydrateAct: false });
         this.emit('snapshot', this.lastSnapshot);
       })
-      .catch((error) => this.emit('warning', `Full-act tracking: ${error.message}`))
-      .finally(() => { this.actStatsPromise = null; });
+      .catch((error) => {
+        this.actStatsHydrating = false;
+        this.emit('warning', `Full-act tracking: ${error.message}`);
+      })
+      .finally(() => {
+        this.actStatsHydrating = false;
+        this.actStatsPromise = null;
+      });
   }
 
   startDodgeStatsHydration(initialUpdates) {
@@ -2596,13 +2706,22 @@ class RiotClientService extends EventEmitter {
 
     const initialRows = ratingUpdates?.Matches || ratingUpdates?.matches || [];
     const newestMatchId = newestCompetitiveMatchId(initialRows);
+    const resolvedRecord = currentActCompetitiveRecord(mmr, activeSeasonId);
+    const authoritativeRecord = mmr ? resolvedRecord : {
+      wins: optionalNonnegativeCount(this.lastSnapshot?.profile?.actRecordWins),
+      games: optionalNonnegativeCount(this.lastSnapshot?.profile?.actRecordGames)
+    };
     this.loadPersistedActStats(activeSeasonId);
-    const actCacheState = selectActCacheState(this.actStatsCache, activeSeasonId, newestMatchId);
+    const selectedActCacheState = selectActCacheState(this.actStatsCache, activeSeasonId, newestMatchId);
+    const actCacheState = {
+      ...selectedActCacheState,
+      current: selectedActCacheState.current && actDataCoversRecord(selectedActCacheState.data, authoritativeRecord)
+    };
     // Keep showing the last same-act dataset while a new match is appended in
     // the background; freshness controls hydration, not whether data vanishes.
     const actData = actCacheState.data;
     if (shouldStartActHydration(actCacheState, this.actStatsCache, live?.state, hydrateAct)) {
-      this.startActStatsHydration(ratingUpdates, activeSeasonId);
+      this.startActStatsHydration(ratingUpdates, activeSeasonId, authoritativeRecord);
     }
     const newestUpdateKey = competitiveUpdateKey(initialRows[0]);
     const cachedDodgeData = this.dodgeStatsCache?.newestUpdateKey === newestUpdateKey
@@ -2685,9 +2804,14 @@ class RiotClientService extends EventEmitter {
         tagLine: this.identity.tagLine,
         wins: stats.wins, losses: stats.losses, kd: stats.kd, headshot: stats.headshot,
         statsScope: stats.scope,
-        actStatsLoading: !actCacheState.current,
+        actStatsLoading: this.actStatsHydrating,
         actStatsLoaded: actData?.progress?.loaded || this.actStatsProgress.loaded || 0,
         actStatsTotal: actData?.progress?.total || this.actStatsProgress.total || 0,
+        actRecordWins: authoritativeRecord.wins,
+        actRecordGames: authoritativeRecord.games,
+        actDetailedWins: stats.wins,
+        actDetailedLosses: stats.losses,
+        actDetailedGames: Number(stats.games) || 0,
         dodgeRrLost: dodgeData.rrLost,
         dodgeCount: dodgeData.count,
         dodgeStatsScope: dodgeData.scope,
@@ -3045,6 +3169,8 @@ module.exports = {
   normalizeServer,
   selectCompetitiveTier,
   selectAllTimePeak,
+  currentActCompetitiveRecord,
+  actDataCoversRecord,
   normalizeRatingUpdate,
   selectCurrentActUpdates,
   isDodgePenaltyUpdate,

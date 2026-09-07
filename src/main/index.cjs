@@ -306,6 +306,13 @@ function wireService(nextService) {
           snapshot.profile.headshot = progress.stats.headshot;
           snapshot.profile.statsScope = progress.stats.scope;
         }
+        if (progress.coverage) {
+          snapshot.profile.actRecordWins = progress.coverage.expectedWins;
+          snapshot.profile.actRecordGames = progress.coverage.expectedGames;
+          snapshot.profile.actDetailedWins = progress.coverage.detailedWins;
+          snapshot.profile.actDetailedLosses = progress.coverage.detailedLosses;
+          snapshot.profile.actDetailedGames = progress.coverage.detailedGames;
+        }
       }
       mainWindow?.webContents.send('riot:act-progress', progress);
     });

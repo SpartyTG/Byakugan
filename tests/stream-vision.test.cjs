@@ -102,6 +102,13 @@ test('routine snapshots stay silent and act completion notifies only after real 
   assert.match(app, /finished refreshing your current-act competitive history/);
 });
 
+test('Overview separates authoritative Act totals from retained detailed statistics', () => {
+  assert.match(app, /ACT WINS \/ GAMES/);
+  assert.match(app, /profile\.actRecordWins/);
+  assert.match(app, /profile\.actRecordGames/);
+  assert.match(app, /DETAILS.*actDetailedWins.*actDetailedLosses/s);
+});
+
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
   assert.match(html, /<strong>Custom Overlay Builder<\/strong>/);
   assert.match(html, /id="customOverlayWidth"/);

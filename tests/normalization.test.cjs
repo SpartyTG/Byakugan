@@ -12,7 +12,8 @@ const {
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
   parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions, preserveResolvedProfile,
-  selectHistoricalPeakSubjects, livePollInterval, selectActCacheState, shouldStartActHydration
+  selectHistoricalPeakSubjects, livePollInterval, selectActCacheState, shouldStartActHydration,
+  currentActCompetitiveRecord, actDataCoversRecord
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -991,6 +992,23 @@ test('selects only current-act competitive updates and stops at the previous act
   assert.equal(result.reachedPreviousAct, true);
 });
 
+test('uses Riot seasonal totals to reject a falsely complete retained-history window', () => {
+  const record = currentActCompetitiveRecord({
+    QueueSkills: { competitive: { SeasonalInfoBySeasonID: {
+      'current-act': { NumberOfWins: 128, NumberOfGames: 241 }
+    } } }
+  }, 'current-act');
+  assert.deepEqual(record, { wins: 128, games: 241 });
+  assert.equal(actDataCoversRecord({
+    complete: true,
+    stats: { wins: 78, games: 151 }
+  }, record), false);
+  assert.equal(actDataCoversRecord({
+    complete: true,
+    stats: { wins: 128, games: 241 }
+  }, record), true);
+});
+
 test('bounded concurrent mapping preserves roster order', async () => {
   const result = await mapWithConcurrency([3, 1, 2], 2, async (value) => value * 10);
   assert.deepEqual(result, [30, 10, 20]);
@@ -1012,6 +1030,37 @@ test('persists completed act stats and restores them for the same account and ac
     assert.equal(cache.newestMatchId, 'match-1');
     assert.equal(cache.data.stats.games, 1);
     assert.equal(cache.data.matches[0].result, 'VICTORY');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('append-only Act archive prevents a shorter later write from deleting known matches', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-act-archive-'));
+  try {
+    const service = new RiotClientService({ cacheDirectory: directory });
+    service.identity = { puuid: 'self' };
+    service.persistActStats({
+      seasonId: 'current-act', newestMatchId: 'match-2',
+      data: {
+        complete: false, stats: {}, observedProfiles: {},
+        matches: [{ id: 'match-2', result: 'DEFEAT' }, { id: 'match-1', result: 'VICTORY' }]
+      }
+    });
+    service.persistActStats({
+      seasonId: 'current-act', newestMatchId: 'match-2',
+      data: {
+        complete: false, stats: {}, observedProfiles: {},
+        matches: [{ id: 'match-2', result: 'DEFEAT' }]
+      }
+    });
+
+    const restored = new RiotClientService({ cacheDirectory: directory });
+    restored.identity = { puuid: 'self' };
+    const cache = restored.loadPersistedActStats('current-act');
+    assert.deepEqual(new Set(cache.data.matches.map((match) => match.id)), new Set(['match-1', 'match-2']));
+    assert.equal(cache.data.stats.wins, 1);
+    assert.equal(cache.data.stats.losses, 1);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -1247,7 +1296,11 @@ test('supplements a capped match-history index with paged competitive updates', 
     Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
   });
 
-  const result = await service.fetchActStats({ Matches: rows.slice(0, 20) }, 'current-act');
+  const result = await service.fetchActStats(
+    { Matches: rows.slice(0, 20) },
+    'current-act',
+    { wins: 25, games: 25 }
+  );
   assert.equal(result.complete, true);
   assert.equal(result.matches.length, 25);
   assert.equal(result.stats.games, 25);

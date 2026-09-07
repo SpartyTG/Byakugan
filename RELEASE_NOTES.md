@@ -1,8 +1,9 @@
-# BYAKUGAN v0.8.0-beta.131
+# BYAKUGAN v0.8.0-beta.132
 
 ## What's updated
 
-- Full-Act recovery now combines Riot's general match history with its separately paginated competitive-update index instead of trusting a shortened history response as complete.
-- Existing beta.129 and beta.130 Act caches receive a one-time reindex, so an incorrectly saved 44/44 dataset can recover older same-Act matches.
-- Riot pages containing fewer than 20 records continue from the exact next index until an empty page or previous-Act boundary is reached.
-- Large Act recovery scans wait until VALORANT is out of Agent Select and active matches, then hydrate match details with bounded concurrency.
+- Overview now uses Riot's current-season MMR totals for the authoritative Act win and game counts, so a retained 78-win detail window cannot replace Riot's 128-win total.
+- K/D, headshot percentage, maps, agents, and other detail-dependent analytics remain honestly labeled **Partial Act** whenever Riot no longer returns every older match detail.
+- An empty history page is treated as a possible Riot retention ceiling, not proof that BYAKUGAN reached the start of the Act.
+- Full-Act scans stop their loading indicator after each attempt and show detailed-match coverage instead of appearing to load indefinitely.
+- A new append-only, account-and-Act-scoped archive is merged into every cache write so future short responses and updates cannot delete match details BYAKUGAN already collected.
