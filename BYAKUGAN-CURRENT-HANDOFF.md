@@ -2,15 +2,25 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.128`
-- Previous release: `v0.8.0-beta.127`
+- Target: `v0.8.0-beta.129`
+- Previous release: `v0.8.0-beta.128`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `187` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `190` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.129 changes
+
+### Monotonic full-Act history
+
+- A complete same-Act cache stays visible while Riot publishes or hydrates a newer match; freshness starts background work but no longer hides trustworthy totals.
+- Partial and interrupted current-Act scans always union with every previously cached match from that same Riot account and season.
+- Progress totals include both newly discovered and carried matches without double-counting IDs.
+- The act-cache schema advances to version 6. Version 5 data remains visible but triggers one authoritative background reindex so previously reduced caches can recover automatically.
+- The reindex affects only the active Riot account and Act; a legitimate new Act never inherits the previous Act's totals.
 
 ## Beta.128 changes
 
@@ -138,13 +148,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.128 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.129 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.128
-git push origin v0.8.0-beta.128
+git tag v0.8.0-beta.129
+git push origin v0.8.0-beta.129
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -152,14 +162,16 @@ git push origin v0.8.0-beta.128
 
 ## Manual verification
 
-1. After a completed match, return to Play and switch away from and back to Competitive. Confirm Riot Client does not remain on `LOADING` and the party member's rank remains visible. Compare once with BYAKUGAN fully exited if Riot still reproduces it.
-2. Confirm party/menu changes appear within 15 seconds, then enter Agent Select and verify Live Match continues updating about every 5 seconds.
-3. Reopen recent Match History entries across several automatic refreshes. Peak ranks may fill progressively, but the app must remain responsive and already resolved peaks must survive a restart.
-4. Leave BYAKUGAN and both Stream Vision Browser Sources open through several automatic refresh cycles. Confirm resolved rank, RR, peak rank, level, and rank art never flash to `Unrated`, zero, or blank during a transient Riot request failure.
-5. With Riot Client and VALORANT open, select **Refresh Data** and confirm Loadout shows the signed-in account's equipped skins. If Riot withholds the collection, confirm the page shows the unavailable message rather than a false empty loadout.
-6. Open Stream Vision and confirm only Custom Overlay Builder appears. Verify the duplicate Visible Fields section and preset selector are gone.
-7. Customize Landscape, switch to Portrait, customize it differently, then switch back and confirm both designs persist independently.
-8. Enable Browser Source, add the Landscape and Portrait URLs to separate OBS Browser Sources, and confirm both update simultaneously with their correct canvas and privacy settings.
-9. Follow the in-app dual-PC guide on both computers and confirm the streaming PC displays **Gaming PC connected** before copying its OBS URLs.
-10. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
+1. On first beta.129 launch, confirm the existing 44/44 data remains visible while the current-Act reindex runs. When it completes, verify the larger full-Act W/L returns and survives a restart.
+2. During that reindex, navigate among Overview, Match History, and Stream Vision. Totals must never fall below the best same-Act dataset already loaded.
+3. After a completed match, return to Play and switch away from and back to Competitive. Confirm Riot Client does not remain on `LOADING` and the party member's rank remains visible. Compare once with BYAKUGAN fully exited if Riot still reproduces it.
+4. Confirm party/menu changes appear within 15 seconds, then enter Agent Select and verify Live Match continues updating about every 5 seconds.
+5. Reopen recent Match History entries across several automatic refreshes. Peak ranks may fill progressively, but the app must remain responsive and already resolved peaks must survive a restart.
+6. Leave BYAKUGAN and both Stream Vision Browser Sources open through several automatic refresh cycles. Confirm resolved rank, RR, peak rank, level, and rank art never flash to `Unrated`, zero, or blank during a transient Riot request failure.
+7. With Riot Client and VALORANT open, select **Refresh Data** and confirm Loadout shows the signed-in account's equipped skins. If Riot withholds the collection, confirm the page shows the unavailable message rather than a false empty loadout.
+8. Open Stream Vision and confirm only Custom Overlay Builder appears. Verify the duplicate Visible Fields section and preset selector are gone.
+9. Customize Landscape, switch to Portrait, customize it differently, then switch back and confirm both designs persist independently.
+10. Enable Browser Source, add the Landscape and Portrait URLs to separate OBS Browser Sources, and confirm both update simultaneously with their correct canvas and privacy settings.
+11. Follow the in-app dual-PC guide on both computers and confirm the streaming PC displays **Gaming PC connected** before copying its OBS URLs.
+12. Regenerate until a local-model validation failure is encountered. Confirm BYAKUGAN unloads and freshly retries the text model without requiring an Ollama restart; a successful recovery remains Full Sensei.
 7. On the clean laptop, run **Set up Sensei on this PC → Yes**. Confirm download progress, Ollama installation, `qwen3:8b` pull, settings persistence, and truthful readiness.

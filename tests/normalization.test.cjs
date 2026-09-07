@@ -12,7 +12,7 @@ const {
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
   parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions, preserveResolvedProfile,
-  selectHistoricalPeakSubjects, livePollInterval
+  selectHistoricalPeakSubjects, livePollInterval, selectActCacheState
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -1015,6 +1015,86 @@ test('persists completed act stats and restores them for the same account and ac
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('keeps legacy act data visible but forces one authoritative reindex', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-legacy-act-cache-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(directory, 'act-stats-cache.json'), JSON.stringify({
+    schema: 5,
+    puuid: 'self',
+    seasonId: 'current-act',
+    newestMatchId: 'cached-match',
+    data: {
+      complete: true,
+      stats: { games: 88, wins: 44, losses: 44, scope: 'ACT' },
+      matches: [{ id: 'cached-match', result: 'VICTORY' }]
+    }
+  }));
+
+  const service = new RiotClientService({ cacheDirectory: directory });
+  service.identity = { puuid: 'self' };
+  const cache = service.loadPersistedActStats('current-act');
+  assert.equal(cache.data.stats.wins, 44);
+  assert.equal(cache.data.stats.losses, 44);
+  assert.equal(cache.data.complete, false);
+  assert.equal(cache.data.stats.scope, 'PARTIAL ACT');
+  assert.equal(cache.expiresAt, 0);
+});
+
+test('keeps a complete same-act cache visible while a newer match hydrates', () => {
+  const cachedData = {
+    complete: true,
+    stats: { games: 190, wins: 100, losses: 90 },
+    matches: Array.from({ length: 190 }, (_, index) => ({ id: `cached-${index}` }))
+  };
+  const cache = {
+    seasonId: 'current-act',
+    newestMatchId: 'cached-0',
+    expiresAt: Number.MAX_SAFE_INTEGER,
+    data: cachedData
+  };
+
+  const stale = selectActCacheState(cache, 'current-act', 'new-match');
+  assert.equal(stale.data, cachedData);
+  assert.equal(stale.current, false);
+  assert.equal(selectActCacheState(cache, 'current-act', 'cached-0').current, true);
+  assert.equal(selectActCacheState(cache, 'different-act', 'new-match').data, null);
+});
+
+test('an interrupted same-act rescan cannot discard previously cached matches', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  const cachedMatches = [
+    { id: 'cached-win', result: 'VICTORY', queueId: 'competitive', isCompetitive: true, kills: 15, deaths: 10 },
+    { id: 'cached-loss', result: 'DEFEAT', queueId: 'competitive', isCompetitive: true, kills: 10, deaths: 15 }
+  ];
+  service.actStatsCache = {
+    seasonId: 'current-act', newestMatchId: 'cached-win', expiresAt: Number.MAX_SAFE_INTEGER,
+    data: { complete: true, stats: { games: 2, wins: 1, losses: 1 }, matches: cachedMatches }
+  };
+  service.fetchCurrentActHistory = async () => ({
+    rows: [{ MatchID: 'new-0', SeasonID: 'current-act' }],
+    complete: false
+  });
+  service.fetchMatchDetail = async (matchId) => ({
+    MatchInfo: { MatchID: matchId, QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [{ Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerStats: { Kills: 20, Deaths: 10, Assists: 4 } }],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
+  });
+  const updates = Array.from({ length: 20 }, (_, index) => ({
+    MatchID: `new-${index}`,
+    SeasonID: 'current-act',
+    RankedRatingEarned: 10
+  }));
+
+  const result = await service.fetchActStats({ Matches: updates }, 'current-act');
+  assert.equal(result.complete, false);
+  assert.equal(result.stats.games, 22);
+  assert.equal(result.matches.some((match) => match.id === 'cached-win'), true);
+  assert.equal(result.matches.some((match) => match.id === 'cached-loss'), true);
+  assert.equal(service.actStatsCache.data.stats.games, 22);
 });
 
 test('hydrates only newly played matches when a complete act cache already exists', async () => {
