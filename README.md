@@ -101,7 +101,7 @@ registered trademarks of Riot Games, Inc.
 - The in-app update window now presents a dedicated **What's updated** summary with readable, version-specific patch notes
 - Tagged beta releases publish the curated `RELEASE_NOTES.md` body instead of GitHub's generic generated changelog
 - Update-feed HTML and Markdown are converted to safe plain text, preventing raw tags and URLs from appearing in the interface
-- Release validation rejects missing, empty, or version-mismatched patch notes before an installer can be published
+- Release validation accepts Windows and Unix line endings while rejecting missing, empty, or version-mismatched patch notes before an installer can be published
 
 - A complete same-Act dataset remains visible while a newer match is hydrated instead of temporarily collapsing to a smaller recent subset
 - Interrupted or shortened Riot history scans now union with every previously cached same-Act match, so a partial response cannot replace larger W/L, K/D, headshot, journey, map, agent, or server totals

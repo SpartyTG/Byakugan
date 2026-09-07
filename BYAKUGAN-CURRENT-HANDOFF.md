@@ -19,7 +19,7 @@ and a green GitHub Actions release all match.
 - The update dialog has a dedicated **What's updated** section for readable, version-specific release information.
 - GitHub Actions publishes the curated root `RELEASE_NOTES.md` body instead of a generic generated changelog.
 - Older HTML and Markdown release descriptions are safely normalized into plain text before reaching the renderer.
-- Source verification requires release notes to match the exact `package.json` version and contain at least one patch bullet, preventing a stale or empty updater summary from shipping.
+- Source verification accepts Windows CRLF and Unix LF while requiring release notes to match the exact `package.json` version and contain at least one patch bullet, preventing a stale or empty updater summary from shipping.
 
 ## Beta.129 changes
 

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const project = require('../package.json');
+const { validateReleaseNotes } = require('../scripts/release-notes.cjs');
 const { UpdateService, releaseNotes } = require('../src/main/services/update-service.cjs');
 
 class FakeUpdater extends EventEmitter {
@@ -70,8 +71,8 @@ test('beta releases publish curated notes matching the package version', () => {
   const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES.md'), 'utf8');
   assert.match(workflow, /--notes-file "RELEASE_NOTES\.md"/);
   assert.doesNotMatch(workflow, /--generate-notes/);
-  assert.ok(notes.startsWith(`# BYAKUGAN v${project.version}\n`));
-  assert.match(notes, /^\s*[-*]\s+\S/m);
+  assert.equal(validateReleaseNotes(notes, project.version), '');
+  assert.equal(validateReleaseNotes(notes.replace(/\n/g, '\r\n'), project.version), '');
 });
 
 test('an update found during the startup check is mandatory', async () => {

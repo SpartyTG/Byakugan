@@ -14,8 +14,9 @@ This historical release log is retained for context. The active handoff is
 
 Beta.130 publishes curated, version-matched release notes and presents them in a
 dedicated **What's updated** section. Update-feed HTML and Markdown are safely
-normalized into readable plain text, and release verification blocks stale,
-empty, or mismatched notes before GitHub Actions builds the installer.
+normalized into readable plain text. Release verification accepts Windows and
+Unix line endings while blocking stale, empty, or mismatched notes before
+GitHub Actions builds the installer.
 
 ## Beta.129 monotonic full-Act history
 
