@@ -96,7 +96,12 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.129
+## Included in version 0.8.0-beta.130
+
+- The in-app update window now presents a dedicated **What's updated** summary with readable, version-specific patch notes
+- Tagged beta releases publish the curated `RELEASE_NOTES.md` body instead of GitHub's generic generated changelog
+- Update-feed HTML and Markdown are converted to safe plain text, preventing raw tags and URLs from appearing in the interface
+- Release validation rejects missing, empty, or version-mismatched patch notes before an installer can be published
 
 - A complete same-Act dataset remains visible while a newer match is hydrated instead of temporarily collapsing to a smaller recent subset
 - Interrupted or shortened Riot history scans now union with every previously cached same-Act match, so a partial response cannot replace larger W/L, K/D, headshot, journey, map, agent, or server totals
@@ -389,7 +394,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.129-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.130-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -418,10 +423,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.129`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.130`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.129`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.130`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -429,8 +434,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.129
-git push origin v0.8.0-beta.129
+git tag v0.8.0-beta.130
+git push origin v0.8.0-beta.130
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

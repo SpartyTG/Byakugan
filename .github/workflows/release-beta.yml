@@ -52,5 +52,5 @@ jobs:
           gh release create $env:GITHUB_REF_NAME @files `
             --repo "$env:GITHUB_REPOSITORY" `
             --title "BYAKUGAN $env:GITHUB_REF_NAME" `
-            --generate-notes `
+            --notes-file "RELEASE_NOTES.md" `
             --prerelease

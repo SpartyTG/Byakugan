@@ -9,9 +9,52 @@ function cleanMessage(value, fallback = '') {
   return String(value || fallback).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
+function decodeReleaseEntities(value) {
+  return String(value || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_match, code) => {
+      const value = Number(code);
+      return value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : '';
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => {
+      const value = Number.parseInt(code, 16);
+      return value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : '';
+    });
+}
+
+function cleanReleaseNotes(value) {
+  const html = String(value || '').slice(0, 12_000);
+  const plain = decodeReleaseEntities(html
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*li(?:\s[^>]*)?>/gi, '\n• ')
+    .replace(/<\s*\/\s*(?:p|li|ul|ol|h[1-6]|div|section)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\[([^\]]+)]\([^)]*\)/g, '$1'))
+    .replace(/<[^>]*>/g, '');
+  return plain
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line
+      .replace(/^\s*#{1,6}\s*/, '')
+      .replace(/^\s*[-*]\s+/, '• ')
+      .replace(/(?:\*\*|__|`)/g, '')
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+      .replace(/[ \t]+/g, ' ')
+      .trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 4_000);
+}
+
 function releaseNotes(value) {
-  if (Array.isArray(value)) return value.map((item) => cleanMessage(item?.note || item)).filter(Boolean).join('\n');
-  return cleanMessage(value);
+  const items = Array.isArray(value) ? value.map((item) => item?.note || item) : [value];
+  return items.map(cleanReleaseNotes).filter(Boolean).join('\n');
 }
 
 class UpdateService extends EventEmitter {
@@ -173,4 +216,4 @@ class UpdateService extends EventEmitter {
   }
 }
 
-module.exports = { CHECK_DELAY_MS, CHECK_INTERVAL_MS, UpdateService, cleanMessage, releaseNotes };
+module.exports = { CHECK_DELAY_MS, CHECK_INTERVAL_MS, UpdateService, cleanMessage, cleanReleaseNotes, releaseNotes };

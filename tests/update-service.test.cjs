@@ -2,9 +2,11 @@
 
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const project = require('../package.json');
-const { UpdateService } = require('../src/main/services/update-service.cjs');
+const { UpdateService, releaseNotes } = require('../src/main/services/update-service.cjs');
 
 class FakeUpdater extends EventEmitter {
   constructor() {
@@ -54,6 +56,22 @@ test('update availability is normalized for the renderer', () => {
     percent: 0, transferred: 0, total: 0, bytesPerSecond: 0, mandatory: false,
     message: 'BYAKUGAN 0.7.0-beta.2 is available.', checkedAt: service.status().checkedAt
   });
+});
+
+test('HTML and Markdown release notes become readable plain text', () => {
+  const normalized = releaseNotes('<p><strong>Full Changelog</strong>: <a class="commit-link" href="https://example.invalid">v1 → v2</a></p><ul><li>Fixes Act history.</li><li>**Improves** the updater.</li></ul>');
+  assert.equal(normalized, 'Full Changelog: v1 → v2\n• Fixes Act history.\n• Improves the updater.');
+  assert.doesNotMatch(normalized, /<[^>]+>|https?:\/\//);
+});
+
+test('beta releases publish curated notes matching the package version', () => {
+  const root = path.join(__dirname, '..');
+  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'release-beta.yml'), 'utf8');
+  const notes = fs.readFileSync(path.join(root, 'RELEASE_NOTES.md'), 'utf8');
+  assert.match(workflow, /--notes-file "RELEASE_NOTES\.md"/);
+  assert.doesNotMatch(workflow, /--generate-notes/);
+  assert.ok(notes.startsWith(`# BYAKUGAN v${project.version}\n`));
+  assert.match(notes, /^\s*[-*]\s+\S/m);
 });
 
 test('an update found during the startup check is mandatory', async () => {

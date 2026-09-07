@@ -35,4 +35,16 @@ const jsonFiles = [
 ];
 for (const file of jsonFiles) JSON.parse(fs.readFileSync(file, 'utf8'));
 
+const project = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const releaseNotes = fs.readFileSync(path.join(root, 'RELEASE_NOTES.md'), 'utf8');
+const expectedHeading = `# BYAKUGAN v${project.version}`;
+if (!releaseNotes.startsWith(`${expectedHeading}\n`)) {
+  process.stderr.write(`RELEASE_NOTES.md must begin with ${expectedHeading}\n`);
+  process.exit(1);
+}
+if (!/^\s*[-*]\s+\S/m.test(releaseNotes)) {
+  process.stderr.write('RELEASE_NOTES.md must include at least one patch-note bullet.\n');
+  process.exit(1);
+}
+
 console.log(`Checked ${syntaxFiles.length} JavaScript files and ${jsonFiles.length} JSON files.`);

@@ -1631,7 +1631,7 @@ function renderUpdateStatus(status = {}) {
     const failed = phase === 'error';
     $('#updateDownloadState').hidden = !busy && !failed;
     $('#updateConfirmationNote').hidden = busy || failed;
-    $('#updateReleaseNotes').hidden = busy || failed;
+    $('#updateReleaseSummary').hidden = busy || failed;
     $('#updateLaterButton').hidden = Boolean(status.mandatory);
     $('#updateLaterButton').disabled = busy || Boolean(status.mandatory);
     $('#updateLaterButton').textContent = failed ? 'Close' : 'Later';
@@ -1654,8 +1654,8 @@ function openUpdateDialog() {
   text('#updateDialogTitle', status.mandatory ? 'Update required' : (status.releaseName || 'Update available'));
   text('#updateCurrentVersion', `Current ${status.currentVersion || '—'}`);
   text('#updateNextVersion', `New ${status.version || '—'}`);
-  text('#updateReleaseNotes', status.releaseNotes || 'This beta update contains improvements and fixes.');
-  $('#updateReleaseNotes').hidden = false;
+  text('#updateReleaseNotes', status.releaseNotes || 'No version-specific patch notes were included. The update can still be installed normally.');
+  $('#updateReleaseSummary').hidden = false;
   $('#updateDownloadState').hidden = true;
   text('#updateConfirmationNote', status.mandatory
     ? 'A newer BYAKUGAN build was detected during startup. Install it now to continue using the application.'
@@ -2276,7 +2276,7 @@ function bindEvents() {
   $('#confirmUpdateButton').addEventListener('click', async () => {
     $('#confirmUpdateButton').disabled = true;
     $('#updateLaterButton').disabled = true;
-    $('#updateReleaseNotes').hidden = true;
+    $('#updateReleaseSummary').hidden = true;
     $('#updateConfirmationNote').hidden = true;
     $('#updateDownloadState').hidden = false;
     try {
