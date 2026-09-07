@@ -2,15 +2,26 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.130`
-- Previous release: `v0.8.0-beta.129`
+- Target: `v0.8.0-beta.131`
+- Previous release: `v0.8.0-beta.130`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `192` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `194` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.131 changes
+
+### Authoritative full-Act recovery
+
+- Full-Act discovery merges Riot's general match-history index with its independently paginated competitive-update index.
+- A shortened general history response can no longer establish that the entire Act has been found.
+- Pagination advances by the exact number of records Riot returned and continues through short pages until an empty page or previous-Act boundary.
+- Cache schema advances to version 7. Schema-5 and schema-6 data remain visible but receive one authoritative reindex, allowing the incorrectly persisted 44/44 dataset to recover.
+- Full-Act hydration is deferred during Agent Select and active matches, then resolves missing match details at concurrency four while the prior same-Act cache stays visible.
+- Interrupted or unavailable sources remain labeled **Partial Act** and retry after 30 minutes instead of repeatedly loading every refresh cycle.
 
 ## Beta.130 changes
 
@@ -157,13 +168,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.130 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.131 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.130
-git push origin v0.8.0-beta.130
+git tag v0.8.0-beta.131
+git push origin v0.8.0-beta.131
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -171,9 +182,9 @@ git push origin v0.8.0-beta.130
 
 ## Manual verification
 
-1. From beta.129, use **Settings → Check for updates**. Confirm the dialog shows the beta.130 bullets under **What's updated** with no `<p>`, `<a>`, Markdown punctuation, or raw changelog URL.
-2. Complete the update and confirm BYAKUGAN closes, installs, and reopens normally.
-3. Confirm the recovered full-Act W/L remains intact after the update and another restart.
+1. From beta.130, use **Settings → Check for updates**. Confirm the dialog shows beta.131's full-Act recovery bullets under **What's updated** with no raw HTML or changelog URL.
+2. Complete the update on both PCs and confirm BYAKUGAN closes, installs, and reopens normally.
+3. While in menus on the gaming PC, allow the one-time Act reindex to complete. Confirm the reduced 44/44 total grows to the complete current-Act W/L and reaches the streaming PC.
 4. During an Act reindex, navigate among Overview, Match History, and Stream Vision. Totals must never fall below the best same-Act dataset already loaded.
 5. After a completed match, return to Play and switch away from and back to Competitive. Confirm Riot Client does not remain on `LOADING` and the party member's rank remains visible. Compare once with BYAKUGAN fully exited if Riot still reproduces it.
 6. Confirm party/menu changes appear within 15 seconds, then enter Agent Select and verify Live Match continues updating about every 5 seconds.

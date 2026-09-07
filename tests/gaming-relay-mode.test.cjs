@@ -28,7 +28,8 @@ test('Relay Mode preserves production collection timing and avoids duplicate ren
   assert.match(riot, /if \(this\.refreshPromise\) return this\.refreshPromise/);
   assert.match(riot, /if \(this\.liveStatePromise\) return this\.liveStatePromise/);
   assert.match(riot, /const batchSize = 40/);
-  assert.match(riot, /mapWithConcurrency\(batch, 20,/);
+  assert.match(riot, /const ACT_DETAIL_CONCURRENCY = 4/);
+  assert.match(riot, /mapWithConcurrency\(batch, ACT_DETAIL_CONCURRENCY,/);
   assert.match(riot, /mapWithConcurrency\(players, 5,/);
   assert.match(main, /const delays = \[12_000, 24_000, 45_000\]/);
   assert.match(main, /snapshot = await refreshDataSource\(\)/);

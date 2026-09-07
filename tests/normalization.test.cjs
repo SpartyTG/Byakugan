@@ -12,7 +12,7 @@ const {
   normalizeRatingUpdate, normalizeServer, normalizeQueueName, decodePresencePrivate,
   summarizePresence, isDodgePenaltyUpdate, summarizeDodgePenalties, mergeSessionMatches, didActiveMatchEnd, mapWithConcurrency,
   parseLiveScore, advanceRoundPulse, valorantClientVersionFromSessions, preserveResolvedProfile,
-  selectHistoricalPeakSubjects, livePollInterval, selectActCacheState
+  selectHistoricalPeakSubjects, livePollInterval, selectActCacheState, shouldStartActHydration
 } = require('../src/main/services/riot-client.cjs');
 
 function metadata() {
@@ -1021,7 +1021,7 @@ test('keeps legacy act data visible but forces one authoritative reindex', (t) =
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-legacy-act-cache-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   fs.writeFileSync(path.join(directory, 'act-stats-cache.json'), JSON.stringify({
-    schema: 5,
+    schema: 6,
     puuid: 'self',
     seasonId: 'current-act',
     newestMatchId: 'cached-match',
@@ -1060,6 +1060,15 @@ test('keeps a complete same-act cache visible while a newer match hydrates', () 
   assert.equal(stale.current, false);
   assert.equal(selectActCacheState(cache, 'current-act', 'cached-0').current, true);
   assert.equal(selectActCacheState(cache, 'different-act', 'new-match').data, null);
+});
+
+test('defers full-act hydration during Agent Select and active matches', () => {
+  const cacheState = { current: false, data: { complete: false } };
+  const cache = { data: { complete: false }, expiresAt: 0 };
+  assert.equal(shouldStartActHydration(cacheState, cache, 'MENUS'), true);
+  assert.equal(shouldStartActHydration(cacheState, cache, 'PREGAME'), false);
+  assert.equal(shouldStartActHydration(cacheState, cache, 'INGAME'), false);
+  assert.equal(shouldStartActHydration(cacheState, cache, 'CORE_GAME'), false);
 });
 
 test('an interrupted same-act rescan cannot discard previously cached matches', async () => {
@@ -1215,6 +1224,34 @@ test('advances current-act history in Riot-compatible 20-record pages', async ()
   assert.equal(result.rows.length, 21);
   assert.equal(requests.length, 2);
   assert.match(requests[1], /startIndex=20&endIndex=40/);
+});
+
+test('supplements a capped match-history index with paged competitive updates', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    MatchID: `act-${index}`,
+    SeasonID: 'current-act',
+    MatchStartTime: Date.parse('2026-08-20T00:00:00Z') - index * 60_000
+  }));
+  service.fetchCurrentActHistory = async () => ({ rows: rows.slice(0, 20), complete: false, exhausted: true });
+  service.safeRemote = async (endpoint) => {
+    if (endpoint.includes('startIndex=20')) return { Matches: rows.slice(20) };
+    if (endpoint.includes('startIndex=25')) return { Matches: [] };
+    return null;
+  };
+  service.fetchMatchDetail = async (matchId) => ({
+    MatchInfo: { MatchID: matchId, QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+    Players: [{ Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', CompetitiveTier: 21, PlayerStats: { Kills: 15, Deaths: 10, Assists: 4 } }],
+    Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
+  });
+
+  const result = await service.fetchActStats({ Matches: rows.slice(0, 20) }, 'current-act');
+  assert.equal(result.complete, true);
+  assert.equal(result.matches.length, 25);
+  assert.equal(result.stats.games, 25);
+  assert.equal(result.matches.some((match) => match.id === 'act-24'), true);
 });
 
 test('player inspection falls back to observed shared matches when Riot history is private', async () => {
