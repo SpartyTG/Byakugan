@@ -1147,9 +1147,9 @@ test('defers full-act hydration during Agent Select and active matches', () => {
   const cacheState = { current: false, data: { complete: false } };
   const cache = { data: { complete: false }, expiresAt: 0 };
   assert.equal(shouldStartActHydration(cacheState, cache, 'MENUS'), true);
-  assert.equal(shouldStartActHydration(cacheState, cache, 'PREGAME'), false);
-  assert.equal(shouldStartActHydration(cacheState, cache, 'INGAME'), false);
-  assert.equal(shouldStartActHydration(cacheState, cache, 'CORE_GAME'), false);
+  assert.equal(shouldStartActHydration(cacheState, cache, 'PREGAME'), true);
+  assert.equal(shouldStartActHydration(cacheState, cache, 'INGAME'), true);
+  assert.equal(shouldStartActHydration(cacheState, cache, 'CORE_GAME'), true);
 });
 
 test('an interrupted same-act rescan cannot discard previously cached matches', async () => {
@@ -1277,7 +1277,7 @@ test('discovers current-act matches from history when rating pagination stops at
   const result = await service.fetchCurrentActHistory('current-act');
   assert.equal(result.complete, true);
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['newest', 'older']);
-  assert.equal(requests.length, 6);
+  assert.equal(requests.length, 2);
   assert.match(requests[0], /startIndex=0&endIndex=20/);
   assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
@@ -1303,7 +1303,7 @@ test('advances current-act history in standard 20-match pages', async () => {
   const result = await service.fetchCurrentActHistory('current-act');
   assert.equal(result.complete, true);
   assert.equal(result.rows.length, 21);
-  assert.equal(requests.length, 6);
+  assert.equal(requests.length, 2);
   assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
 
@@ -1331,8 +1331,8 @@ test('fetches Act index pages in bounded waves until the actual boundary', async
   const result = await service.fetchCurrentActHistory('current-act');
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['recent', 'current-20', 'current-40']);
   assert.equal(result.total, 80);
-  assert.equal(requests.length, 6);
-  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=100&endIndex=120')), true);
+  assert.equal(requests.length, 4);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=60&endIndex=80')), true);
 });
 
 test('continues beyond Riot Total until every current-Act match is indexed', async () => {
@@ -1462,4 +1462,37 @@ test('normalizes game pod locations and rating-only journey milestones', () => {
   assert.equal(update.startedAt, 1_700_000_000_000);
   assert.equal(update.result, 'RATING');
   assert.equal(update.rrAfter, 42);
+});
+
+
+test('recovered Act details replace persisted rating placeholders and survive restart', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'byakugan-recovery-'));
+  try {
+    const service = new RiotClientService({ cacheDirectory: directory });
+    service.identity = { puuid: 'self' };
+    service.metadata = metadata();
+    const row = { MatchID: 'recover', SeasonID: 'current-act', MatchStartTime: 100 };
+    service.persistActStats({
+      seasonId: 'current-act', newestMatchId: 'recover',
+      data: { complete: false, stats: {}, matches: [normalizeRatingUpdate(row, service.metadata)] }
+    });
+    service.fetchCurrentActHistory = async () => ({ rows: [row], complete: true });
+    service.fetchCurrentActCompetitiveUpdates = async () => ({ rows: [row], complete: true });
+    service.fetchMatchDetail = async () => ({
+      MatchInfo: { MatchID: 'recover', QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
+      Players: [{ Subject: 'self', TeamID: 'Blue', CharacterID: 'agent-jett', PlayerStats: { Kills: 20, Deaths: 10, Assists: 4 } }],
+      Teams: [{ TeamID: 'Blue', Won: true, RoundsWon: 13 }, { TeamID: 'Red', Won: false, RoundsWon: 8 }]
+    });
+    const result = await service.fetchActStats({ Matches: [row] }, 'current-act', { wins: 1, games: 1 });
+    assert.equal(result.matches[0].result, 'VICTORY');
+    assert.equal(result.stats.kd, 2);
+    assert.equal(result.complete, true);
+    const restored = new RiotClientService({ cacheDirectory: directory });
+    restored.identity = { puuid: 'self' };
+    const cached = restored.loadPersistedActStats('current-act');
+    assert.equal(cached.data.matches[0].result, 'VICTORY');
+    assert.equal(cached.data.stats.wins, 1);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });

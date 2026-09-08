@@ -27,8 +27,8 @@ const REMOTE_HOST_PATTERNS = [
 const MENU_POLL_INTERVAL_MS = 15_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 const HISTORICAL_PEAK_LOOKUP_BUDGET = 10;
-const ACT_DETAIL_CONCURRENCY = 8;
-const ACT_INDEX_CONCURRENCY = 6;
+const ACT_DETAIL_CONCURRENCY = 2;
+const ACT_INDEX_CONCURRENCY = 2;
 const ROSTER_RANK_CACHE_MS = 10 * 60_000;
 const ROSTER_PEAK_CACHE_MS = 24 * 60 * 60_000;
 
@@ -1325,7 +1325,6 @@ function selectActCacheState(cache, activeSeasonId, newestMatchId, now = Date.no
 
 function shouldStartActHydration(cacheState, cache, liveState, hydrateAct = true, now = Date.now()) {
   if (!hydrateAct || cacheState?.current) return false;
-  if (['PREGAME', 'INGAME', 'CORE_GAME'].includes(String(liveState || '').toUpperCase())) return false;
   return Boolean(cache?.data?.complete) || !cache?.expiresAt || cache.expiresAt <= now;
 }
 
@@ -1739,6 +1738,19 @@ class RiotClientService extends EventEmitter {
   }
 
   async safeRemote(endpoint, service = 'pd', options = {}) {
+    const scan = this.actScanReport;
+    const isActRequest = scan?.running && /match-history|competitiveupdates|match-details/.test(endpoint);
+    const recordResponse = (data, status) => {
+      if (!isActRequest) return;
+      const rows = data?.History || data?.history || data?.Matches || data?.matches || [];
+      const dates = rows.map((row) => timestampMillis(row.GameStartTime ?? row.MatchStartTime)).filter(Boolean);
+      scan.requests.push({
+        endpoint: endpoint.replace(/(players|history|matches)\/[^?\/]+/g, '$1/{id}'),
+        status, count: rows.length, begin: data?.BeginIndex ?? null, end: data?.EndIndex ?? null,
+        total: data?.Total ?? null, oldest: dates.length ? Math.min(...dates) : null,
+        newest: dates.length ? Math.max(...dates) : null
+      });
+    };
     const url = service === 'glz' ? this.glzUrl(endpoint) : this.pdUrl(endpoint);
     const {
       ignoredStatuses: _ignoredStatuses,
@@ -1754,7 +1766,9 @@ class RiotClientService extends EventEmitter {
     let lastError = null;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
-        return (await this.remoteRequest(url, requestOptions)).data;
+        const data = (await this.remoteRequest(url, requestOptions)).data;
+        recordResponse(data, 200);
+        return data;
       } catch (error) {
         lastError = error;
         const status = Number(error.status || 0);
@@ -1762,6 +1776,7 @@ class RiotClientService extends EventEmitter {
         if (retryDelayMs) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * (attempt + 1)));
       }
     }
+    recordResponse(null, Number(lastError?.status || 0));
     const ignoredStatuses = Array.isArray(options.ignoredStatuses)
       ? options.ignoredStatuses.map(Number)
       : [];
@@ -2492,7 +2507,7 @@ class RiotClientService extends EventEmitter {
       nextStart = correctedCursor ?? (starts.at(-1) + pageSize);
     }
     if (exhausted && !requestFailed) complete = true;
-    return { rows, complete, exhausted, total: declaredTotal };
+    return { rows, complete, exhausted, total: declaredTotal, stopReason: requestFailed ? 'request-failed' : exhausted ? 'empty-page' : complete ? 'act-boundary' : 'scan-limit' };
   }
 
   async fetchCurrentActCompetitiveUpdates(initialRows, activeSeasonId) {
@@ -2502,6 +2517,7 @@ class RiotClientService extends EventEmitter {
     const seen = new Set();
     let complete = false;
     let requestFailed = false;
+    let stopReason = 'scan-limit';
     const consume = (page) => {
       if (!page) {
         requestFailed = true;
@@ -2509,6 +2525,7 @@ class RiotClientService extends EventEmitter {
       }
       const pageRows = page?.Matches || page?.matches || [];
       if (!pageRows.length) {
+        stopReason = 'empty-page';
         complete = !requestFailed;
         return true;
       }
@@ -2520,6 +2537,7 @@ class RiotClientService extends EventEmitter {
         rows.push(row);
       }
       if (selected.reachedPreviousAct) {
+        stopReason = 'act-boundary';
         complete = true;
         return true;
       }
@@ -2544,7 +2562,7 @@ class RiotClientService extends EventEmitter {
         if (!pageRows.length || nextStart <= currentStart) break;
       }
     }
-    return { rows, complete };
+    return { rows, complete, stopReason: requestFailed ? 'request-failed' : stopReason };
   }
 
   async fetchActStats(initialUpdates, activeSeasonId, expectedRecord = {}) {
@@ -2559,6 +2577,7 @@ class RiotClientService extends EventEmitter {
       return this.actStatsCache.data;
     }
 
+    this.actScanReport = { version: 1, running: true, startedAt: Date.now(), expectedRecord, requests: [] };
     const updates = [];
     const seen = new Set();
     const previousCache = this.actStatsCache?.seasonId === activeSeasonId
@@ -2596,6 +2615,10 @@ class RiotClientService extends EventEmitter {
         this.fetchCurrentActHistory(activeSeasonId),
         this.fetchCurrentActCompetitiveUpdates(initialRows, activeSeasonId)
       ]);
+      this.actScanReport.indexes = {
+        history: { count: historyIndex.rows.length, complete: historyIndex.complete, exhausted: historyIndex.exhausted, total: historyIndex.total, stopReason: historyIndex.stopReason },
+        rating: { count: ratingIndex.rows.length, complete: ratingIndex.complete, stopReason: ratingIndex.stopReason }
+      };
       const ratingRows = ratingIndex.rows;
       const ratingById = new Map(ratingRows.map((row) => [updateMatchId(row), row]));
       updates.length = 0;
@@ -2650,7 +2673,7 @@ class RiotClientService extends EventEmitter {
       this.rememberPartyDetails(batchResults.map((row) => row.partyDetail).filter(Boolean));
 
       const processedMatches = hydrated.map((row, index) => row.match || normalizeRatingUpdate(updates[index], this.metadata));
-      const partialMatches = mergeSessionMatches(processedMatches, carriedMatches);
+      const partialMatches = mergeSessionMatches(processedMatches, carriedMatches.filter((match) => !processedMatches.some((fresh) => fresh.id === match.id)));
       const partialObserved = mergeObservedProfiles(
         previousCache?.data?.observedProfiles,
         ...hydrated.map((row) => row.observedProfiles)
@@ -2673,7 +2696,7 @@ class RiotClientService extends EventEmitter {
     const hydratedMatches = details.map((detail, index) => detail || normalizeRatingUpdate(updates[index], this.metadata));
     // Treat every same-act rebuild as additive. A temporarily short or failed
     // history scan must never replace a larger cache resolved on an earlier run.
-    const matches = mergeSessionMatches(hydratedMatches, previousCache?.data?.matches || []);
+    const matches = mergeSessionMatches(hydratedMatches, (previousCache?.data?.matches || []).filter((match) => !hydratedMatches.some((fresh) => fresh.id === match.id)));
     const freshObservedProfiles = mergeObservedProfiles(...hydrated.map((row) => row.observedProfiles));
     const observedProfiles = mergeObservedProfiles(previousCache?.data?.observedProfiles, freshObservedProfiles);
     if (details.some((detail) => !detail) || (reachedCachedData && !previousCache.data.complete)) complete = false;
@@ -2689,6 +2712,13 @@ class RiotClientService extends EventEmitter {
     };
     this.persistActStats(this.actStatsCache);
     this.actStatsProgress = { loaded: detailedGames, total: totalMatches };
+    Object.assign(this.actScanReport, { running: false, finishedAt: Date.now(), coverage: data.coverage,
+      indexed: totalMatches, unresolvedDetails: hydrated.filter((row) => !row.match).length });
+    if (this.actStatsCacheFile) {
+      try {
+        fs.writeFileSync(path.join(path.dirname(this.actStatsCacheFile), 'act-scan-diagnostics.json'), JSON.stringify(this.actScanReport, null, 2));
+      } catch (error) { this.emit('warning', `Act scan report could not be saved: ${error.message}`); }
+    }
     this.actStatsHydrating = false;
     this.emit('act-progress', { ...this.actStatsProgress, loading: false, stats: data.stats, coverage: data.coverage });
     return data;

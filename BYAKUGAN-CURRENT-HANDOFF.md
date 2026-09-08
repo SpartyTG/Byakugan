@@ -1,3 +1,17 @@
+# Beta.139 gameplay scan update
+
+Supersedes beta.138 package. Act scans may start in Agent Select or gameplay; index and detail concurrency are each two in all states. Existing 30-minute partial retry cooldown still applies. Includes beta.138 recovery fix and saved diagnostic report. Not yet published or verified against live Riot data.
+
+# Beta.138 diagnostic checkpoint
+
+Beta.138 is prepared locally, not published. Full current-Act recovery remains unresolved.
+Uploaded schema-12 cache and archive are identical: 173 entries, 161 completed results, 12 RATING placeholders. Their saved coverage reports 131 wins and 261 games. These are observed values only, never constants or targets in code.
+Recovered details previously lost to later cached placeholders; merge precedence now preserves recovery. Regression test covers restart persistence.
+The new act-scan-diagnostics.json records redacted request paths, page sizes/cursors/date ranges, status codes, index stop reasons, coverage, and unresolved detail counts. It is written after a scan; existing partial-cache cooldown of 30 minutes still applies, and scans start only outside Agent Select and active play.
+Do not claim a retention ceiling without the captured scan evidence. Next: release through Tyler's local main, verify green CI, update gaming PC, collect report after scan.
+
+---
+
 # BYAKUGAN Current Handoff
 
 ## Canonical release
