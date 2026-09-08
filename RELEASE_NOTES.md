@@ -1,10 +1,11 @@
-# BYAKUGAN v0.8.0-beta.135
+# BYAKUGAN v0.8.0-beta.136
 
 ## What's updated
 
-- Restores Riot's authoritative current-Act record to Overview, so the live seasonal win count appears immediately instead of a smaller detail-backed sample such as 81/74.
-- Shows **Act Wins / Games** from Riot's active-season record; these values update with the normal profile refresh and do not wait for hundreds of match-detail requests.
-- Labels K/D and headshot percentage with the number of detailed matches actually available instead of presenting incomplete combat data as a complete Act.
-- Retries temporary Riot throttling, timeout, and server failures when loading match details rather than silently dropping those matches after one failed request.
-- Reduces detail hydration from 20 simultaneous requests to a safer concurrency of 8, balancing cold-load speed against Riot Client contention and rate limiting.
-- Advances the Act cache to schema 11, preserving every collected same-Act match while rechecking the cache against both Riot's win total and game total.
+- Restores complete current-Act result counting as **Wins / Losses / Draws**.
+- Fixes the 155-match ceiling that produced the incorrect 81/74 display. Riot's `Total` value is now treated only as a diagnostic hint, never as the end of the Act.
+- Continues through supported 20-match pages until the response actually crosses the current Act's start date or returns a truly empty page.
+- Follows Riot's response cursor so short pages cannot skip matches between page boundaries.
+- Counts draws independently and includes their combat statistics in Act K/D and headshot calculations.
+- Retries temporary Riot throttling, timeout, and server failures while hydrating details at a safer concurrency of 8.
+- Advances the append-only Act cache to schema 12, preserving collected matches while forcing one corrected boundary-based reindex.

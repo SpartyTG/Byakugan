@@ -510,7 +510,11 @@ test('calculates recent statistics and agent pick rate', () => {
     { result: 'VICTORY', agent: 'Jett', agentRole: 'Duelist', kills: 20, deaths: 10, competitiveTier: 21, shots: { headshots: 3, bodyshots: 5, legshots: 2 } },
     { result: 'DEFEAT', agent: 'Jett', agentRole: 'Duelist', kills: 10, deaths: 10, competitiveTier: 20, shots: { headshots: 2, bodyshots: 8, legshots: 0 } }
   ];
-  assert.deepEqual(calculateStats(matches), { wins: 1, losses: 1, kd: 1.5, headshot: 25, peakTier: 21 });
+  assert.deepEqual(calculateStats(matches), { wins: 1, losses: 1, draws: 0, kd: 1.5, headshot: 25, peakTier: 21 });
+  assert.equal(calculateStats([...matches, {
+    result: 'DRAW', agent: 'Jett', kills: 15, deaths: 15,
+    shots: { headshots: 3, bodyshots: 7, legshots: 0 }
+  }]).draws, 1);
   const agents = buildAgentMastery(matches);
   assert.equal(agents[0].name, 'Jett');
   assert.equal(agents[0].mastery, 100);
@@ -1303,24 +1307,18 @@ test('advances current-act history in standard 20-match pages', async () => {
   assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
 
-test('uses Riot response cursors and fetches remaining history pages concurrently', async () => {
+test('uses Riot response cursors until the actual Act boundary', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self' };
   service.metadata = metadata();
   service.metadata.seasons = new Map([['current-act', { startTime: '2026-08-01T00:00:00Z' }]]);
   const requests = [];
-  let active = 0;
-  let maxActive = 0;
   service.safeRemote = async (endpoint) => {
     requests.push(endpoint);
     if (endpoint.includes('startIndex=0')) return {
       BeginIndex: 0, EndIndex: 20, Total: 80,
       History: [{ MatchID: 'recent', GameStartTime: Date.parse('2026-08-20T00:00:00Z') }]
     };
-    active += 1;
-    maxActive = Math.max(maxActive, active);
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    active -= 1;
     const start = Number(endpoint.match(/startIndex=(\d+)/)?.[1]);
     if (start === 60) return { BeginIndex: 60, EndIndex: 80, Total: 80, History: [
       { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
@@ -1334,10 +1332,9 @@ test('uses Riot response cursors and fetches remaining history pages concurrentl
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['recent', 'current-20', 'current-40']);
   assert.equal(result.total, 80);
   assert.equal(requests.length, 4);
-  assert.equal(maxActive, 3);
 });
 
-test('finds a large current Act across multiple waves without a total-games estimate', async () => {
+test('continues beyond Riot Total until every current-Act match is indexed', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self' };
   service.metadata = metadata();
@@ -1349,7 +1346,7 @@ test('finds a large current Act across multiple waves without a total-games esti
     if (start >= 240) return { History: [
       { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
     ] };
-    return { History: Array.from({ length: 20 }, (_, index) => ({
+    return { BeginIndex: start, EndIndex: start + 20, Total: 155, History: Array.from({ length: 20 }, (_, index) => ({
       MatchID: `current-${start + index}`,
       GameStartTime: Date.parse('2026-08-20T00:00:00Z') - (start + index) * 60_000
     })) };
@@ -1358,6 +1355,8 @@ test('finds a large current Act across multiple waves without a total-games esti
   const result = await service.fetchCurrentActHistory('current-act');
   assert.equal(result.complete, true);
   assert.equal(result.rows.length, 240);
+  assert.equal(result.total, 155);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=160&endIndex=180')), true);
   assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=240&endIndex=260')), true);
   assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=254')), false);
 });

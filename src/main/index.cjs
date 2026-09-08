@@ -302,6 +302,7 @@ function wireService(nextService) {
         if (progress.stats) {
           snapshot.profile.wins = progress.stats.wins;
           snapshot.profile.losses = progress.stats.losses;
+          snapshot.profile.draws = progress.stats.draws;
           snapshot.profile.kd = progress.stats.kd;
           snapshot.profile.headshot = progress.stats.headshot;
           snapshot.profile.statsScope = progress.stats.scope;
@@ -311,6 +312,7 @@ function wireService(nextService) {
           snapshot.profile.actRecordGames = progress.coverage.expectedGames;
           snapshot.profile.actDetailedWins = progress.coverage.detailedWins;
           snapshot.profile.actDetailedLosses = progress.coverage.detailedLosses;
+          snapshot.profile.actDetailedDraws = progress.coverage.detailedDraws;
           snapshot.profile.actDetailedGames = progress.coverage.detailedGames;
         }
       }

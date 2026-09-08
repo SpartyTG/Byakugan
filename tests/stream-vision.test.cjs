@@ -102,9 +102,9 @@ test('routine snapshots stay silent and act completion notifies only after real 
   assert.match(app, /finished refreshing your current-act competitive history/);
 });
 
-test('Overview presents Riot Act totals immediately and labels detail-backed metrics honestly', () => {
-  assert.match(app, /\['ACT WINS \/ GAMES'/);
-  assert.match(app, /RIOT CURRENT-ACT RECORD/);
+test('Overview reads every indexed result as wins, losses, and draws', () => {
+  assert.match(app, /\['WINS \/ LOSSES \/ DRAWS'/);
+  assert.match(app, /profile\.draws/);
   assert.match(app, /DETAILED MATCHES/);
 });
 

@@ -229,21 +229,12 @@ function setConnection(connection) {
 
 function renderStats(profile) {
   const scope = profile.statsScope || 'ACT';
-  const hasActWins = profile.actRecordWins !== null && profile.actRecordWins !== undefined
-    && Number.isFinite(Number(profile.actRecordWins));
-  const hasActGames = profile.actRecordGames !== null && profile.actRecordGames !== undefined
-    && Number.isFinite(Number(profile.actRecordGames));
   const detailedGames = Number(profile.actDetailedGames) || 0;
   const detailScope = scope === 'ACT'
     ? 'ACT'
     : detailedGames ? `${detailedGames} DETAILED MATCHES` : scope;
-  const recordCard = hasActWins && hasActGames
-    ? ['ACT WINS / GAMES', `${Number(profile.actRecordWins)} / ${Number(profile.actRecordGames)}`, 'RIOT CURRENT-ACT RECORD']
-    : hasActWins
-      ? ['CURRENT ACT WINS', Number(profile.actRecordWins), 'RIOT CURRENT-ACT RECORD']
-      : ['WIN / LOSS', `${profile.wins} / ${profile.losses}`, scope];
   const values = [
-    recordCard,
+    ['WINS / LOSSES / DRAWS', `${Number(profile.wins) || 0} / ${Number(profile.losses) || 0} / ${Number(profile.draws) || 0}`, scope],
     ['K/D RATIO', profile.kd, detailScope],
     ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, detailScope],
     ['RANK RATING', `${profile.rr} RR`, 'CURRENT'],
@@ -2326,6 +2317,7 @@ function bindEvents() {
       Object.assign(state.snapshot.profile, {
         wins: progress.stats.wins,
         losses: progress.stats.losses,
+        draws: progress.stats.draws,
         kd: progress.stats.kd,
         headshot: progress.stats.headshot,
         statsScope: progress.stats.scope,
@@ -2336,6 +2328,7 @@ function bindEvents() {
         actRecordGames: progress.coverage?.expectedGames ?? state.snapshot.profile.actRecordGames,
         actDetailedWins: progress.coverage?.detailedWins ?? progress.stats.wins,
         actDetailedLosses: progress.coverage?.detailedLosses ?? progress.stats.losses,
+        actDetailedDraws: progress.coverage?.detailedDraws ?? progress.stats.draws,
         actDetailedGames: progress.coverage?.detailedGames ?? loaded
       });
       renderStats(state.snapshot.profile);
