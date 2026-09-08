@@ -1,3 +1,7 @@
+# Beta.142 HenrikDev check checkpoint
+
+Prepared source, not published. Manual Settings check uses ephemeral Authorization key on invoking PC and current snapshot name/tag/region. Gaming snapshot sends account/Act-bound SHA256 hashes of completed cached match IDs. Stored provider rows require matching account hash, Act and competitive mode; records deduplicate by ID. Report is summary only, no key, raw player UUID or match IDs. No import performed. Key field cleared immediately. Report file: henrik-history-check.json on invoking PC. Full verification passes, live HenrikDev response awaits user check. Stored round scores cannot distinguish all remakes; counts alone do not establish completeness.
+
 # Beta.141 report transfer checkpoint
 
 Prepared, not published. Act report now includes pseudonymous accountKey and seasonId. Snapshot includes matching report as actScanDiagnostics. Viewer writes matching report to act-scan-diagnostics.json and removes stale report when absent/mismatched. Gaming PC restores completed matching reports from disk. Legacy reports lack scope and need another scan. Streaming report may be running:true during collection; collect running:false report for final diagnosis. Full verify passes.

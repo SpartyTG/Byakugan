@@ -2922,6 +2922,11 @@ class RiotClientService extends EventEmitter {
         // never included in renderer or Dual PC snapshots.
         ...resolvedCareer,
         activeSeasonId,
+        historyCheckContext: {
+          accountKey: currentSenseiAccountKey, seasonId: activeSeasonId,
+          matchHashes: (actData?.matches || []).filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result))
+            .map((match) => createHash('sha256').update(String(match.id)).digest('hex'))
+        },
         gameName: this.identity.gameName,
         tagLine: this.identity.tagLine,
         wins: stats.wins, losses: stats.losses, draws: stats.draws, kd: stats.kd, headshot: stats.headshot,

@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('companion', Object.freeze({
+  checkHenrikHistory: (key) => ipcRenderer.invoke('history:check-henrik', key),
   bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   restartApp: () => ipcRenderer.invoke('app:restart'),
   connect: () => ipcRenderer.invoke('riot:connect'),

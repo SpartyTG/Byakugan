@@ -1866,6 +1866,18 @@ function bindEvents() {
     if (event.target.closest('[data-sensei-overview-open]')) navigate('sensei');
     if (event.target.closest('[data-sensei-hub-settings]')) navigate('settings');
   });
+  $('#henrikCheck').addEventListener('click', async () => {
+    const button = $('#henrikCheck');
+    button.disabled = true;
+    text('#henrikResult', 'Checking stored matches… This may take a few minutes.');
+    const pending = window.companion.checkHenrikHistory($('#henrikKey').value);
+    $('#henrikKey').value = '';
+    try {
+      const report = await pending;
+      text('#henrikResult', `${report.matches} usable current-Act matches found; ${report.missing} are absent from your completed-match cache. ${report.invalid} entries could not be verified. ${report.exhausted ? 'Stored list checked.' : 'Page limit reached; check incomplete.'} Report saved as henrik-history-check.json in your BYAKUGAN app-data folder. No stats imported.`);
+    } catch (error) { text('#henrikResult', error.message || 'History check failed.'); }
+    finally { button.disabled = false; }
+  });
   $('#sidebarRefresh').addEventListener('click', () => refresh(true));
   $('#connectButton').addEventListener('click', () => reconnect(true));
   $('#privacyButton').addEventListener('click', () => saveSettingsPatch({ privacyMode: !state.settings.privacyMode }, false));

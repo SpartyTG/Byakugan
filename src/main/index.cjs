@@ -4,6 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } = require('electron');
 const appMetadata = require('../../package.json');
+const { checkHenrikHistory } = require('./services/henrik-history.cjs');
 const { SettingsStore } = require('./settings-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
 const { SenseiBrainStore } = require('./sensei-brain/store.cjs');
@@ -379,7 +380,18 @@ async function updateSessionDataSource(selection) {
   return snapshot;
 }
 
+let henrikCheckRunning = false;
 function registerIpc() {
+  ipcMain.handle('history:check-henrik', async (_event, key) => {
+    if (henrikCheckRunning) throw new Error('A history check is already running.');
+    henrikCheckRunning = true;
+    try {
+      const captured = structuredClone(snapshot || {});
+      const report = await checkHenrikHistory({ key, profile: captured.profile, region: captured.connection?.region });
+      fs.writeFileSync(path.join(app.getPath('userData'), 'henrik-history-check.json'), JSON.stringify(report, null, 2));
+      return report;
+    } finally { key = null; henrikCheckRunning = false; }
+  });
   ipcMain.handle('app:restart', () => {
     setTimeout(requestRestart, 100);
     return { ok: true };
