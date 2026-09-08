@@ -1,10 +1,10 @@
-# BYAKUGAN v0.8.0-beta.133
+# BYAKUGAN v0.8.0-beta.134
 
 ## What's updated
 
-- Restores the original Overview presentation: one current-Act **W/L**, **K/D**, and **Headshot %** record with no wins/games split or retained-detail annotation.
-- Full-Act discovery again prioritizes a fast direct pull, requesting broad Riot history ranges and hydrating match details at the earlier menu-only concurrency.
-- Pagination now follows Riot's returned `BeginIndex`, `EndIndex`, and `Total` instead of guessing the next cursor from the number of rows in a filtered page.
-- Full-Act collection continues through shortened or sparse pages until the actual Act boundary or Riot's declared end is reached.
-- Successfully collected Act matches load from disk immediately, append only newly completed matches, and are mirrored to an invisible monotonic backup.
-- Windows cache replacement has a safe fallback and reports persistence failures instead of silently losing the fast-path cache.
+- Removes Riot's misleading `NumberOfGames` value from current-Act totals and scan limits. BYAKUGAN no longer presents or plans around the incorrect 254-game figure.
+- Keeps Riot's seasonal **128 wins** value only as a completeness check: a smaller detailed history can never be mislabeled as the full Act.
+- Discovers the Act through normal 20-match history pages, fetched in bounded concurrent waves until Riot reaches the actual Act boundary.
+- Hydrates discovered match details at the fast menu-only concurrency so W/L, K/D, headshot percentage, maps, agents, and journey progress begin filling promptly.
+- Advances the Act cache to schema 10, forcing one clean reindex while preserving and merging every valid same-Act match already collected.
+- Completed Act data still loads from disk immediately on later launches and appends only newly completed matches.

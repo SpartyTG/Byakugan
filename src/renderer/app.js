@@ -2320,7 +2320,6 @@ function bindEvents() {
         actStatsLoaded: loaded,
         actStatsTotal: total,
         actRecordWins: progress.coverage?.expectedWins ?? state.snapshot.profile.actRecordWins,
-        actRecordGames: progress.coverage?.expectedGames ?? state.snapshot.profile.actRecordGames,
         actDetailedWins: progress.coverage?.detailedWins ?? progress.stats.wins,
         actDetailedLosses: progress.coverage?.detailedLosses ?? progress.stats.losses,
         actDetailedGames: progress.coverage?.detailedGames ?? loaded

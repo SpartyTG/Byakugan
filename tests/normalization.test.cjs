@@ -992,20 +992,20 @@ test('selects only current-act competitive updates and stops at the previous act
   assert.equal(result.reachedPreviousAct, true);
 });
 
-test('uses Riot seasonal totals to reject a falsely complete retained-history window', () => {
+test('uses Riot seasonal wins but ignores the unrelated NumberOfGames field', () => {
   const record = currentActCompetitiveRecord({
     QueueSkills: { competitive: { SeasonalInfoBySeasonID: {
-      'current-act': { NumberOfWins: 128, NumberOfGames: 241 }
+      'current-act': { NumberOfWins: 128, NumberOfGames: 254 }
     } } }
   }, 'current-act');
-  assert.deepEqual(record, { wins: 128, games: 241 });
+  assert.deepEqual(record, { wins: 128, games: null });
   assert.equal(actDataCoversRecord({
     complete: true,
     stats: { wins: 78, games: 151 }
   }, record), false);
   assert.equal(actDataCoversRecord({
     complete: true,
-    stats: { wins: 128, games: 241 }
+    stats: { wins: 128, games: 151 }
   }, record), true);
 });
 
@@ -1235,7 +1235,7 @@ test('discovers current-act matches from history when rating pagination stops at
   const requests = [];
   service.safeRemote = async (endpoint) => {
     requests.push(endpoint);
-    if (endpoint.includes('startIndex=0')) return { History: [
+    if (endpoint.includes('startIndex=0')) return { BeginIndex: 0, EndIndex: 20, Total: 40, History: [
       { MatchID: 'newest', GameStartTime: Date.parse('2026-08-20T00:00:00Z') },
       { MatchID: 'older', GameStartTime: Date.parse('2026-08-05T00:00:00Z') }
     ] };
@@ -1247,10 +1247,10 @@ test('discovers current-act matches from history when rating pagination stops at
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['newest', 'older']);
   assert.equal(requests.length, 2);
   assert.match(requests[0], /startIndex=0&endIndex=20/);
-  assert.match(requests[1], /startIndex=2/);
+  assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
 
-test('advances broad current-act history requests from the returned row count', async () => {
+test('advances current-act history in standard 20-match pages', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self' };
   service.metadata = metadata();
@@ -1258,7 +1258,7 @@ test('advances broad current-act history requests from the returned row count', 
   const requests = [];
   service.safeRemote = async (endpoint) => {
     requests.push(endpoint);
-    if (endpoint.includes('startIndex=0')) return { History: Array.from({ length: 20 }, (_, index) => ({
+    if (endpoint.includes('startIndex=0')) return { BeginIndex: 0, EndIndex: 20, Total: 40, History: Array.from({ length: 20 }, (_, index) => ({
       MatchID: `current-${index}`,
       GameStartTime: Date.parse('2026-08-20T00:00:00Z') - index * 60_000
     })) };
@@ -1272,10 +1272,44 @@ test('advances broad current-act history requests from the returned row count', 
   assert.equal(result.complete, true);
   assert.equal(result.rows.length, 21);
   assert.equal(requests.length, 2);
-  assert.match(requests[1], /startIndex=20&endIndex=220/);
+  assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
 
-test('uses Riot response cursors and Total to continue beyond a sparse history page', async () => {
+test('uses Riot response cursors and fetches remaining history pages concurrently', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.metadata.seasons = new Map([['current-act', { startTime: '2026-08-01T00:00:00Z' }]]);
+  const requests = [];
+  let active = 0;
+  let maxActive = 0;
+  service.safeRemote = async (endpoint) => {
+    requests.push(endpoint);
+    if (endpoint.includes('startIndex=0')) return {
+      BeginIndex: 0, EndIndex: 20, Total: 80,
+      History: [{ MatchID: 'recent', GameStartTime: Date.parse('2026-08-20T00:00:00Z') }]
+    };
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    const start = Number(endpoint.match(/startIndex=(\d+)/)?.[1]);
+    if (start === 60) return { BeginIndex: 60, EndIndex: 80, Total: 80, History: [
+      { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
+    ] };
+    return { BeginIndex: start, EndIndex: start + 20, Total: 80, History: [
+      { MatchID: `current-${start}`, GameStartTime: Date.parse('2026-08-05T00:00:00Z') - start * 1000 }
+    ] };
+  };
+
+  const result = await service.fetchCurrentActHistory('current-act');
+  assert.deepEqual(result.rows.map((row) => row.MatchID), ['recent', 'current-20', 'current-40']);
+  assert.equal(result.total, 80);
+  assert.equal(requests.length, 4);
+  assert.equal(maxActive, 3);
+});
+
+test('finds a large current Act across multiple waves without a total-games estimate', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self' };
   service.metadata = metadata();
@@ -1283,21 +1317,21 @@ test('uses Riot response cursors and Total to continue beyond a sparse history p
   const requests = [];
   service.safeRemote = async (endpoint) => {
     requests.push(endpoint);
-    if (endpoint.includes('startIndex=0')) return {
-      BeginIndex: 0, EndIndex: 200, Total: 254,
-      History: [{ MatchID: 'recent', GameStartTime: Date.parse('2026-08-20T00:00:00Z') }]
-    };
-    return {
-      BeginIndex: 200, EndIndex: 254, Total: 254,
-      History: [{ MatchID: 'older', GameStartTime: Date.parse('2026-08-05T00:00:00Z') }]
-    };
+    const start = Number(endpoint.match(/startIndex=(\d+)/)?.[1]);
+    if (start >= 240) return { History: [
+      { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
+    ] };
+    return { History: Array.from({ length: 20 }, (_, index) => ({
+      MatchID: `current-${start + index}`,
+      GameStartTime: Date.parse('2026-08-20T00:00:00Z') - (start + index) * 60_000
+    })) };
   };
 
   const result = await service.fetchCurrentActHistory('current-act');
-  assert.deepEqual(result.rows.map((row) => row.MatchID), ['recent', 'older']);
-  assert.equal(result.total, 254);
-  assert.equal(requests.length, 2);
-  assert.match(requests[1], /startIndex=200&endIndex=400/);
+  assert.equal(result.complete, true);
+  assert.equal(result.rows.length, 240);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=240&endIndex=260')), true);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=254')), false);
 });
 
 test('supplements a capped match-history index with paged competitive updates', async () => {
@@ -1312,8 +1346,7 @@ test('supplements a capped match-history index with paged competitive updates', 
   service.fetchCurrentActHistory = async () => ({ rows: rows.slice(0, 20), complete: false, exhausted: true });
   service.safeRemote = async (endpoint) => {
     if (endpoint.includes('startIndex=20')) return { Matches: rows.slice(20) };
-    if (endpoint.includes('startIndex=25')) return { Matches: [] };
-    return null;
+    return { Matches: [] };
   };
   service.fetchMatchDetail = async (matchId) => ({
     MatchInfo: { MatchID: matchId, QueueID: 'competitive', MapID: '/Game/Maps/Ascent/Ascent' },
