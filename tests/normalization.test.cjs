@@ -52,6 +52,30 @@ test('optional loadout 404 does not mark the required Riot connection unhealthy'
   assert.equal(service.diagnostics[0].endpoint, '/mmr/v1/players/self');
 });
 
+test('retries transient Riot failures before dropping a match detail', async () => {
+  const service = new RiotClientService();
+  let calls = 0;
+  service.remoteRequest = async (_url, options) => {
+    calls += 1;
+    assert.equal(options.retries, undefined);
+    assert.equal(options.retryDelayMs, undefined);
+    if (calls < 3) {
+      const error = new Error('Too many requests');
+      error.status = 429;
+      throw error;
+    }
+    return { data: { MatchInfo: { MatchID: 'recovered-match' } } };
+  };
+
+  const result = await service.safeRemote('/match-details/v1/matches/recovered-match', 'pd', {
+    retries: 2,
+    retryDelayMs: 0
+  });
+  assert.equal(calls, 3);
+  assert.equal(result.MatchInfo.MatchID, 'recovered-match');
+  assert.deepEqual(service.diagnostics, []);
+});
+
 test('preserves resolved career data when transient Riot profile requests fail', () => {
   const previous = {
     senseiAccountKey: 'riot-account-a',
@@ -992,13 +1016,13 @@ test('selects only current-act competitive updates and stops at the previous act
   assert.equal(result.reachedPreviousAct, true);
 });
 
-test('uses Riot seasonal wins but ignores the unrelated NumberOfGames field', () => {
+test('uses Riot current-season wins and games as the authoritative Act record', () => {
   const record = currentActCompetitiveRecord({
     QueueSkills: { competitive: { SeasonalInfoBySeasonID: {
       'current-act': { NumberOfWins: 128, NumberOfGames: 254 }
     } } }
   }, 'current-act');
-  assert.deepEqual(record, { wins: 128, games: null });
+  assert.deepEqual(record, { wins: 128, games: 254 });
   assert.equal(actDataCoversRecord({
     complete: true,
     stats: { wins: 78, games: 151 }
@@ -1006,6 +1030,10 @@ test('uses Riot seasonal wins but ignores the unrelated NumberOfGames field', ()
   assert.equal(actDataCoversRecord({
     complete: true,
     stats: { wins: 128, games: 151 }
+  }, record), false);
+  assert.equal(actDataCoversRecord({
+    complete: true,
+    stats: { wins: 128, games: 254 }
   }, record), true);
 });
 

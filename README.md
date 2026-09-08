@@ -96,14 +96,14 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.134
+## Included in version 0.8.0-beta.135
 
-- Overview uses the original current-Act W/L, K/D, and headshot cards without a guessed total-games figure
-- Riot's seasonal win count is a completeness guard, while the unreliable MMR `NumberOfGames` field is ignored
-- Full-Act discovery fetches standard 20-match pages in bounded concurrent waves until the actual Act boundary
-- Match details hydrate at the earlier menu-only concurrency for fast cold loading
+- Overview reads current-Act wins and total games directly from Riot's active-season competitive record, so the authoritative total appears immediately
+- K/D and headshot percentage remain detail-backed and state the number of detailed matches available instead of claiming incomplete data covers the full Act
+- Match-detail hydration retries temporary throttling, timeout, and Riot server failures at a safer concurrency of eight
+- Full-Act discovery still fetches standard 20-match pages in bounded concurrent waves until the actual Act boundary
 - Completed Act history is read from disk immediately; later refreshes append only new matches
-- Cache schema 10 forces one corrected reindex, while a monotonic backup protects collected matches and Windows persistence failures are surfaced
+- Cache schema 11 rechecks both seasonal wins and games while preserving the monotonic same-Act archive
 
 ### Included from beta.132 and beta.131
 
@@ -408,7 +408,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.134-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.135-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -437,10 +437,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.134`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.135`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.134`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.135`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -448,8 +448,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.134
-git push origin v0.8.0-beta.134
+git tag v0.8.0-beta.135
+git push origin v0.8.0-beta.135
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

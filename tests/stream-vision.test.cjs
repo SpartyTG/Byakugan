@@ -102,9 +102,10 @@ test('routine snapshots stay silent and act completion notifies only after real 
   assert.match(app, /finished refreshing your current-act competitive history/);
 });
 
-test('Overview presents the current Act as the original W/L, K/D, and headshot cards', () => {
-  assert.match(app, /\['WIN \/ LOSS', `\$\{profile\.wins\} \/ \$\{profile\.losses\}`, scope\]/);
-  assert.doesNotMatch(app, /ACT WINS \/ GAMES|DETAILS •/);
+test('Overview presents Riot Act totals immediately and labels detail-backed metrics honestly', () => {
+  assert.match(app, /\['ACT WINS \/ GAMES'/);
+  assert.match(app, /RIOT CURRENT-ACT RECORD/);
+  assert.match(app, /DETAILED MATCHES/);
 });
 
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {

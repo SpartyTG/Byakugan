@@ -28,7 +28,8 @@ test('Relay Mode preserves production timing and restores fast menu-only Act hyd
   assert.match(riot, /if \(this\.refreshPromise\) return this\.refreshPromise/);
   assert.match(riot, /if \(this\.liveStatePromise\) return this\.liveStatePromise/);
   assert.match(riot, /const batchSize = 40/);
-  assert.match(riot, /const ACT_DETAIL_CONCURRENCY = 20/);
+  assert.match(riot, /const ACT_DETAIL_CONCURRENCY = 8/);
+  assert.match(riot, /retries: 2/);
   assert.match(riot, /mapWithConcurrency\(batch, ACT_DETAIL_CONCURRENCY,/);
   assert.match(riot, /mapWithConcurrency\(players, 5,/);
   assert.match(main, /const delays = \[12_000, 24_000, 45_000\]/);

@@ -308,6 +308,7 @@ function wireService(nextService) {
         }
         if (progress.coverage) {
           snapshot.profile.actRecordWins = progress.coverage.expectedWins;
+          snapshot.profile.actRecordGames = progress.coverage.expectedGames;
           snapshot.profile.actDetailedWins = progress.coverage.detailedWins;
           snapshot.profile.actDetailedLosses = progress.coverage.detailedLosses;
           snapshot.profile.actDetailedGames = progress.coverage.detailedGames;

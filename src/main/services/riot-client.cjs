@@ -27,7 +27,7 @@ const REMOTE_HOST_PATTERNS = [
 const MENU_POLL_INTERVAL_MS = 15_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 const HISTORICAL_PEAK_LOOKUP_BUDGET = 10;
-const ACT_DETAIL_CONCURRENCY = 20;
+const ACT_DETAIL_CONCURRENCY = 8;
 const ACT_INDEX_CONCURRENCY = 6;
 const ROSTER_RANK_CACHE_MS = 10 * 60_000;
 const ROSTER_PEAK_CACHE_MS = 24 * 60 * 60_000;
@@ -1265,9 +1265,11 @@ function buildActStatsData(matches, observedProfiles, complete, progress = {}) {
   const loaded = Number(progress.loaded) || completedMatches.length;
   const total = Number(progress.total) || (matches || []).length;
   const expectedWins = optionalNonnegativeCount(progress.expectedWins);
+  const expectedGames = optionalNonnegativeCount(progress.expectedGames);
   const calculated = calculateStats(completedMatches);
   const coverageComplete = complete
-    && (expectedWins === null || calculated.wins >= expectedWins);
+    && (expectedWins === null || calculated.wins >= expectedWins)
+    && (expectedGames === null || completedMatches.length >= expectedGames);
   return {
     stats: {
       ...calculated,
@@ -1279,6 +1281,7 @@ function buildActStatsData(matches, observedProfiles, complete, progress = {}) {
     progress: { loaded, total },
     coverage: {
       expectedWins,
+      expectedGames,
       detailedWins: calculated.wins,
       detailedLosses: calculated.losses,
       detailedGames: completedMatches.length,
@@ -1295,17 +1298,18 @@ function currentActCompetitiveRecord(mmr, activeSeasonId) {
   const season = seasonal?.[activeSeasonId];
   if (!season) return { wins: null, games: null };
   const rawWins = season.NumberOfWins ?? season.numberOfWins;
+  const rawGames = season.NumberOfGames ?? season.numberOfGames;
   const wins = optionalNonnegativeCount(rawWins);
-  // NumberOfGames is not a trustworthy current-Act total in Riot's MMR
-  // payload. It can cover a different competitive scope, so only the
-  // seasonal win count is used as a completeness guard.
-  return { wins, games: null };
+  const games = optionalNonnegativeCount(rawGames);
+  return { wins, games };
 }
 
 function actDataCoversRecord(data, record = {}) {
   if (!data?.complete) return false;
   const wins = optionalNonnegativeCount(record.wins);
+  const games = optionalNonnegativeCount(record.games);
   if (wins !== null && Number(data?.stats?.wins || 0) < wins) return false;
+  if (games !== null && Number(data?.stats?.games || 0) < games) return false;
   return true;
 }
 
@@ -1734,24 +1738,41 @@ class RiotClientService extends EventEmitter {
   }
 
   async safeRemote(endpoint, service = 'pd', options = {}) {
-    try {
-      const url = service === 'glz' ? this.glzUrl(endpoint) : this.pdUrl(endpoint);
-      const { ignoredStatuses: _ignoredStatuses, ...requestOptions } = options;
-      return (await this.remoteRequest(url, requestOptions)).data;
-    } catch (error) {
-      const ignoredStatuses = Array.isArray(options.ignoredStatuses)
-        ? options.ignoredStatuses.map(Number)
-        : [];
-      if (!ignoredStatuses.includes(Number(error.status || 0))) {
-        this.diagnostics.push({
-          service,
-          endpoint: endpoint.replace(/[a-f0-9-]{30,}/gi, '{id}'),
-          status: error.status || 0,
-          message: error.message
-        });
+    const url = service === 'glz' ? this.glzUrl(endpoint) : this.pdUrl(endpoint);
+    const {
+      ignoredStatuses: _ignoredStatuses,
+      retries: _retries,
+      retryDelayMs: _retryDelayMs,
+      ...requestOptions
+    } = options;
+    const retries = Math.max(0, Math.min(3, Number(options.retries) || 0));
+    const configuredRetryDelay = Number(options.retryDelayMs);
+    const retryDelayMs = Math.max(0, Math.min(2_000,
+      Number.isFinite(configuredRetryDelay) ? configuredRetryDelay : 250));
+    const retryableStatuses = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
+    let lastError = null;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return (await this.remoteRequest(url, requestOptions)).data;
+      } catch (error) {
+        lastError = error;
+        const status = Number(error.status || 0);
+        if (attempt >= retries || !retryableStatuses.has(status)) break;
+        if (retryDelayMs) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * (attempt + 1)));
       }
-      return null;
     }
+    const ignoredStatuses = Array.isArray(options.ignoredStatuses)
+      ? options.ignoredStatuses.map(Number)
+      : [];
+    if (!ignoredStatuses.includes(Number(lastError?.status || 0))) {
+      this.diagnostics.push({
+        service,
+        endpoint: endpoint.replace(/[a-f0-9-]{30,}/gi, '{id}'),
+        status: lastError?.status || 0,
+        message: lastError?.message || 'Riot request failed'
+      });
+    }
+    return null;
   }
 
   async fetchFriends() {
@@ -2285,7 +2306,10 @@ class RiotClientService extends EventEmitter {
   async fetchMatchDetail(matchId) {
     if (!matchId) return null;
     if (this.matchDetailCache.has(matchId)) return this.matchDetailCache.get(matchId);
-    const pending = this.safeRemote(`/match-details/v1/matches/${matchId}`);
+    const pending = this.safeRemote(`/match-details/v1/matches/${matchId}`, 'pd', {
+      retries: 2,
+      retryDelayMs: 300
+    });
     this.matchDetailCache.set(matchId, pending);
     const detail = await pending;
     if (!detail) this.matchDetailCache.delete(matchId);
@@ -2305,7 +2329,7 @@ class RiotClientService extends EventEmitter {
           try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
         })
         .filter(Boolean);
-      const validCandidates = candidates.filter((cached) => [5, 6, 7, 8, 9, 10].includes(Number(cached?.schema))
+      const validCandidates = candidates.filter((cached) => [5, 6, 7, 8, 9, 10, 11].includes(Number(cached?.schema))
         && cached.puuid === this.identity.puuid
         && cached.seasonId === activeSeasonId
         && typeof cached.newestMatchId === 'string'
@@ -2316,12 +2340,14 @@ class RiotClientService extends EventEmitter {
         const cached = validCandidates.at(-1);
         const mergedMatches = mergeSessionMatches(...validCandidates.map((entry) => entry.data.matches));
         const mergedObserved = mergeObservedProfiles(...validCandidates.map((entry) => entry.data.observedProfiles));
-        const requiresReindex = validCandidates.some((entry) => Number(entry.schema) < 10);
+        const requiresReindex = validCandidates.some((entry) => Number(entry.schema) < 11);
         const expectedWins = cached.data?.coverage?.expectedWins;
+        const expectedGames = cached.data?.coverage?.expectedGames;
         const mergedData = buildActStatsData(mergedMatches, mergedObserved, !requiresReindex && validCandidates.every((entry) => entry.data.complete), {
           loaded: mergedMatches.length,
           total: Math.max(...validCandidates.map((entry) => Number(entry.data?.progress?.total) || 0), mergedMatches.length),
-          expectedWins
+          expectedWins,
+          expectedGames
         });
         const data = requiresReindex ? {
           ...mergedData,
@@ -2357,6 +2383,7 @@ class RiotClientService extends EventEmitter {
       } catch {}
       if (archived) {
         const expectedWins = cache.data?.coverage?.expectedWins ?? archived.data?.coverage?.expectedWins;
+        const expectedGames = cache.data?.coverage?.expectedGames ?? archived.data?.coverage?.expectedGames;
         const mergedMatches = mergeSessionMatches(archived.data.matches, cache.data.matches);
         cache.data = buildActStatsData(
           mergedMatches,
@@ -2365,12 +2392,13 @@ class RiotClientService extends EventEmitter {
           {
             loaded: Math.max(Number(cache.data?.progress?.loaded) || 0, mergedMatches.length),
             total: Math.max(Number(cache.data?.progress?.total) || 0, mergedMatches.length),
-            expectedWins
+            expectedWins,
+            expectedGames
           }
         );
       }
       const payload = JSON.stringify({
-        schema: 10,
+        schema: 11,
         puuid: this.identity.puuid,
         seasonId: cache.seasonId,
         newestMatchId: cache.newestMatchId,
@@ -2397,7 +2425,7 @@ class RiotClientService extends EventEmitter {
 
     // Riot's client endpoint is most reliable with its normal 20-row window.
     // Fetch bounded waves in parallel until the response crosses the Act
-    // boundary. Never guess the number of games from an unrelated MMR field.
+    // boundary. The seasonal record independently verifies final coverage.
     const pageSize = 20;
     const maximumMatches = 1000;
     const first = await this.safeRemote(`/match-history/v1/history/${this.identity.puuid}?startIndex=0&endIndex=${pageSize}&queue=competitive`);
@@ -2601,6 +2629,7 @@ class RiotClientService extends EventEmitter {
       ...carriedMatches.map((match) => match?.id)
     ].filter(Boolean)).size;
     const expectedWins = optionalNonnegativeCount(expectedRecord.wins);
+    const expectedGames = optionalNonnegativeCount(expectedRecord.games);
     const totalMatches = indexedMatches;
     this.actStatsProgress = { loaded: carriedMatches.length, total: totalMatches };
     this.emit('act-progress', { ...this.actStatsProgress, loading: true });
@@ -2630,7 +2659,7 @@ class RiotClientService extends EventEmitter {
       );
       const loaded = Math.min(totalMatches, carriedMatches.length + Math.min(offset + batch.length, updates.length));
       const partialData = buildActStatsData(partialMatches, partialObserved, false, {
-        loaded, total: totalMatches, expectedWins
+        loaded, total: totalMatches, expectedWins, expectedGames
       });
       this.actStatsCache = {
         seasonId: activeSeasonId,
@@ -2652,7 +2681,7 @@ class RiotClientService extends EventEmitter {
     if (details.some((detail) => !detail) || (reachedCachedData && !previousCache.data.complete)) complete = false;
     const detailedGames = matches.filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result)).length;
     const data = buildActStatsData(matches, observedProfiles, complete, {
-      loaded: detailedGames, total: totalMatches, expectedWins
+      loaded: detailedGames, total: totalMatches, expectedWins, expectedGames
     });
     this.actStatsCache = {
       seasonId: activeSeasonId,
@@ -2768,7 +2797,7 @@ class RiotClientService extends EventEmitter {
     const resolvedRecord = currentActCompetitiveRecord(mmr, activeSeasonId);
     const authoritativeRecord = mmr ? resolvedRecord : {
       wins: optionalNonnegativeCount(this.lastSnapshot?.profile?.actRecordWins),
-      games: null
+      games: optionalNonnegativeCount(this.lastSnapshot?.profile?.actRecordGames)
     };
     this.loadPersistedActStats(activeSeasonId);
     const selectedActCacheState = selectActCacheState(this.actStatsCache, activeSeasonId, newestMatchId);
@@ -2867,6 +2896,7 @@ class RiotClientService extends EventEmitter {
         actStatsLoaded: actData?.progress?.loaded || this.actStatsProgress.loaded || 0,
         actStatsTotal: actData?.progress?.total || this.actStatsProgress.total || 0,
         actRecordWins: authoritativeRecord.wins,
+        actRecordGames: authoritativeRecord.games,
         actDetailedWins: stats.wins,
         actDetailedLosses: stats.losses,
         actDetailedGames: Number(stats.games) || 0,

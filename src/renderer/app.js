@@ -229,10 +229,23 @@ function setConnection(connection) {
 
 function renderStats(profile) {
   const scope = profile.statsScope || 'ACT';
+  const hasActWins = profile.actRecordWins !== null && profile.actRecordWins !== undefined
+    && Number.isFinite(Number(profile.actRecordWins));
+  const hasActGames = profile.actRecordGames !== null && profile.actRecordGames !== undefined
+    && Number.isFinite(Number(profile.actRecordGames));
+  const detailedGames = Number(profile.actDetailedGames) || 0;
+  const detailScope = scope === 'ACT'
+    ? 'ACT'
+    : detailedGames ? `${detailedGames} DETAILED MATCHES` : scope;
+  const recordCard = hasActWins && hasActGames
+    ? ['ACT WINS / GAMES', `${Number(profile.actRecordWins)} / ${Number(profile.actRecordGames)}`, 'RIOT CURRENT-ACT RECORD']
+    : hasActWins
+      ? ['CURRENT ACT WINS', Number(profile.actRecordWins), 'RIOT CURRENT-ACT RECORD']
+      : ['WIN / LOSS', `${profile.wins} / ${profile.losses}`, scope];
   const values = [
-    ['WIN / LOSS', `${profile.wins} / ${profile.losses}`, scope],
-    ['K/D RATIO', profile.kd, scope],
-    ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, scope],
+    recordCard,
+    ['K/D RATIO', profile.kd, detailScope],
+    ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, detailScope],
     ['RANK RATING', `${profile.rr} RR`, 'CURRENT'],
     [
       'DODGE RR LOST',
@@ -2320,6 +2333,7 @@ function bindEvents() {
         actStatsLoaded: loaded,
         actStatsTotal: total,
         actRecordWins: progress.coverage?.expectedWins ?? state.snapshot.profile.actRecordWins,
+        actRecordGames: progress.coverage?.expectedGames ?? state.snapshot.profile.actRecordGames,
         actDetailedWins: progress.coverage?.detailedWins ?? progress.stats.wins,
         actDetailedLosses: progress.coverage?.detailedLosses ?? progress.stats.losses,
         actDetailedGames: progress.coverage?.detailedGames ?? loaded
