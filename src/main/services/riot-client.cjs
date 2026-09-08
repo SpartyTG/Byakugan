@@ -1,5 +1,6 @@
 'use strict';
 
+const { normalizeHenrikMatch } = require('./henrik-history.cjs');
 const { EventEmitter } = require('node:events');
 const { createHash, randomUUID } = require('node:crypto');
 const fs = require('node:fs');
@@ -2431,12 +2432,57 @@ class RiotClientService extends EventEmitter {
         fs.writeFileSync(temporary, payload, 'utf8');
         replaceFileSync(temporary, file);
       }
+      return true;
     } catch (error) {
       this.diagnostics.push({
         service: 'cache', endpoint: 'act-stats', status: 0,
         message: `Act stats could not be saved: ${error.message}`
       });
+      return false;
     }
+  }
+
+  async importHistory({ accountKey, seasonId, records } = {}) {
+    if (!Array.isArray(records) || records.length > 3000) throw new Error('Invalid history import.');
+    if (this.historyImportRunning) throw new Error('A history import is already running.');
+    this.historyImportRunning = true;
+    try {
+      if (this.actStatsPromise) await this.actStatsPromise;
+      const activeSeasonId = await this.fetchActiveSeasonId();
+      if (!this.identity?.puuid || accountKey !== senseiAccountKey(this.identity.puuid) || seasonId !== activeSeasonId) {
+        throw new Error('Account or Act changed. Run the import again for the connected account.');
+      }
+      this.loadPersistedActStats(activeSeasonId);
+      const previous = this.actStatsCache;
+      if (!previous || previous.seasonId !== seasonId) throw new Error('Wait for the gaming PC Act cache to initialize.');
+      const expectedWins = optionalNonnegativeCount(this.lastSnapshot?.profile?.actRecordWins ?? previous.data.coverage?.expectedWins);
+      const expectedGames = optionalNonnegativeCount(this.lastSnapshot?.profile?.actRecordGames ?? previous.data.coverage?.expectedGames);
+      const merged = new Map(previous.data.matches.map(match => [match.id, match]));
+      let imported = 0, existing = 0, rejected = 0;
+      for (const row of records) {
+        const match = normalizeHenrikMatch(row, { accountKey, seasonId, metadata: this.metadata });
+        if (!match) { rejected += 1; continue; }
+        const old = merged.get(match.id);
+        if (old && ['VICTORY', 'DEFEAT', 'DRAW'].includes(old.result)) { existing += 1; continue; }
+        merged.set(match.id, { ...match, ...(old?.hasRating ? { hasRating: true, rr: old.rr, rrAfter: old.rrAfter, tierAfter: old.tierAfter } : {}) });
+        imported += 1;
+      }
+      const matches = [...merged.values()].sort((a, b) => b.startedAt - a.startedAt);
+      const calculated = calculateStats(matches);
+      const games = matches.filter(match => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result)).length;
+      const reconciled = expectedWins !== null && expectedGames !== null
+        && calculated.wins === expectedWins && games === expectedGames;
+      const data = buildActStatsData(matches, previous.data.observedProfiles, reconciled, {
+        loaded: games, total: matches.length, expectedWins, expectedGames
+      });
+      const cache = { ...previous, data, expiresAt: data.complete ? Number.MAX_SAFE_INTEGER : 0 };
+      if (!this.persistActStats(cache)) throw new Error('The gaming PC could not save the imported history. Retry the import.');
+      this.actStatsCache = cache;
+      this.actStatsProgress = cache.data.progress;
+      const summary = { imported, existing, rejected, stats: cache.data.stats, coverage: cache.data.coverage,
+        note: 'HenrikDev stored results merged by match ID; existing completed Riot details retained. ACT requires matching seasonal wins and game counters.' };
+      return summary;
+    } finally { this.historyImportRunning = false; }
   }
 
   async fetchCurrentActHistory(activeSeasonId) {
@@ -2775,7 +2821,7 @@ class RiotClientService extends EventEmitter {
   }
 
   startActStatsHydration(initialUpdates, activeSeasonId, expectedRecord = {}) {
-    if (!initialUpdates || !activeSeasonId || this.actStatsPromise) return;
+    if (!initialUpdates || !activeSeasonId || this.actStatsPromise || this.historyImportRunning) return;
     this.actStatsHydrating = true;
     this.actStatsPromise = this.fetchActStats(initialUpdates, activeSeasonId, expectedRecord)
       .then(async () => {

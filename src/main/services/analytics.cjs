@@ -60,7 +60,7 @@ function groupStats(matches, keySelector, metadataSelector = () => ({})) {
 }
 
 function buildJourney(matches, tiers = new Map()) {
-  return (matches || []).filter((match) => Number(match.startedAt) > 0 && Number(match.tierAfter || match.competitiveTier || 0) > 0)
+  return (matches || []).filter((match) => (match.source !== 'henrik-stored' || match.hasRating) && Number(match.startedAt) > 0 && Number(match.tierAfter || match.competitiveTier || 0) > 0)
     .slice().sort((a, b) => a.startedAt - b.startedAt).map((match, index) => {
     const tierNumber = Number(match.tierAfter || match.competitiveTier || 0);
     const tier = tiers.get(tierNumber) || { name: match.rankName || 'Unrated', image: match.rankImage || '' };

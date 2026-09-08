@@ -249,7 +249,7 @@ function buildOverlayPayload(snapshot = {}, settings = {}, requestedProfile = 'l
 }
 
 class OverlayServer {
-  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, updateSession, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
+  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, updateSession, importHistory, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
     this.getSnapshot = getSnapshot || (() => ({}));
     this.getSettings = getSettings || (() => ({}));
     this.assetDirectory = assetDirectory || path.join(__dirname, '..', '..', 'overlay');
@@ -257,6 +257,7 @@ class OverlayServer {
     this.getHost = getHost || (() => host);
     this.inspectPlayer = inspectPlayer || null;
     this.updateSession = updateSession || null;
+    this.importHistory = importHistory || null;
     this.port = port;
     this.server = null;
     this.clients = new Map();
@@ -416,6 +417,16 @@ class OverlayServer {
       const playerId = String(body.playerId || '').trim();
       if (!playerId || playerId.length > 100) return this.notFound(response);
       return this.sendJson(response, { version: 1, profile: await this.inspectPlayer(playerId) });
+    }
+
+    if (request.method === 'POST' && url.pathname.startsWith('/remote-history/')) {
+      let token = '';
+      try { token = decodeURIComponent(url.pathname.slice('/remote-history/'.length)); } catch { return this.notFound(response); }
+      if (!this.authorizeRemote(url, token) || !this.importHistory) return this.notFound(response);
+      const body = await this.readJson(request, 2 * 1024 * 1024);
+      if (!Array.isArray(body.records) || body.records.length > 3000) return this.notFound(response);
+      const result = await this.importHistory({ accountKey: body.accountKey, seasonId: body.seasonId, records: body.records });
+      return this.sendJson(response, { version: 1, ...result });
     }
 
     if (request.method === 'POST' && url.pathname.startsWith('/remote-session/')) {

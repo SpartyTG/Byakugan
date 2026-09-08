@@ -380,8 +380,47 @@ async function updateSessionDataSource(selection) {
   return snapshot;
 }
 
+async function importHostHistory(selection) {
+  const host = service;
+  if (!(host instanceof RiotClientService)) throw new Error('Gaming PC is not connected to Riot.');
+  const summary = await host.importHistory(selection);
+  if (service !== host) throw new Error('The data source changed during import.');
+  // Publish recovered totals immediately; normal refresh fills the remaining analytics.
+  if (snapshot?.profile) {
+    snapshot.profile = { ...snapshot.profile,
+      ...summary.stats, statsScope: summary.stats.scope,
+      actDetailedGames: summary.stats.games, actDetailedWins: summary.stats.wins,
+      actDetailedLosses: summary.stats.losses, actDetailedDraws: summary.stats.draws,
+      actStatsLoaded: summary.stats.games, actStatsTotal: host.actStatsCache.data.matches.length,
+      historyCheckContext: { accountKey: selection.accountKey, seasonId: selection.seasonId,
+        matchHashes: host.actStatsCache.data.matches.filter(match => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result))
+          .map(match => require('node:crypto').createHash('sha256').update(String(match.id)).digest('hex')) }
+    };
+    host.lastSnapshot = snapshot;
+    mainWindow?.webContents.send('riot:snapshot', snapshot);
+    overlayServer?.publish();
+  }
+  return { summary, snapshot };
+}
+
 let henrikCheckRunning = false;
 function registerIpc() {
+  ipcMain.handle('history:import-henrik', async (_event, key) => {
+    if (henrikCheckRunning) throw new Error('A history request is already running.');
+    henrikCheckRunning = true;
+    try {
+      const captured = structuredClone(snapshot || {});
+      const source = service;
+      const result = await checkHenrikHistory({ key, profile: captured.profile, region: captured.connection?.region, collectRecords: true });
+      key = null;
+      if (service !== source) throw new Error('The connected host changed. Run the import again.');
+      const selection = { accountKey: captured.profile.senseiAccountKey, seasonId: captured.profile.activeSeasonId, records: result.records };
+      const imported = source instanceof RemoteViewerClient ? await source.importHistory(selection) : (await importHostHistory(selection)).summary;
+      const report = { ...result.report, imported, note: 'Combined import results are in imported.stats and imported.coverage. Provider-only totals above are not the combined Act record.' };
+      fs.writeFileSync(path.join(app.getPath('userData'), 'henrik-history-import.json'), JSON.stringify(report, null, 2));
+      return report;
+    } finally { key = null; henrikCheckRunning = false; }
+  });
   ipcMain.handle('history:check-henrik', async (_event, key) => {
     if (henrikCheckRunning) throw new Error('A history check is already running.');
     henrikCheckRunning = true;
@@ -933,6 +972,7 @@ app.whenReady().then(async () => {
     },
     inspectPlayer: (playerId) => service?.inspectPlayer?.(playerId),
     updateSession: (selection) => updateSessionDataSource(selection),
+    importHistory: (selection) => importHostHistory(selection),
     assetDirectory: path.join(__dirname, '..', 'overlay')
   });
   if (remoteMode()) createRemoteService();

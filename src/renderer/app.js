@@ -1866,9 +1866,23 @@ function bindEvents() {
     if (event.target.closest('[data-sensei-overview-open]')) navigate('sensei');
     if (event.target.closest('[data-sensei-hub-settings]')) navigate('settings');
   });
+  $('#henrikImport').addEventListener('click', async () => {
+    $('#henrikImport').disabled = true;
+    $('#henrikCheck').disabled = true;
+    text('#henrikResult', 'Fetching and importing missing Act matches… Keep both PCs connected.');
+    const pending = window.companion.importHenrikHistory($('#henrikKey').value);
+    $('#henrikKey').value = '';
+    try {
+      const report = await pending;
+      const { imported, rejected, stats } = report.imported;
+      text('#henrikResult', `Saved ${imported} recovered matches on the gaming PC; ${rejected} records rejected. Combined: ${stats.wins} W / ${stats.losses} L / ${stats.draws} D, ${stats.kd} K/D, ${stats.headshot}% HS — ${stats.scope}. Report: henrik-history-import.json in this PC's BYAKUGAN app-data folder.`);
+    } catch (error) { text('#henrikResult', error.message || 'Import failed.'); }
+    finally { $('#henrikImport').disabled = false; $('#henrikCheck').disabled = false; }
+  });
   $('#henrikCheck').addEventListener('click', async () => {
     const button = $('#henrikCheck');
     button.disabled = true;
+    $('#henrikImport').disabled = true;
     text('#henrikResult', 'Checking stored matches… This may take a few minutes.');
     const pending = window.companion.checkHenrikHistory($('#henrikKey').value);
     $('#henrikKey').value = '';
@@ -1876,7 +1890,7 @@ function bindEvents() {
       const report = await pending;
       text('#henrikResult', `${report.matches} usable current-Act matches found; ${report.missing} are absent from your completed-match cache. ${report.invalid} entries could not be verified. ${report.exhausted ? 'Stored list checked.' : 'Page limit reached; check incomplete.'} Report saved as henrik-history-check.json in your BYAKUGAN app-data folder. No stats imported.`);
     } catch (error) { text('#henrikResult', error.message || 'History check failed.'); }
-    finally { button.disabled = false; }
+    finally { button.disabled = false; $('#henrikImport').disabled = false; }
   });
   $('#sidebarRefresh').addEventListener('click', () => refresh(true));
   $('#connectButton').addEventListener('click', () => reconnect(true));

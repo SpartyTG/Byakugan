@@ -176,6 +176,24 @@ class RemoteViewerClient extends EventEmitter {
 
   disconnect() { this.stopPolling(); this.failureNotified = false; }
 
+  async importHistory(selection) {
+    const { url, token } = this.parsed();
+    const response = await this.fetchImpl(new URL(`/remote-history/${token}`, url.origin).href, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection),
+      redirect: 'error', signal: AbortSignal.timeout(120000)
+    });
+    if (!response.ok) throw new Error('Gaming PC import failed. Ensure both PCs are updated and connected, then retry.');
+    const result = await response.json();
+    if (result.version !== 1 || !result.summary || !result.snapshot?.profile) throw new Error('Invalid gaming PC import response.');
+    const next = result.snapshot;
+    next.connection = { ...next.connection, status: 'connected', source: 'remote', label: 'Gaming PC connected', remoteHost: url.hostname };
+    this.saveSnapshot(next);
+    this.lastSnapshot = next;
+    this.etag = '';
+    this.emit('snapshot', next);
+    return result.summary;
+  }
+
   async inspectPlayer(playerId) {
     const { url, token } = this.parsed();
     const endpoint = new URL(`/remote-inspect/${token}`, url.origin);

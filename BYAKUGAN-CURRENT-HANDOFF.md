@@ -1,3 +1,9 @@
+# Beta.143 history import checkpoint
+
+Prepared source, not published. New manual Import missing Act matches action fetches provider rows on the invoking PC with an ephemeral key. Minimal records, never key, pass over existing authenticated remote-history POST to gaming host (2 MiB limit, 3000 records max). Host validates account/Act and normalized fields, preserves complete Riot details, replaces RATING placeholders, persists cache/archive, and returns combined totals. Repeating import is idempotent. In-flight hydration is awaited; new hydration deferred during import. Account/Act mismatches reject.
+
+Imported records use source henrik-stored, no invented RR, and uncertain early ties are rejected. ACT only when combined wins and completed-game counts exactly reconcile with known seasonal counters on import. Current signed-in profile RR remains unchanged. Summary henrik-history-import.json is saved on invoking streaming PC. 207 tests and 10 Brain smoke checks pass before packaging. Real provider fetch and final coverage remain user validation tasks. The uploaded check found 98 candidates; do not promise all will pass stricter import validation or full coverage.
+
 # Beta.142 HenrikDev check checkpoint
 
 Prepared source, not published. Manual Settings check uses ephemeral Authorization key on invoking PC and current snapshot name/tag/region. Gaming snapshot sends account/Act-bound SHA256 hashes of completed cached match IDs. Stored provider rows require matching account hash, Act and competitive mode; records deduplicate by ID. Report is summary only, no key, raw player UUID or match IDs. No import performed. Key field cleared immediately. Report file: henrik-history-check.json on invoking PC. Full verification passes, live HenrikDev response awaits user check. Stored round scores cannot distinguish all remakes; counts alone do not establish completeness.
