@@ -340,7 +340,7 @@ function createService({ preserveSession = false } = {}) {
 function createRemoteService() {
   service?.removeAllListeners?.();
   service?.disconnect?.();
-  return wireService(new RemoteViewerClient({ sourceUrl: settings.get().remoteSourceUrl }));
+  return wireService(new RemoteViewerClient({ sourceUrl: settings.get().remoteSourceUrl, cacheDirectory: app.getPath('userData') }));
 }
 
 function remoteMode() { return settings.get().pcRole === 'viewer'; }

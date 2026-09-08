@@ -1,9 +1,9 @@
-# BYAKUGAN v0.8.0-beta.139
+# BYAKUGAN v0.8.0-beta.141
 
 ## What's updated
 
-- Recovered match details now replace older rating-only placeholders, restoring their contribution to Act statistics.
-- Saves act-scan-diagnostics.json in the application data folder after an Act scan, recording page ranges, counts, stop reasons, request status codes, and unresolved detail counts without account identifiers or credentials.
-- This is a recovery and diagnostic update; complete older Act history is still under investigation.
-
-- Act scans can start during Agent Select and gameplay. Index and detail concurrency are each limited to two requests, including menu scans. Existing retry cooldowns remain in effect.
+- Gaming PC transfers the current account and Act scan diagnostic report with Remote Viewer snapshots.
+- Streaming PC saves act-scan-diagnostics.json in its BYAKUGAN application data folder, so reports can be uploaded directly without USB transfers.
+- Saved reports are scoped to the source account and Act; a different account or Act never inherits the previous diagnostic report.
+- Completed reports restore on the gaming PC after restart. Reports from older builds without account/Act scope require a new scan.
+- Includes persistent viewer snapshot caching and gameplay Act scanning from beta.139–140. Missing older history remains under investigation.

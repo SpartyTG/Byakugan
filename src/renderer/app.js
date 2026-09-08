@@ -221,7 +221,7 @@ function setConnection(connection) {
   $('#statusPill').classList.toggle('disconnected', !connected);
   $('#miniDot').classList.toggle('error', !connected);
   text('#statusText', connected ? connection.label : remote ? 'Gaming PC disconnected' : 'Disconnected');
-  text('#statusSubtext', connected ? (remote ? `${connection.remoteHost || 'LAN'} • Remote` : `${connection.region} • Live`) : remote ? 'Remote Viewer unavailable' : 'Riot Client unavailable');
+  text('#statusSubtext', connected ? (remote ? `${connection.remoteHost || 'LAN'} • Remote` : `${connection.region} • Live`) : remote ? (connection?.lastSyncedAt ? `Last synced ${new Date(connection.lastSyncedAt).toLocaleString()}` : 'Remote Viewer unavailable') : 'Riot Client unavailable');
   text('#miniStatus', connected ? connection.label : remote ? 'Gaming PC disconnected' : 'Disconnected');
   text('#miniRegion', connected ? (remote ? `${connection.remoteHost || 'LAN'} host` : `${connection.region} region`) : 'Retry connection');
   text('#connectButton', remote ? 'Reconnect Host' : connected ? 'Reconnect Riot' : 'Connect Riot');

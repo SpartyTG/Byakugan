@@ -2339,6 +2339,11 @@ class RiotClientService extends EventEmitter {
     }
     this.actStatsDiskLoadedFor = accountKey;
     try {
+      const report = JSON.parse(fs.readFileSync(path.join(path.dirname(this.actStatsCacheFile), 'act-scan-diagnostics.json'), 'utf8'));
+      if (report.version === 1 && report.accountKey === senseiAccountKey(this.identity.puuid)
+        && report.seasonId === activeSeasonId && report.running === false) this.actScanReport = report;
+    } catch {}
+    try {
       const candidates = [this.actStatsArchiveFile, this.actStatsCacheFile]
         .filter(Boolean)
         .map((file) => {
@@ -2577,7 +2582,7 @@ class RiotClientService extends EventEmitter {
       return this.actStatsCache.data;
     }
 
-    this.actScanReport = { version: 1, running: true, startedAt: Date.now(), expectedRecord, requests: [] };
+    this.actScanReport = { version: 1, accountKey: senseiAccountKey(this.identity.puuid), seasonId: activeSeasonId, running: true, startedAt: Date.now(), expectedRecord, requests: [] };
     const updates = [];
     const seen = new Set();
     const previousCache = this.actStatsCache?.seasonId === activeSeasonId
@@ -2916,6 +2921,7 @@ class RiotClientService extends EventEmitter {
         // Stable pseudonymous key for local Sensei memory. The Riot PUUID is
         // never included in renderer or Dual PC snapshots.
         ...resolvedCareer,
+        activeSeasonId,
         gameName: this.identity.gameName,
         tagLine: this.identity.tagLine,
         wins: stats.wins, losses: stats.losses, draws: stats.draws, kd: stats.kd, headshot: stats.headshot,
@@ -2942,6 +2948,9 @@ class RiotClientService extends EventEmitter {
       loadoutStatus: equippedLoadout.length ? 'ready' : loadout ? 'empty' : 'unavailable',
       agents: analytics.agents,
       analytics,
+      actScanDiagnostics: this.actScanReport?.accountKey === currentSenseiAccountKey
+        && this.actScanReport?.seasonId === activeSeasonId
+        ? structuredClone(this.actScanReport) : null,
       diagnostics: this.diagnostics.slice(0, 20)
     };
     return nextSnapshot;

@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const { isPrivateIpv4 } = require('./overlay-server.cjs');
 
@@ -19,9 +22,10 @@ function parseRemoteViewerUrl(value) {
 }
 
 class RemoteViewerClient extends EventEmitter {
-  constructor({ sourceUrl = '', fetchImpl = globalThis.fetch, pollIntervalMs = 2500 } = {}) {
+  constructor({ sourceUrl = '', fetchImpl = globalThis.fetch, pollIntervalMs = 2500, cacheDirectory = '' } = {}) {
     super();
     this.sourceUrl = sourceUrl;
+    this.cacheDirectory = cacheDirectory;
     this.fetchImpl = fetchImpl;
     this.pollIntervalMs = pollIntervalMs;
     this.pollTimer = null;
@@ -33,6 +37,62 @@ class RemoteViewerClient extends EventEmitter {
 
   parsed() { return parseRemoteViewerUrl(this.sourceUrl); }
 
+  cachePath() {
+    this.parsed();
+    const hostKey = createHash('sha256').update(this.sourceUrl).digest('hex');
+    return this.cacheDirectory ? path.join(this.cacheDirectory, `viewer-${hostKey}.json`) : '';
+  }
+
+  saveSnapshot(snapshot) {
+    snapshot.connection.lastSyncedAt = new Date().toISOString();
+    try {
+      const file = this.cachePath();
+      if (!file) return;
+      const account = snapshot.profile.senseiAccountKey;
+      const act = snapshot.profile.activeSeasonId;
+      // Whole snapshots are replaced, never merged across accounts or Acts.
+      const key = createHash('sha256').update(JSON.stringify([account, act])).digest('hex');
+      const payload = JSON.stringify({ version: 1, snapshot });
+      fs.mkdirSync(this.cacheDirectory, { recursive: true });
+      const report = snapshot.actScanDiagnostics;
+      const reportFile = path.join(this.cacheDirectory, 'act-scan-diagnostics.json');
+      if (report?.version === 1 && report.accountKey === account && report.seasonId === act) {
+        fs.writeFileSync(reportFile, JSON.stringify(report, null, 2));
+      } else {
+        fs.rmSync(reportFile, { force: true });
+      }
+      for (const target of [file.replace('.json', `-${key}.json`), file]) {
+        fs.writeFileSync(`${target}.tmp`, payload);
+        try { fs.renameSync(`${target}.tmp`, target); }
+        catch (error) {
+          if (!['EPERM', 'EACCES', 'EEXIST'].includes(error.code)) throw error;
+          fs.copyFileSync(`${target}.tmp`, target);
+          fs.unlinkSync(`${target}.tmp`);
+        }
+      }
+    } catch { this.emit('warning', 'Streaming PC cache could not be saved.'); }
+  }
+
+  cachedSnapshot() {
+    if (!this.lastSnapshot) return null;
+    const snapshot = structuredClone(this.lastSnapshot);
+    snapshot.connection = { ...snapshot.connection, status: 'disconnected', source: 'remote', label: 'Saved gaming PC data' };
+    snapshot.live = { state: 'DISCONNECTED' };
+    snapshot.profile.actStatsLoading = false;
+    return snapshot;
+  }
+
+  restoreSnapshot() {
+    try {
+      const file = this.cachePath();
+      if (!file) return null;
+      const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (stored.version !== 1 || !stored.snapshot?.profile || !stored.snapshot?.connection?.lastSyncedAt) return null;
+      this.lastSnapshot = stored.snapshot;
+      return this.cachedSnapshot();
+    } catch { return null; }
+  }
+
   async requestSnapshot({ force = false } = {}) {
     const { url } = this.parsed();
     const headers = {};
@@ -40,7 +100,10 @@ class RemoteViewerClient extends EventEmitter {
     const response = await this.fetchImpl(url.href, {
       method: 'GET', headers, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(5000)
     });
-    if (response.status === 304 && this.lastSnapshot) return { snapshot: this.lastSnapshot, changed: false };
+    if (response.status === 304 && this.lastSnapshot) {
+      this.saveSnapshot(this.lastSnapshot);
+      return { snapshot: this.lastSnapshot, changed: false };
+    }
     if (!response.ok) throw new Error(response.status === 404
       ? 'The gaming PC rejected this connection. Re-copy the Remote Viewer URL.'
       : `The gaming PC returned HTTP ${response.status}.`);
@@ -57,15 +120,23 @@ class RemoteViewerClient extends EventEmitter {
       remoteHost: url.hostname
     };
     this.etag = response.headers.get('etag') || '';
+    this.saveSnapshot(snapshot);
     this.lastSnapshot = snapshot;
     this.failureNotified = false;
     return { snapshot, changed: true };
   }
 
   async connect() {
-    const { snapshot } = await this.requestSnapshot({ force: true });
-    this.startPolling();
-    return snapshot;
+    const cached = this.restoreSnapshot();
+    if (cached) {
+      this.etag = '';
+      this.startPolling();
+      return cached;
+    }
+    try {
+      const { snapshot } = await this.requestSnapshot({ force: true });
+      return snapshot;
+    } finally { this.startPolling(); }
   }
 
   async refresh() {
@@ -88,10 +159,7 @@ class RemoteViewerClient extends EventEmitter {
         this.etag = '';
         if (!this.failureNotified) {
           this.failureNotified = true;
-          if (this.lastSnapshot) this.emit('snapshot', {
-            ...this.lastSnapshot,
-            connection: { ...this.lastSnapshot.connection, status: 'disconnected', source: 'remote' }
-          });
+          if (this.lastSnapshot) this.emit('snapshot', this.cachedSnapshot());
           this.emit('warning', `Remote Viewer: ${error.message}`);
         }
       } finally {
@@ -153,6 +221,7 @@ class RemoteViewerClient extends EventEmitter {
       source: 'remote',
       remoteHost: url.hostname
     };
+    this.saveSnapshot(snapshot);
     this.lastSnapshot = snapshot;
     this.etag = '';
     return snapshot;

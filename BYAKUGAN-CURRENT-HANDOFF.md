@@ -1,3 +1,11 @@
+# Beta.141 report transfer checkpoint
+
+Prepared, not published. Act report now includes pseudonymous accountKey and seasonId. Snapshot includes matching report as actScanDiagnostics. Viewer writes matching report to act-scan-diagnostics.json and removes stale report when absent/mismatched. Gaming PC restores completed matching reports from disk. Legacy reports lack scope and need another scan. Streaming report may be running:true during collection; collect running:false report for final diagnosis. Full verify passes.
+
+# Beta.140 viewer cache checkpoint
+
+Prepared source, not published. Viewer receives cacheDirectory from Electron userData, saves whole snapshots under hashed host/account/Act identities, restores latest host snapshot immediately, and polls to reconnect. Offline UI shows last synced and suppresses stale live state. Gaming snapshots now include activeSeasonId. New regression test covers offline restart, host separation and fresh account/Act replacement. Existing gaming Act archive remains unchanged.
+
 # Beta.139 gameplay scan update
 
 Supersedes beta.138 package. Act scans may start in Agent Select or gameplay; index and detail concurrency are each two in all states. Existing 30-minute partial retry cooldown still applies. Includes beta.138 recovery fix and saved diagnostic report. Not yet published or verified against live Riot data.
