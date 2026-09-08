@@ -96,15 +96,15 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.132
+## Included in version 0.8.0-beta.133
 
-- Overview separates Riot's authoritative current-Act win/game totals from the locally retained detailed-match sample
-- A capped or empty local history page can no longer falsely change **Partial Act** to **Act** while Riot's seasonal totals prove matches are missing
-- Detail-dependent K/D, headshot, map, agent, and journey analytics stay explicitly partial until every seasonal game is available
-- Act hydration stops cleanly after a scan instead of showing a permanent loading state when Riot has reached its retained-history limit
-- A second append-only Act archive is merged on load and before every write, preventing future shortened responses from deleting already collected match details
+- Overview is restored to the original current-Act W/L, K/D, and headshot cards without the beta.132 wins/games split
+- Full-Act discovery uses broad history requests and the earlier menu-only match-detail concurrency for fast cold loading
+- Pagination follows Riot's response `BeginIndex`, `EndIndex`, and `Total`, preventing shortened or filtered pages from ending the Act scan early
+- Completed Act history is read from disk immediately; later refreshes append only new matches
+- A silent monotonic backup protects collected matches, and Windows persistence failures are surfaced instead of being swallowed
 
-### Included from beta.131
+### Included from beta.132 and beta.131
 
 - Full-Act recovery unions Riot's general match-history index with the separately paginated competitive-update index, recovering older same-Act match IDs when either source is shortened
 - Existing schema-6 caches are reindexed once, repairing the incorrect 44/44 dataset that beta.129 could mistakenly preserve as complete
@@ -407,7 +407,7 @@ npm run dist:win
 
 On Windows, `Build-Beta-Installer.cmd` can be double-clicked instead. It installs
 the build dependencies, runs the tests, creates the installer, and opens the
-`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.132-x64.exe` installs
+`release` folder. The resulting `BYAKUGAN-Setup-0.8.0-beta.133-x64.exe` installs
 BYAKUGAN like a normal application; PowerShell and npm are not needed to run the
 installed program.
 
@@ -436,10 +436,10 @@ without requiring command-line input. It does not ask for or embed a GitHub
 token.
 
 In the selected public GitHub repository, create a prerelease tagged with the
-exact application version prefixed by `v`—for example `v0.8.0-beta.132`. Upload
+exact application version prefixed by `v`—for example `v0.8.0-beta.133`. Upload
 the generated installer, its `.blockmap`, and `beta.yml` from `release/` to that
 prerelease. Every subsequent release must increase the semantic version, for
-example `0.8.0-beta.132`, before rebuilding and uploading all three artifacts.
+example `0.8.0-beta.133`, before rebuilding and uploading all three artifacts.
 The installed app reads `beta.yml` and ignores normal stable-channel releases.
 
 The included GitHub Actions workflow automates the Windows build and GitHub
@@ -447,8 +447,8 @@ prerelease. After pushing source changes, create and push a tag matching the
 version in `package.json`:
 
 ```bash
-git tag v0.8.0-beta.132
-git push origin v0.8.0-beta.132
+git tag v0.8.0-beta.133
+git push origin v0.8.0-beta.133
 ```
 
 GitHub then runs the test suite, builds the NSIS installer, and publishes the

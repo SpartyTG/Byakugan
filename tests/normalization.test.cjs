@@ -1250,7 +1250,7 @@ test('discovers current-act matches from history when rating pagination stops at
   assert.match(requests[1], /startIndex=2/);
 });
 
-test('advances current-act history in Riot-compatible 20-record pages', async () => {
+test('advances broad current-act history requests from the returned row count', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self' };
   service.metadata = metadata();
@@ -1272,7 +1272,32 @@ test('advances current-act history in Riot-compatible 20-record pages', async ()
   assert.equal(result.complete, true);
   assert.equal(result.rows.length, 21);
   assert.equal(requests.length, 2);
-  assert.match(requests[1], /startIndex=20&endIndex=40/);
+  assert.match(requests[1], /startIndex=20&endIndex=220/);
+});
+
+test('uses Riot response cursors and Total to continue beyond a sparse history page', async () => {
+  const service = new RiotClientService();
+  service.identity = { puuid: 'self' };
+  service.metadata = metadata();
+  service.metadata.seasons = new Map([['current-act', { startTime: '2026-08-01T00:00:00Z' }]]);
+  const requests = [];
+  service.safeRemote = async (endpoint) => {
+    requests.push(endpoint);
+    if (endpoint.includes('startIndex=0')) return {
+      BeginIndex: 0, EndIndex: 200, Total: 254,
+      History: [{ MatchID: 'recent', GameStartTime: Date.parse('2026-08-20T00:00:00Z') }]
+    };
+    return {
+      BeginIndex: 200, EndIndex: 254, Total: 254,
+      History: [{ MatchID: 'older', GameStartTime: Date.parse('2026-08-05T00:00:00Z') }]
+    };
+  };
+
+  const result = await service.fetchCurrentActHistory('current-act');
+  assert.deepEqual(result.rows.map((row) => row.MatchID), ['recent', 'older']);
+  assert.equal(result.total, 254);
+  assert.equal(requests.length, 2);
+  assert.match(requests[1], /startIndex=200&endIndex=400/);
 });
 
 test('supplements a capped match-history index with paged competitive updates', async () => {

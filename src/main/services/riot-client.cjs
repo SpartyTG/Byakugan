@@ -27,7 +27,7 @@ const REMOTE_HOST_PATTERNS = [
 const MENU_POLL_INTERVAL_MS = 15_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 const HISTORICAL_PEAK_LOOKUP_BUDGET = 10;
-const ACT_DETAIL_CONCURRENCY = 4;
+const ACT_DETAIL_CONCURRENCY = 20;
 const ROSTER_RANK_CACHE_MS = 10 * 60_000;
 const ROSTER_PEAK_CACHE_MS = 24 * 60 * 60_000;
 
@@ -1249,6 +1249,16 @@ function optionalNonnegativeCount(value) {
   return Number.isFinite(numeric) ? Math.max(0, numeric) : null;
 }
 
+function replaceFileSync(temporary, target) {
+  try {
+    fs.renameSync(temporary, target);
+  } catch (error) {
+    if (!['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) throw error;
+    fs.copyFileSync(temporary, target);
+    fs.unlinkSync(temporary);
+  }
+}
+
 function buildActStatsData(matches, observedProfiles, complete, progress = {}) {
   const completedMatches = (matches || []).filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result));
   const loaded = Number(progress.loaded) || completedMatches.length;
@@ -2299,7 +2309,7 @@ class RiotClientService extends EventEmitter {
           try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
         })
         .filter(Boolean);
-      const validCandidates = candidates.filter((cached) => [5, 6, 7, 8].includes(Number(cached?.schema))
+      const validCandidates = candidates.filter((cached) => [5, 6, 7, 8, 9].includes(Number(cached?.schema))
         && cached.puuid === this.identity.puuid
         && cached.seasonId === activeSeasonId
         && typeof cached.newestMatchId === 'string'
@@ -2310,7 +2320,7 @@ class RiotClientService extends EventEmitter {
         const cached = validCandidates.at(-1);
         const mergedMatches = mergeSessionMatches(...validCandidates.map((entry) => entry.data.matches));
         const mergedObserved = mergeObservedProfiles(...validCandidates.map((entry) => entry.data.observedProfiles));
-        const requiresReindex = validCandidates.some((entry) => Number(entry.schema) < 8);
+        const requiresReindex = validCandidates.some((entry) => Number(entry.schema) < 9);
         const expectedWins = cached.data?.coverage?.expectedWins;
         const expectedGames = cached.data?.coverage?.expectedGames;
         const mergedData = buildActStatsData(mergedMatches, mergedObserved, !requiresReindex && validCandidates.every((entry) => entry.data.complete), {
@@ -2368,7 +2378,7 @@ class RiotClientService extends EventEmitter {
         );
       }
       const payload = JSON.stringify({
-        schema: 8,
+        schema: 9,
         puuid: this.identity.puuid,
         seasonId: cache.seasonId,
         newestMatchId: cache.newestMatchId,
@@ -2378,9 +2388,14 @@ class RiotClientService extends EventEmitter {
       for (const file of [this.actStatsCacheFile, this.actStatsArchiveFile]) {
         const temporary = `${file}.tmp`;
         fs.writeFileSync(temporary, payload, 'utf8');
-        fs.renameSync(temporary, file);
+        replaceFileSync(temporary, file);
       }
-    } catch {}
+    } catch (error) {
+      this.diagnostics.push({
+        service: 'cache', endpoint: 'act-stats', status: 0,
+        message: `Act stats could not be saved: ${error.message}`
+      });
+    }
   }
 
   async fetchCurrentActHistory(activeSeasonId) {
@@ -2388,24 +2403,29 @@ class RiotClientService extends EventEmitter {
     const actStart = timestampMillis(season.startTime) || Number(this.activeSeason.startTime) || 0;
     if (!this.identity?.puuid || !actStart) return { rows: [], complete: false };
 
-    // Riot caps this endpoint at 20 records even when a much larger range is
-    // requested. Walk it in supported 20-record pages so the scan can advance
-    // beyond the first page and stop as soon as it reaches the act boundary.
-    const pageSize = 20;
+    // Ask for a broad range first, then trust Riot's response cursor rather
+    // than History.length. Filtered history pages can be sparse, so advancing
+    // only by returned rows can overlap a page and falsely stop the Act scan.
+    const pageSize = 200;
     const maximumMatches = 1000;
     const rows = [];
     const seen = new Set();
     let startIndex = 0;
     let complete = false;
     let exhausted = false;
+    let declaredTotal = null;
     while (startIndex < maximumMatches) {
       const endIndex = Math.min(startIndex + pageSize, maximumMatches);
       const page = await this.safeRemote(`/match-history/v1/history/${this.identity.puuid}?startIndex=${startIndex}&endIndex=${endIndex}&queue=competitive`);
       if (!page) break;
       const pageRows = page?.History || page?.history || [];
-      if (!pageRows.length) { exhausted = true; break; }
+      const responseTotal = optionalNonnegativeCount(page?.Total ?? page?.total);
+      if (responseTotal !== null) declaredTotal = responseTotal;
+      const responseEnd = optionalNonnegativeCount(page?.EndIndex ?? page?.endIndex);
+      const nextIndex = responseEnd !== null && responseEnd > startIndex
+        ? responseEnd
+        : Math.min(endIndex, startIndex + Math.max(pageRows.length, 1));
       let reachedActStart = false;
-      let added = 0;
       for (const row of pageRows) {
         const startedAt = timestampMillis(row.GameStartTime ?? row.gameStartTime ?? row.MatchStartTime ?? row.matchStartTime);
         if (startedAt && startedAt < actStart) {
@@ -2416,26 +2436,27 @@ class RiotClientService extends EventEmitter {
         if (!matchId || seen.has(matchId)) continue;
         seen.add(matchId);
         rows.push({ ...row, SeasonID: activeSeasonId, MatchStartTime: startedAt || updateTimestamp(row) });
-        added += 1;
       }
       if (reachedActStart) { complete = true; break; }
-      if (!added) break;
-      startIndex += pageRows.length;
+      if (declaredTotal !== null && nextIndex >= declaredTotal) { exhausted = true; break; }
+      if (!pageRows.length && (responseEnd === null || responseEnd <= startIndex)) { exhausted = true; break; }
+      if (!pageRows.length && nextIndex <= startIndex) { exhausted = true; break; }
+      if (nextIndex <= startIndex) break;
+      startIndex = nextIndex;
     }
-    return { rows, complete, exhausted };
+    return { rows, complete, exhausted, total: declaredTotal };
   }
 
   async fetchCurrentActCompetitiveUpdates(initialRows, activeSeasonId) {
-    const pageSize = 20;
+    const pageSize = 200;
     const maximumUpdates = 1000;
     const rows = [];
     const seen = new Set();
     let startIndex = 0;
     let complete = false;
     while (startIndex < maximumUpdates) {
-      const page = startIndex === 0
-        ? { Matches: initialRows || [] }
-        : await this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=${startIndex}&endIndex=${Math.min(startIndex + pageSize, maximumUpdates)}&queue=competitive`);
+      const page = await this.safeRemote(`/mmr/v1/players/${this.identity.puuid}/competitiveupdates?startIndex=${startIndex}&endIndex=${Math.min(startIndex + pageSize, maximumUpdates)}&queue=competitive`)
+        || (startIndex === 0 ? { Matches: initialRows || [] } : null);
       if (!page) break;
       const pageRows = page?.Matches || page?.matches || [];
       if (!pageRows.length) { complete = true; break; }
@@ -2452,8 +2473,8 @@ class RiotClientService extends EventEmitter {
         complete = true;
         break;
       }
-      if (!added) break;
-      startIndex += pageRows.length;
+      if (!added && pageRows.length) break;
+      startIndex += pageRows.length || pageSize;
     }
     return { rows, complete };
   }

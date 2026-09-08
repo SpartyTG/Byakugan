@@ -2,15 +2,26 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.132`
-- Previous release: `v0.8.0-beta.131`
+- Target: `v0.8.0-beta.133`
+- Previous release: `v0.8.0-beta.132`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `197` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `198` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
+
+## Beta.133 changes
+
+### Classic fast and complete Act statistics
+
+- Overview returns to one current-Act W/L, K/D, and headshot record. The beta.132 wins/games split and detailed-sample annotation are removed.
+- Act indexes request broad ranges and follow Riot's response `BeginIndex`, `EndIndex`, and `Total`; sparse or shortened pages no longer make the scanner guess its cursor or stop prematurely.
+- Match details hydrate only while outside Agent Select and active games, at the earlier concurrency of 20 for fast cold recovery.
+- Once complete, the dataset loads from disk immediately and only newly completed matches are appended.
+- Cache schema advances to version 9 so beta.132 receives one corrected reindex. The monotonic archive remains internal and invisible.
+- Windows cache-file replacement falls back to an overwrite-safe copy and records any persistence failure in diagnostics instead of silently discarding the cache.
 
 ## Beta.132 changes
 
@@ -178,13 +189,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.132 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.133 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.132
-git push origin v0.8.0-beta.132
+git tag v0.8.0-beta.133
+git push origin v0.8.0-beta.133
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -192,10 +203,10 @@ git push origin v0.8.0-beta.132
 
 ## Manual verification
 
-1. From beta.131, use **Settings → Check for updates**. Confirm the dialog shows beta.132's authoritative-total and append-only archive bullets under **What's updated** with no raw HTML or changelog URL.
+1. From beta.132, use **Settings → Check for updates**. Confirm the dialog shows beta.133's classic Act-stat restoration and corrected cursor bullets under **What's updated** with no raw HTML or changelog URL.
 2. Complete the update on both PCs and confirm BYAKUGAN closes, installs, and reopens normally.
-3. While in menus on the gaming PC, allow the one-time Act reindex to finish. Confirm Overview shows Riot's authoritative **128** current-Act wins and total games, while the retained 78/73 sample is clearly identified as detailed coverage rather than the complete Act.
-4. During and after an Act reindex, navigate among Overview, Match History, and Stream Vision. The authoritative season record must remain stable, and detailed totals must never fall below the best same-Act dataset already collected.
+3. While in menus on the gaming PC, allow the one-time Act reindex to finish. Confirm Overview returns to normal **W/L**, **K/D**, and **Headshot %** Act cards and discovers the complete current-Act history.
+4. Restart BYAKUGAN after the reindex. The complete Act cards should appear immediately from disk; after another match, only that new match should hydrate and append.
 5. After a completed match, return to Play and switch away from and back to Competitive. Confirm Riot Client does not remain on `LOADING` and the party member's rank remains visible. Compare once with BYAKUGAN fully exited if Riot still reproduces it.
 6. Confirm party/menu changes appear within 15 seconds, then enter Agent Select and verify Live Match continues updating about every 5 seconds.
 7. Reopen recent Match History entries across several automatic refreshes. Peak ranks may fill progressively, but the app must remain responsive and already resolved peaks must survive a restart.

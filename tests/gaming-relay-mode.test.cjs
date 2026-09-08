@@ -22,13 +22,13 @@ test('Gaming PC Relay Mode is toggleable and restarts into a tray-only host', ()
   assert.match(main, /Copy Streaming PC URL/);
 });
 
-test('Relay Mode preserves production collection timing and avoids duplicate renderer refreshes', () => {
+test('Relay Mode preserves production timing and restores fast menu-only Act hydration', () => {
   assert.match(riot, /pollIntervalMs = options\.pollIntervalMs \|\| 5000/);
   assert.match(riot, /menuPollIntervalMs = options\.menuPollIntervalMs \|\| MENU_POLL_INTERVAL_MS/);
   assert.match(riot, /if \(this\.refreshPromise\) return this\.refreshPromise/);
   assert.match(riot, /if \(this\.liveStatePromise\) return this\.liveStatePromise/);
   assert.match(riot, /const batchSize = 40/);
-  assert.match(riot, /const ACT_DETAIL_CONCURRENCY = 4/);
+  assert.match(riot, /const ACT_DETAIL_CONCURRENCY = 20/);
   assert.match(riot, /mapWithConcurrency\(batch, ACT_DETAIL_CONCURRENCY,/);
   assert.match(riot, /mapWithConcurrency\(players, 5,/);
   assert.match(main, /const delays = \[12_000, 24_000, 45_000\]/);

@@ -102,11 +102,9 @@ test('routine snapshots stay silent and act completion notifies only after real 
   assert.match(app, /finished refreshing your current-act competitive history/);
 });
 
-test('Overview separates authoritative Act totals from retained detailed statistics', () => {
-  assert.match(app, /ACT WINS \/ GAMES/);
-  assert.match(app, /profile\.actRecordWins/);
-  assert.match(app, /profile\.actRecordGames/);
-  assert.match(app, /DETAILS.*actDetailedWins.*actDetailedLosses/s);
+test('Overview presents the current Act as the original W/L, K/D, and headshot cards', () => {
+  assert.match(app, /\['WIN \/ LOSS', `\$\{profile\.wins\} \/ \$\{profile\.losses\}`, scope\]/);
+  assert.doesNotMatch(app, /ACT WINS \/ GAMES|DETAILS •/);
 });
 
 test('Custom Overlay Builder exposes freeform dimensions, placement, sizing, and visibility', () => {
