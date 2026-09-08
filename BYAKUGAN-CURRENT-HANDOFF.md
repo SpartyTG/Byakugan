@@ -2,7 +2,7 @@
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.136`
+- Target: `v0.8.0-beta.137`
 - Previous release: `v0.8.0-beta.133`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
@@ -18,7 +18,7 @@ and a green GitHub Actions release all match.
 
 - Riot's seasonal `NumberOfWins` remains the authoritative completeness guard. Tyler's current value is 128 wins.
 - Overview counts every indexed current-Act result and reads Wins, Losses, and Draws separately.
-- General match history and competitive updates use supported 20-record pages and Riot's response cursors. Riot's declared `Total` never stops the scan; pages continue until the previous-Act boundary or a truly empty response.
+- General match history loads six supported 20-record pages concurrently and honors corrected short-page cursors. Riot's declared `Total` never stops the scan; pages continue until the previous-Act boundary or a truly empty response.
 - Discovered details hydrate at concurrency 20 only while outside Agent Select and active matches, restoring fast menu loading without competing with live gameplay polling.
 - Cache schema advances to 10, so older caches receive one clean reindex. Existing same-account, same-Act matches are still merged monotonically and remain protected by the archive.
 
@@ -199,13 +199,13 @@ GitHub Actions runs this full gate before building and publishing the installer.
 
 ## Tyler's release flow
 
-1. Copy the beta.136 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
+1. Copy the beta.137 source files into `C:\Users\Tyler\Documents\GitHub\Byakugan`.
 2. In GitHub Desktop, commit and push `main`.
 3. In the repository Command Prompt:
 
 ```bat
-git tag v0.8.0-beta.136
-git push origin v0.8.0-beta.136
+git tag v0.8.0-beta.137
+git push origin v0.8.0-beta.137
 ```
 
 4. Wait for **Publish BYAKUGAN Beta** to turn green.
@@ -213,9 +213,9 @@ git push origin v0.8.0-beta.136
 
 ## Manual verification
 
-1. From beta.134 or beta.135, use **Settings → Check for updates**. Confirm the dialog explains that beta.136 restores full boundary-based Act retrieval and separate draw counting.
+1. From beta.134–136, use **Settings → Check for updates**. Confirm the dialog explains that beta.137 restores fast full-Act retrieval and separate draw counting.
 2. Complete the update on both PCs and confirm BYAKUGAN closes, installs, and reopens normally.
-3. Allow the one-time schema-12 reindex to finish in menus. Confirm Overview reads **Wins / Losses / Draws**, includes all 130 wins recorded at the time of this build, and no longer stops after 155 matches.
+3. Allow the one-time schema-12 reindex to finish in menus. Confirm Overview reads the signed-in user's complete current-Act **Win / Loss / Draw**, K/D, Headshot %, and current RR without stopping at Riot's declared history total.
 4. When the scan completes, confirm the detailed record contains all 128 current-Act wins and is labeled **ACT**, not **PARTIAL ACT**.
 5. Restart BYAKUGAN after the reindex. The complete Act cards should appear immediately from disk; after another match, only that new match should hydrate and append.
 6. After a completed match, return to Play and switch away from and back to Competitive. Confirm Riot Client does not remain on `LOADING` and the party member's rank remains visible. Compare once with BYAKUGAN fully exited if Riot still reproduces it.

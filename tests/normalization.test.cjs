@@ -1277,7 +1277,7 @@ test('discovers current-act matches from history when rating pagination stops at
   const result = await service.fetchCurrentActHistory('current-act');
   assert.equal(result.complete, true);
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['newest', 'older']);
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 6);
   assert.match(requests[0], /startIndex=0&endIndex=20/);
   assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
@@ -1303,11 +1303,11 @@ test('advances current-act history in standard 20-match pages', async () => {
   const result = await service.fetchCurrentActHistory('current-act');
   assert.equal(result.complete, true);
   assert.equal(result.rows.length, 21);
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 6);
   assert.match(requests[1], /startIndex=20&endIndex=40/);
 });
 
-test('uses Riot response cursors until the actual Act boundary', async () => {
+test('fetches Act index pages in bounded waves until the actual boundary', async () => {
   const service = new RiotClientService();
   service.identity = { puuid: 'self' };
   service.metadata = metadata();
@@ -1331,7 +1331,8 @@ test('uses Riot response cursors until the actual Act boundary', async () => {
   const result = await service.fetchCurrentActHistory('current-act');
   assert.deepEqual(result.rows.map((row) => row.MatchID), ['recent', 'current-20', 'current-40']);
   assert.equal(result.total, 80);
-  assert.equal(requests.length, 4);
+  assert.equal(requests.length, 6);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=100&endIndex=120')), true);
 });
 
 test('continues beyond Riot Total until every current-Act match is indexed', async () => {
@@ -1343,7 +1344,18 @@ test('continues beyond Riot Total until every current-Act match is indexed', asy
   service.safeRemote = async (endpoint) => {
     requests.push(endpoint);
     const start = Number(endpoint.match(/startIndex=(\d+)/)?.[1]);
-    if (start >= 240) return { History: [
+    if (start === 140) return { BeginIndex: 140, EndIndex: 155, Total: 155, History: Array.from({ length: 15 }, (_, index) => ({
+      MatchID: `current-${start + index}`,
+      GameStartTime: Date.parse('2026-08-20T00:00:00Z') - (start + index) * 60_000
+    })) };
+    if (start === 235) return { BeginIndex: 235, EndIndex: 255, Total: 155, History: [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        MatchID: `current-${start + index}`,
+        GameStartTime: Date.parse('2026-08-05T00:00:00Z') - index * 60_000
+      })),
+      { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
+    ] };
+    if (start > 235) return { History: [
       { MatchID: 'previous-act', GameStartTime: Date.parse('2026-07-31T23:00:00Z') }
     ] };
     return { BeginIndex: start, EndIndex: start + 20, Total: 155, History: Array.from({ length: 20 }, (_, index) => ({
@@ -1356,8 +1368,8 @@ test('continues beyond Riot Total until every current-Act match is indexed', asy
   assert.equal(result.complete, true);
   assert.equal(result.rows.length, 240);
   assert.equal(result.total, 155);
-  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=160&endIndex=180')), true);
-  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=240&endIndex=260')), true);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=155&endIndex=175')), true);
+  assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=235&endIndex=255')), true);
   assert.equal(requests.some((endpoint) => endpoint.includes('startIndex=254')), false);
 });
 

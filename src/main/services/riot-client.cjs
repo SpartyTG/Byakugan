@@ -28,6 +28,7 @@ const MENU_POLL_INTERVAL_MS = 15_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 const HISTORICAL_PEAK_LOOKUP_BUDGET = 10;
 const ACT_DETAIL_CONCURRENCY = 8;
+const ACT_INDEX_CONCURRENCY = 6;
 const ROSTER_RANK_CACHE_MS = 10 * 60_000;
 const ROSTER_PEAK_CACHE_MS = 24 * 60 * 60_000;
 
@@ -2424,8 +2425,8 @@ class RiotClientService extends EventEmitter {
     if (!this.identity?.puuid || !actStart) return { rows: [], complete: false };
 
     // Riot's Total field can describe only a retained window even while older
-    // pages remain addressable. Walk Riot's response cursor until the actual
-    // Act boundary or a truly empty page; Total is diagnostic only.
+    // pages remain addressable. Fetch bounded waves until the actual Act
+    // boundary, and honor any short-page cursor before planning the next wave.
     const pageSize = 20;
     const maximumMatches = 1000;
     const rows = [];
@@ -2437,42 +2438,58 @@ class RiotClientService extends EventEmitter {
     let nextStart = 0;
 
     while (!complete && !exhausted && nextStart < maximumMatches) {
-      const page = await this.safeRemote(`/match-history/v1/history/${this.identity.puuid}?startIndex=${nextStart}&endIndex=${Math.min(nextStart + pageSize, maximumMatches)}&queue=competitive`);
-      if (!page) {
-        requestFailed = true;
-        break;
-      }
-      if (declaredTotal === null) declaredTotal = optionalNonnegativeCount(page?.Total ?? page?.total);
-      const pageRows = page?.History || page?.history || [];
-      if (!pageRows.length) {
-        exhausted = true;
-        break;
-      }
-      let reachedActStart = false;
-      for (const row of pageRows) {
-        const startedAt = timestampMillis(row.GameStartTime ?? row.gameStartTime ?? row.MatchStartTime ?? row.matchStartTime);
-        if (startedAt && startedAt < actStart) {
-          reachedActStart = true;
+      const starts = Array.from({ length: ACT_INDEX_CONCURRENCY }, (_, slot) => nextStart + slot * pageSize)
+        .filter((start) => start < maximumMatches);
+      const pages = await mapWithConcurrency(starts, ACT_INDEX_CONCURRENCY, async (start) => (
+        this.safeRemote(`/match-history/v1/history/${this.identity.puuid}?startIndex=${start}&endIndex=${Math.min(start + pageSize, maximumMatches)}&queue=competitive`, 'pd', {
+          retries: 2,
+          retryDelayMs: 150
+        })
+      ));
+      let correctedCursor = null;
+      for (let index = 0; index < pages.length; index += 1) {
+        const page = pages[index];
+        const pageStart = starts[index];
+        if (!page) {
+          requestFailed = true;
           break;
         }
-        const matchId = updateMatchId(row);
-        if (!matchId || seen.has(matchId)) continue;
-        seen.add(matchId);
-        rows.push({ ...row, SeasonID: activeSeasonId, MatchStartTime: startedAt || updateTimestamp(row) });
+        if (declaredTotal === null) declaredTotal = optionalNonnegativeCount(page?.Total ?? page?.total);
+        const pageRows = page?.History || page?.history || [];
+        if (!pageRows.length) {
+          exhausted = true;
+          break;
+        }
+        let reachedActStart = false;
+        for (const row of pageRows) {
+          const startedAt = timestampMillis(row.GameStartTime ?? row.gameStartTime ?? row.MatchStartTime ?? row.matchStartTime);
+          if (startedAt && startedAt < actStart) {
+            reachedActStart = true;
+            break;
+          }
+          const matchId = updateMatchId(row);
+          if (!matchId || seen.has(matchId)) continue;
+          seen.add(matchId);
+          rows.push({ ...row, SeasonID: activeSeasonId, MatchStartTime: startedAt || updateTimestamp(row) });
+        }
+        if (reachedActStart) {
+          complete = true;
+          break;
+        }
+        const responseEnd = optionalNonnegativeCount(page?.EndIndex ?? page?.endIndex);
+        const naturalEnd = pageStart + pageRows.length;
+        const nextCursor = responseEnd !== null && responseEnd > pageStart ? responseEnd : naturalEnd;
+        if (nextCursor <= pageStart) {
+          requestFailed = true;
+          break;
+        }
+        if (nextCursor !== pageStart + pageSize) {
+          correctedCursor = nextCursor;
+          break;
+        }
       }
-      if (reachedActStart) {
-        complete = true;
-        break;
-      }
-      const currentStart = nextStart;
-      const responseEnd = optionalNonnegativeCount(page?.EndIndex ?? page?.endIndex);
-      nextStart = responseEnd !== null && responseEnd > currentStart
-        ? responseEnd
-        : currentStart + pageRows.length;
-      if (nextStart <= currentStart) {
-        requestFailed = true;
-        break;
-      }
+      if (complete || exhausted || requestFailed) break;
+      nextStart = correctedCursor ?? (starts.at(-1) + pageSize);
     }
     if (exhausted && !requestFailed) complete = true;
     return { rows, complete, exhausted, total: declaredTotal };

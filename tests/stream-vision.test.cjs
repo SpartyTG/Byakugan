@@ -103,7 +103,7 @@ test('routine snapshots stay silent and act completion notifies only after real 
 });
 
 test('Overview reads every indexed result as wins, losses, and draws', () => {
-  assert.match(app, /\['WINS \/ LOSSES \/ DRAWS'/);
+  assert.match(app, /\['WIN \/ LOSS \/ DRAW'/);
   assert.match(app, /profile\.draws/);
   assert.match(app, /DETAILED MATCHES/);
 });

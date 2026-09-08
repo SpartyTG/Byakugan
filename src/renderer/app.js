@@ -234,7 +234,7 @@ function renderStats(profile) {
     ? 'ACT'
     : detailedGames ? `${detailedGames} DETAILED MATCHES` : scope;
   const values = [
-    ['WINS / LOSSES / DRAWS', `${Number(profile.wins) || 0} / ${Number(profile.losses) || 0} / ${Number(profile.draws) || 0}`, scope],
+    ['WIN / LOSS / DRAW', `${Number(profile.wins) || 0} / ${Number(profile.losses) || 0} / ${Number(profile.draws) || 0}`, scope],
     ['K/D RATIO', profile.kd, detailScope],
     ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, detailScope],
     ['RANK RATING', `${profile.rr} RR`, 'CURRENT'],
