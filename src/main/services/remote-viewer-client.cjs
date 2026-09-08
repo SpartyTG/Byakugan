@@ -54,6 +54,11 @@ class RemoteViewerClient extends EventEmitter {
       const key = createHash('sha256').update(JSON.stringify([account, act])).digest('hex');
       const payload = JSON.stringify({ version: 1, snapshot });
       fs.mkdirSync(this.cacheDirectory, { recursive: true });
+      const auditFile = path.join(this.cacheDirectory, 'act-record-audit.json');
+      const audit = snapshot.actRecordAudit;
+      if (audit?.version === 1 && audit.accountKey === account && audit.seasonId === act) {
+        fs.writeFileSync(auditFile, JSON.stringify(audit, null, 2));
+      } else { fs.rmSync(auditFile, { force: true }); }
       const report = snapshot.actScanDiagnostics;
       const reportFile = path.join(this.cacheDirectory, 'act-scan-diagnostics.json');
       if (report?.version === 1 && report.accountKey === account && report.seasonId === act) {

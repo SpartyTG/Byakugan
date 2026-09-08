@@ -10,11 +10,12 @@ test('viewer restores offline stats, isolates hosts and replaces account and Act
   const sourceUrl = `http://192.168.1.2:43871/remote/${'a'.repeat(48)}`;
   const options = { cacheDirectory: directory, sourceUrl, fetchImpl: async () => { throw new Error('offline'); } };
   const first = new RemoteViewerClient(options);
-  first.saveSnapshot({ profile: { senseiAccountKey: 'a', activeSeasonId: 'act1', wins: 20 }, connection: {}, actScanDiagnostics: { version: 1, accountKey: 'a', seasonId: 'act1', running: false, requests: [{ status: 429 }] }, live: { state: 'INGAME' } });
+  first.saveSnapshot({ profile: { senseiAccountKey: 'a', activeSeasonId: 'act1', wins: 20 }, connection: {}, actRecordAudit: { version: 1, accountKey: 'a', seasonId: 'act1', counters: { NumberOfWins: 22 } }, actScanDiagnostics: { version: 1, accountKey: 'a', seasonId: 'act1', running: false, requests: [{ status: 429 }] }, live: { state: 'INGAME' } });
   const next = new RemoteViewerClient(options);
   try {
     const restored = await next.connect();
     assert.equal(restored.profile.wins, 20);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(directory, 'act-record-audit.json'))).counters.NumberOfWins, 22);
     assert.equal(JSON.parse(fs.readFileSync(path.join(directory, 'act-scan-diagnostics.json'))).requests[0].status, 429);
     assert.equal(restored.actScanDiagnostics.accountKey, 'a');
     assert.equal(restored.connection.status, 'disconnected');
@@ -26,6 +27,7 @@ test('viewer restores offline stats, isolates hosts and replaces account and Act
     next.fetchImpl = async () => ({ ok: true, status: 200, headers: { get: () => '' }, json: async () => ({ version: 1, snapshot: { profile: { senseiAccountKey: 'b', activeSeasonId: 'act2', wins: 1 }, connection: {}, live: {} } }) });
     const fresh = await next.requestSnapshot({ force: true });
     assert.equal(fresh.snapshot.profile.wins, 1);
+    assert.equal(fs.existsSync(path.join(directory, 'act-record-audit.json')), false);
     assert.equal(fs.existsSync(path.join(directory, 'act-scan-diagnostics.json')), false);
     const restarted = new RemoteViewerClient(options);
     assert.equal(restarted.restoreSnapshot().profile.senseiAccountKey, 'b');

@@ -1,3 +1,9 @@
+# Beta.144 Act counter audit checkpoint
+
+Prepared source, not published. Import report recovered 98 matches and preserved 164, zero rejected, combined 262 games 131/128/3. Expected counters 133/264; gap remains. Those are observed values, not code targets. Code review confirms NumberOfWins read directly, no placement subtraction, provider filtered by selected activeSeasonId. Public field schema distinguishes NumberOfWinsWithPlacements but does not establish current semantics. Do not infer discrepancy cause from field names.
+
+New automatic buildSnapshot audit captures allowlisted MMR counters, Act dates, local/imported counts, hashed unresolved entries and recent updates lacking details. No keys or raw player/match IDs. Same account/Act report transfers via snapshot and saves as act-record-audit.json on viewer. Tests verify null counters, distinct placement counts, redaction and viewer persistence/scope removal. Next: update both PCs, normal Refresh Data, upload audit from streaming PC; no new HenrikDev import needed. Full verify 209 tests, 10 Brain checks.
+
 # Beta.143 history import checkpoint
 
 Prepared source, not published. New manual Import missing Act matches action fetches provider rows on the invoking PC with an ephemeral key. Minimal records, never key, pass over existing authenticated remote-history POST to gaming host (2 MiB limit, 3000 records max). Host validates account/Act and normalized fields, preserves complete Riot details, replaces RATING placeholders, persists cache/archive, and returns combined totals. Repeating import is idempotent. In-flight hydration is awaited; new hydration deferred during import. Account/Act mismatches reject.

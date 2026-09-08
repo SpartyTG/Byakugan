@@ -1,5 +1,6 @@
 'use strict';
 
+const { buildActRecordAudit } = require('./act-record-audit.cjs');
 const { normalizeHenrikMatch } = require('./henrik-history.cjs');
 const { EventEmitter } = require('node:events');
 const { createHash, randomUUID } = require('node:crypto');
@@ -1936,6 +1937,8 @@ class RiotClientService extends EventEmitter {
     if (this.activeSeason.expiresAt > Date.now()) return this.activeSeason.id;
     let id = '';
     let startTime = 0;
+    let endTime = 0;
+    let source = 'unavailable';
     try {
       const response = await this.remoteRequest(this.sharedUrl('/content-service/v3/content'));
       const seasons = response.data?.Seasons || response.data?.seasons || [];
@@ -1951,8 +1954,10 @@ class RiotClientService extends EventEmitter {
       }) || seasons.find((season) => Boolean(season.IsActive ?? season.isActive));
       id = active?.ID || active?.id || '';
       startTime = timestampMillis(active?.StartTime || active?.startTime);
+      endTime = timestampMillis(active?.EndTime || active?.endTime);
+      source = active ? 'riot-content-service' : 'unavailable';
     } catch {}
-    this.activeSeason = { id, startTime, expiresAt: Date.now() + (id ? 60 * 60_000 : 2 * 60_000) };
+    this.activeSeason = { id, startTime, endTime, source, expiresAt: Date.now() + (id ? 60 * 60_000 : 2 * 60_000) };
     return id;
   }
 
@@ -2999,11 +3004,19 @@ class RiotClientService extends EventEmitter {
       loadoutStatus: equippedLoadout.length ? 'ready' : loadout ? 'empty' : 'unavailable',
       agents: analytics.agents,
       analytics,
+      actRecordAudit: buildActRecordAudit({ accountKey: currentSenseiAccountKey, seasonId: activeSeasonId,
+        activeSeason: this.activeSeason, metadataSeason: this.metadata.seasons?.get(String(activeSeasonId).toLowerCase()),
+        mmr, updates: ratingUpdates, data: actData }),
       actScanDiagnostics: this.actScanReport?.accountKey === currentSenseiAccountKey
         && this.actScanReport?.seasonId === activeSeasonId
         ? structuredClone(this.actScanReport) : null,
       diagnostics: this.diagnostics.slice(0, 20)
     };
+    if (this.actStatsCacheFile) {
+      try {
+        fs.writeFileSync(path.join(path.dirname(this.actStatsCacheFile), 'act-record-audit.json'), JSON.stringify(nextSnapshot.actRecordAudit, null, 2));
+      } catch { this.emit('warning', 'Act record audit could not be saved.'); }
+    }
     return nextSnapshot;
   }
 
