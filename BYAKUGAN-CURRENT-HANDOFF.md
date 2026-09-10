@@ -1,6 +1,12 @@
-# Beta.150 Experimental visible-page Tracker sync
+# Beta.151 Experimental visible-page Tracker sync
 
-Prepared cumulatively from beta.149. The first public-profile test reached Tracker
+Prepared cumulatively from beta.150. The second live test proved Tracker exposes
+losses in its overview record as compact badges such as `145 W` and `140 L`, not a
+`Matches Lost` card. Beta.151 reads those visible W/L badges, reconciles them with
+Matches Played, and derives the remaining matches as draws. Generic tests use
+unrelated fixture totals; Tyler's live numbers are not code targets.
+
+Beta.150's first public-profile test reached Tracker
 but the parser rejected its card labels. Beta.150 accepts `Matches Played`,
 `Matches Won`, and `Matches Lost` in label-first or value-first order, reports the
 specific missing field if Tracker changes again, and strips Electron IPC boilerplate
@@ -32,7 +38,7 @@ The first Windows test confirmed exact account/Act navigation but exposed the
 card-label and ordering mismatch corrected above. The parser and persistence path
 now pass both label-first and value-first fixtures, corrupt-cache cases, and
 refresh-precedence regressions. Live beta.150 validation remains required. Full
-verification passes with 235 tests and 10 Sensei Brain smoke checks.
+verification passes with 236 tests and 10 Sensei Brain smoke checks.
 
 # Beta.147 Tracker-import removal
 
@@ -105,12 +111,12 @@ Do not claim a retention ceiling without the captured scan evidence. Next: relea
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.150`
+- Target: `v0.8.0-beta.151`
 - Previous published release: `v0.8.0-beta.145`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `235` automated tests and `10` Sensei Brain smoke checks
+- Verification: `236` automated tests and `10` Sensei Brain smoke checks
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.

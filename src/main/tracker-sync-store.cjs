@@ -32,10 +32,14 @@ function numberFrom(value) {
 
 function metric(lines, label, direction = 1) {
   for (let index = 0; index < lines.length; index++) {
-    if (!label.test(lines[index])) continue;
-    const inline = lines[index].replace(label, ' ');
-    const sameLine = numberFrom(inline);
-    if (sameLine != null) return sameLine;
+    const found = lines[index].match(label);
+    if (!found) continue;
+    const before = lines[index].slice(0, found.index);
+    const after = lines[index].slice(found.index + found[0].length);
+    const beforeNumbers = [...before.replace(/,/g, '').matchAll(/-?\d+(?:\.\d+)?/g)];
+    if (beforeNumbers.length) return Number(beforeNumbers.at(-1)[0]);
+    const afterNumber = numberFrom(after);
+    if (afterNumber != null) return afterNumber;
     for (const distance of [1, 2, 3]) {
       const offset = distance * direction;
       const candidate = lines[index + offset];
@@ -43,6 +47,16 @@ function metric(lines, label, direction = 1) {
     }
   }
   return null;
+}
+
+function compactOutcome(text, marker) {
+  const values = [];
+  const pattern = new RegExp(`(?:^|\\s)(\\d[\\d,]*)\\s*${marker}(?=\\s|$)`, 'gi');
+  for (const match of String(text || '').matchAll(pattern)) {
+    const value = numberFrom(match[1]);
+    if (Number.isInteger(value) && finite(value, 0, 100_000)) values.push(value);
+  }
+  return values.length ? Math.max(...values) : null;
 }
 
 function parseTrackerPage({ text, url }, profile) {
@@ -79,10 +93,12 @@ function parseTrackerPage({ text, url }, profile) {
     kd: /\bk\s*\/\s*d(?:\s+ratio)?\b/i,
     headshot: /\b(?:headshot|hs)\s*%/i
   };
+  const badgeWins = compactOutcome(text, 'W');
+  const badgeLosses = compactOutcome(text, 'L');
   const variants = [1, -1].map(direction => ({
     matches: metric(lines, labels.matches, direction),
-    wins: metric(lines, labels.wins, direction),
-    losses: metric(lines, labels.losses, direction),
+    wins: badgeWins ?? metric(lines, labels.wins, direction),
+    losses: badgeLosses ?? metric(lines, labels.losses, direction),
     kd: metric(lines, labels.kd, direction),
     headshot: metric(lines, labels.headshot, direction)
   }));
@@ -92,8 +108,8 @@ function parseTrackerPage({ text, url }, profile) {
     && finite(candidate.kd, 0, 20) && finite(candidate.headshot, 0, 100));
   if (!record) {
     const visible = label => lines.some(line => label.test(line));
-    const missing = [!visible(labels.matches) && 'Matches Played', !visible(labels.wins) && 'Matches Won',
-      !visible(labels.losses) && 'Matches Lost', !visible(labels.kd) && 'K/D Ratio',
+    const missing = [!visible(labels.matches) && 'Matches Played', badgeWins == null && !visible(labels.wins) && 'Wins',
+      badgeLosses == null && !visible(labels.losses) && 'Losses', !visible(labels.kd) && 'K/D Ratio',
       !visible(labels.headshot) && 'Headshot %'].filter(Boolean);
     const detail = missing.length ? ` Missing visible field${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.` : '';
     throw new Error(`Could not read a complete current-Act Competitive record.${detail} Confirm the overview finished loading and its stat cards show valid values.`);

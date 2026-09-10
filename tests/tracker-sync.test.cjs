@@ -40,6 +40,13 @@ test('visible Tracker cards accept Matches Played, Matches Won and Matches Lost 
     { matches: 42, wins: 20, losses: 19, draws: 3 });
 });
 
+test('visible Tracker overview accepts compact W/L record badges and derives draws', () => {
+  const trackerOverview = `Example Player#TEST\nV25: ACT V COMPETITIVE OVERVIEW\n20h Playtime // 42 Matches\n20 W\n19 L\nRating\nDiamond 1\nK/D Ratio\n1.07\nHeadshot %\n24.5%`;
+  const summary = parseTrackerPage({ text: trackerOverview, url: pageUrl() }, profile());
+  assert.deepEqual({ matches: summary.matches, wins: summary.wins, losses: summary.losses, draws: summary.draws,
+    kd: summary.kd, headshot: summary.headshot }, { matches: 42, wins: 20, losses: 19, draws: 3, kd: 1.07, headshot: 24.5 });
+});
+
 test('Tracker sync rejects private, wrong-account, wrong-Act and incomplete pages', () => {
   assert.throws(() => parseTrackerPage({ text: 'This profile is private', url: pageUrl() }, profile()), /private/i);
   const wrongAccount = new URL(pageUrl()); wrongAccount.pathname = '/valorant/profile/riot/Someone%23Else/overview';
@@ -47,7 +54,7 @@ test('Tracker sync rejects private, wrong-account, wrong-Act and incomplete page
   const wrongAct = new URL(pageUrl()); wrongAct.searchParams.set('season', '00000000-0000-0000-0000-000000000002');
   assert.throws(() => parseTrackerPage({ text: pageText(), url: wrongAct.href }, profile()), /current Competitive Act/);
   assert.throws(() => parseTrackerPage({ text: 'Wins\n10', url: pageUrl() }, profile()),
-    /Missing visible fields: Matches Played, Matches Lost, K\/D Ratio, Headshot %/);
+    /Missing visible fields: Matches Played, Losses, K\/D Ratio, Headshot %/);
 });
 
 test('synced summaries persist per account and Act without changing Riot profile data', t => {
