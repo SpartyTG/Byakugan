@@ -6,10 +6,10 @@ open their profile. Expand a match for its date, mode, map, result, score, and e
 player's agent and K/D/A. Results are from your perspective. Existing teammate
 profile details remain accessible through **More player details**.
 
-The gaming PC records completed match rosters already read by BYAKUGAN, including
-non-Competitive queues. History survives Act changes and restarts. Deathmatch
-participants are labeled **Same match** because they are not teammates. A missing
-record means **No shared matches saved**, not that the players have never met.
+The gaming PC records completed Competitive match rosters already read by
+BYAKUGAN. History survives Act changes and restarts. Unrated, Swiftplay,
+Deathmatch, and other queues are excluded. A missing record means **No shared
+Competitive matches saved**, not that the players have never met.
 Tracker summary imports contain no participant rosters and cannot fill this list.
 
 For existing installs, known teammate relationships can be recovered from the Act
@@ -37,15 +37,15 @@ The current live match is excluded. Completed matches are deduplicated by match 
 A full roster replaces a partial legacy record. Writes use a temporary file and
 rename; unreadable existing files are preserved and produce a warning.
 
-## Regular beta.145 update
+## Regular beta.146 update
 
 The feature ships in the normal **BYAKUGAN** app. Update both PCs through the
 existing beta updater after the tagged Windows build succeeds. The installer is
-`BYAKUGAN-Setup-0.8.0-beta.145-x64.exe`. Existing installed settings, caches, overlay
+`BYAKUGAN-Setup-0.8.0-beta.146-x64.exe`. Existing installed settings, caches, overlay
 configuration, and host/viewer roles continue to be used. No setup in a separate
 profile is required.
 
-The release tag `v0.8.0-beta.145` runs the existing Windows workflow, including
+The release tag `v0.8.0-beta.146` runs the existing Windows workflow, including
 source tests, `npm run release:win`, and executable integrity checks. It publishes
 the installer, blockmap, and `beta.yml` only after those steps succeed. Pushing a
 main-branch commit alone does not publish a release.

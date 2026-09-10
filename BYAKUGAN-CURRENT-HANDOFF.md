@@ -1,3 +1,20 @@
+# Beta.146 Competitive-only shared history
+
+Prepared from the published beta.145 source. Played before counts and shared-match
+profiles now accept only Riot queue ID `competitive`. New non-Competitive details
+are ignored, legacy Act recovery rejects non-Competitive rows, and beta.145 files
+load only their Competitive records. Existing valid Competitive history remains
+available across Acts, restarts, and the authenticated streaming-PC relay.
+The player-profile badge, heading, scope message, rows, pagination, and empty state
+now consistently describe Competitive history only. Full verification passes with
+234 tests and 10 Sensei Brain smoke checks.
+
+# Beta.145 shared-match history and Act-summary checkpoint
+
+Published at commit `7022f7a`. Adds Played before indicators and saved shared-match
+profiles, optional Tracker Competitive Act-summary import, and Windows executable
+integrity validation. HenrikDev Settings controls were removed.
+
 # Beta.144 Act counter audit checkpoint
 
 Prepared source, not published. Import report recovered 98 matches and preserved 164, zero rejected, combined 262 games 131/128/3. Expected counters 133/264; gap remains. Those are observed values, not code targets. Code review confirms NumberOfWins read directly, no placement subtraction, provider filtered by selected activeSeasonId. Public field schema distinguishes NumberOfWinsWithPlacements but does not establish current semantics. Do not infer discrepancy cause from field names.

@@ -37,9 +37,9 @@ function roster(client, raw = [player(owner, 'Blue'), player(target, 'Red')], ma
   return client.decorateEncounterRoster(raw, normalized, matchId, active);
 }
 
-test('completed shared records preserve teammate/opponent perspective, draws, and non-Competitive queues', () => {
+test('completed shared records preserve Competitive teammate/opponent perspective and draws only', () => {
   const store = new EncounterStore();
-  for (const [id, side, queue, act] of [['a', 'with', 'competitive', 'old-act'], ['b', 'against', 'swiftplay', 'new-act']]) {
+  for (const [id, side, queue, act] of [['a', 'with', 'competitive', 'old-act'], ['b', 'against', 'competitive', 'new-act']]) {
     const record = recordFromDetail(detail(id, side, queue, act), owner, metadata);
     assert.equal(record.map, 'Ascent'); assert.equal(record.self.agent, 'Omen');
     assert.equal(record.result, 'VICTORY'); assert.equal(record.score, '13 – 7');
@@ -49,11 +49,11 @@ test('completed shared records preserve teammate/opponent perspective, draws, an
   assert.equal(recordFromDetail(draw, owner, metadata).result, 'DRAW');
   const loss = detail('loss'); loss.Teams[0].Won = false; loss.Teams[1].Won = true;
   assert.equal(recordFromDetail(loss, owner, metadata).result, 'DEFEAT');
-  const ffa = recordFromDetail(detail('ffa', 'against', 'deathmatch'), owner, metadata);
-  assert.equal(ffa.result, 'COMPLETED'); assert.equal(ffa.score, '');
-  assert.equal(ffa.players[0].relationship, 'same-match'); store.remember(account, ffa);
+  for (const queue of ['unrated', 'swiftplay', 'spikerush', 'deathmatch', 'hurm']) {
+    assert.equal(recordFromDetail(detail(`ignored-${queue}`, 'against', queue), owner, metadata), null);
+  }
   const result = store.page(owner, target);
-  assert.deepEqual([result.total, result.with, result.against, result.sameMatch], [3, 1, 1, 1]);
+  assert.deepEqual([result.total, result.with, result.against, result.sameMatch], [2, 1, 1, 0]);
   assert.deepEqual(new Set(result.matches.map(row => row.seasonId)), new Set(['old-act', 'new-act']));
   assert.equal(result.matches[0].other.kills, 20);
 });
@@ -83,6 +83,28 @@ test('history persists across restarts and accounts without raw player IDs or na
   assert.equal(publicHistory.includes(record.players[0].key), false);
   assert.equal(publicHistory.includes(target), false);
   assert.equal(fs.readFileSync(file, 'utf8'), contents);
+});
+
+test('beta.145 files hide previously saved non-Competitive encounters', t => {
+  const directory = temporary(t);
+  const competitive = recordFromDetail(detail('competitive-match'), owner, metadata);
+  const nonCompetitive = { ...competitive, id: 'swiftplay-match', queueId: 'swiftplay' };
+  fs.writeFileSync(path.join(directory, `encounters-${account}.json`), JSON.stringify({
+    version: 1, accountKey: account, matches: [competitive, nonCompetitive]
+  }));
+  const store = new EncounterStore(directory);
+  const result = store.page(owner, target);
+  assert.equal(result.total, 1);
+  assert.equal(result.matches[0].id, 'competitive-match');
+  assert.equal(store.remember(account, nonCompetitive), false);
+});
+
+test('shared-history UI describes Competitive matches only', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/encounters-ui.js'), 'utf8');
+  assert.match(source, /Competitive match history/);
+  assert.match(source, /Competitive matches saved by BYAKUGAN across Acts/);
+  assert.doesNotMatch(source, /across Acts and game modes/);
+  assert.doesNotMatch(source, /same match<\/span>/);
 });
 
 test('legacy teammates are recovered once, with full rosters replacing partial records', () => {

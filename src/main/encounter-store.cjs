@@ -11,6 +11,7 @@ const subjectOf = player => player?.Subject || player?.subject || player?.puuid 
 const teamOf = player => player?.TeamID || player?.teamId || '';
 const count = value => Number.isFinite(Number(value)) && value != null && Number(value) >= 0 ? Math.floor(Number(value)) : null;
 const resolve = (map, id, fallback) => map?.get(String(id || '').toLowerCase())?.name || fallback;
+const isCompetitive = row => String(row?.queueId || '').trim().toLowerCase() === 'competitive';
 
 function performance(player, metadata) {
   const stats = player.PlayerStats || player.playerStats || player.stats || {};
@@ -32,6 +33,7 @@ function recordFromDetail(detail, owner, metadata) {
     && !teams.some(team => (team.Won ?? team.won) === true)) return null;
   const ownTeam = teamOf(self);
   const queueId = clean(info.QueueID || info.queueId || 'unknown').toLowerCase();
+  if (queueId !== 'competitive') return null;
   const teamMode = queueId !== 'deathmatch' && Boolean(ownTeam && teams.some(team => teamOf(team) === ownTeam));
   const ours = teams.find(team => teamOf(team) === ownTeam);
   const theirs = teams.find(team => teamOf(team) !== ownTeam);
@@ -58,7 +60,8 @@ function recordFromDetail(detail, owner, metadata) {
 function recordFromLegacy(match, owner, seasonId) {
   // Older Act caches retained explicit teammate IDs, but no opponent roster.
   // Recover only those proven relationships; a later full detail replaces this row.
-  if (!match?.id || !['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result) || !Array.isArray(match.teammateIds) || !match.teammateIds.length) return null;
+  if (!match?.id || String(match.queueId || 'competitive').toLowerCase() !== 'competitive'
+    || !['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result) || !Array.isArray(match.teammateIds) || !match.teammateIds.length) return null;
   return { id: clean(match.id), startedAt: Number(match.startedAt) || null, seasonId: clean(seasonId),
     queueId: clean(match.queueId || 'competitive'), map: clean(match.map), result: match.result, score: clean(match.score),
     self: { agent: clean(match.agent), kills: count(match.kills), deaths: count(match.deaths), assists: count(match.assists) },
@@ -97,7 +100,9 @@ class EncounterStore {
     try {
       const data = JSON.parse(fs.readFileSync(this.file(), 'utf8'));
       if (data.version !== 1 || data.accountKey !== accountKey || !Array.isArray(data.matches) || !data.matches.every(validRecord)) throw new Error('Invalid encounter file');
-      for (const row of data.matches) this.put(row);
+      // beta.145 briefly collected every queue. Keep only Competitive history in
+      // memory so existing files migrate safely without exposing those records.
+      for (const row of data.matches) if (isCompetitive(row)) this.put(row);
     } catch (error) {
       if (error.code !== 'ENOENT') { this.readFailed = true; this.error = 'Saved encounter history could not be read.'; }
     }
@@ -117,7 +122,7 @@ class EncounterStore {
 
   remember(accountKey, row) {
     this.useAccount(accountKey);
-    if (!validRecord(row)) return false;
+    if (!validRecord(row) || !isCompetitive(row)) return false;
     const previous = this.records.get(row.id);
     if (previous?.completeRoster && !row.completeRoster) return false;
     if (JSON.stringify(previous) === JSON.stringify(row)) return false;
