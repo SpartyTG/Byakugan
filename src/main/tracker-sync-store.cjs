@@ -30,13 +30,14 @@ function numberFrom(value) {
   return match ? Number(match[0]) : null;
 }
 
-function metric(lines, label) {
+function metric(lines, label, direction = 1) {
   for (let index = 0; index < lines.length; index++) {
     if (!label.test(lines[index])) continue;
     const inline = lines[index].replace(label, ' ');
     const sameLine = numberFrom(inline);
     if (sameLine != null) return sameLine;
-    for (const offset of [1, -1, 2]) {
+    for (const distance of [1, 2, 3]) {
+      const offset = distance * direction;
       const candidate = lines[index + offset];
       if (candidate && /^[-+]?\d[\d,.]*%?$/.test(candidate)) return numberFrom(candidate);
     }
@@ -71,18 +72,33 @@ function parseTrackerPage({ text, url }, profile) {
     throw new Error('Tracker says this profile is private. Make it public, reload the Tracker window, and try again.');
   }
   const lines = text.split(/\r?\n/).map(value => value.replace(/[\u200b-\u200d\ufeff]/g, '').trim()).filter(Boolean);
-  const matches = metric(lines, /\bmatches(?:\s+played)?\b/i);
-  const wins = metric(lines, /\bwins?\b/i);
-  const losses = metric(lines, /\bloss(?:es)?\b/i);
-  const kd = metric(lines, /\bk\s*\/\s*d(?:\s+ratio)?\b/i);
-  const headshot = metric(lines, /\b(?:headshot|hs)\s*%/i);
-  if (![matches, wins, losses].every(Number.isInteger) || !finite(matches, 0, 100_000)
-    || !finite(wins, 0, matches) || !finite(losses, 0, matches) || wins + losses > matches) {
-    throw new Error('Could not read a complete Matches, Wins, and Losses overview. Confirm Current Act and Competitive are selected.');
+  const labels = {
+    matches: /\b(?:matches?|games?)\s+played\b|\bmatches\b/i,
+    wins: /\bwins?\b|\b(?:matches?|games?)\s+won\b/i,
+    losses: /\bloss(?:es)?\b|\b(?:matches?|games?)\s+lost\b/i,
+    kd: /\bk\s*\/\s*d(?:\s+ratio)?\b/i,
+    headshot: /\b(?:headshot|hs)\s*%/i
+  };
+  const variants = [1, -1].map(direction => ({
+    matches: metric(lines, labels.matches, direction),
+    wins: metric(lines, labels.wins, direction),
+    losses: metric(lines, labels.losses, direction),
+    kd: metric(lines, labels.kd, direction),
+    headshot: metric(lines, labels.headshot, direction)
+  }));
+  const record = variants.find(candidate => [candidate.matches, candidate.wins, candidate.losses].every(Number.isInteger)
+    && finite(candidate.matches, 0, 100_000) && finite(candidate.wins, 0, candidate.matches)
+    && finite(candidate.losses, 0, candidate.matches) && candidate.wins + candidate.losses <= candidate.matches
+    && finite(candidate.kd, 0, 20) && finite(candidate.headshot, 0, 100));
+  if (!record) {
+    const visible = label => lines.some(line => label.test(line));
+    const missing = [!visible(labels.matches) && 'Matches Played', !visible(labels.wins) && 'Matches Won',
+      !visible(labels.losses) && 'Matches Lost', !visible(labels.kd) && 'K/D Ratio',
+      !visible(labels.headshot) && 'Headshot %'].filter(Boolean);
+    const detail = missing.length ? ` Missing visible field${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.` : '';
+    throw new Error(`Could not read a complete current-Act Competitive record.${detail} Confirm the overview finished loading and its stat cards show valid values.`);
   }
-  if (!finite(kd, 0, 20) || !finite(headshot, 0, 100)) {
-    throw new Error('Could not read K/D Ratio and Headshot % from the visible Tracker overview.');
-  }
+  const { matches, wins, losses, kd, headshot } = record;
   return { matches, wins, losses, draws: matches - wins - losses, kd, headshot,
     source: 'tracker-visible-profile', syncedAt: new Date().toISOString() };
 }

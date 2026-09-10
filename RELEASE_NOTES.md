@@ -1,4 +1,4 @@
-# BYAKUGAN v0.8.0-beta.149
+# BYAKUGAN v0.8.0-beta.150
 
 ## What's updated
 
@@ -14,4 +14,6 @@
 - Shows Tracker-synced W/L/D, K/D, and headshot percentage on Overview with an experimental source label while keeping Riot RR and BYAKUGAN's underlying match cache unchanged.
 - Supports removing the cached Tracker summary at any time and immediately returning to BYAKUGAN's collected Riot stats.
 - Overwrites legacy manual-import files with inert compatibility stubs so copying the full source over an existing repository cannot accidentally retain the removed importer or fail Windows CI.
+- Recognizes Tracker's visible Matches Played, Matches Won, and Matches Lost card labels in either label-first or value-first order.
+- Reports the exact missing Tracker field and removes Electron IPC boilerplate from sync errors.
 - Updates the existing BYAKUGAN installation through the normal beta updater while preserving settings, caches, overlay configuration, and dual-PC roles.

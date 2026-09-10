@@ -269,6 +269,12 @@ function renderTrackerSync(snapshot) {
     : 'No Tracker summary is saved for this account and Act.';
 }
 
+function trackerSyncError(error, fallback) {
+  return String(error?.message || fallback)
+    .replace(/^Error invoking remote method ['"]tracker-sync:[^'"]+['"]:\s*(?:Error:\s*)?/i, '')
+    .trim() || fallback;
+}
+
 function matchRow(match, compact = false, full = false) {
   const defeat = match.result === 'DEFEAT';
   const rr = Number(match.rr) || 0;
@@ -2065,8 +2071,9 @@ function bindEvents() {
       await window.companion.openTrackerSyncProfile();
       text('#trackerSyncStatus', 'Tracker opened. Confirm the current Competitive Act is visible, then return here and select Sync visible stats.');
     } catch (error) {
-      text('#trackerSyncStatus', error.message || 'Tracker could not be opened.');
-      toast('Tracker profile could not open', error.message || 'Try again.', 'error');
+      const message = trackerSyncError(error, 'Tracker could not be opened.');
+      text('#trackerSyncStatus', message);
+      toast('Tracker profile could not open', message, 'error');
     } finally {
       state.trackerSyncBusy = false;
       updateTrackerSyncButtons(state.snapshot);
@@ -2080,8 +2087,9 @@ function bindEvents() {
       renderSnapshot(next);
       toast('Tracker stats synced', 'Overview is using the saved current-Act Competitive summary.');
     } catch (error) {
-      text('#trackerSyncStatus', error.message || 'Tracker stats could not be read.');
-      toast('Tracker sync did not complete', error.message || 'Check the public profile and try again.', 'error');
+      const message = trackerSyncError(error, 'Tracker stats could not be read.');
+      text('#trackerSyncStatus', message);
+      toast('Tracker sync did not complete', message, 'error');
     } finally {
       state.trackerSyncBusy = false; updateTrackerSyncButtons(state.snapshot);
     }
@@ -2094,7 +2102,7 @@ function bindEvents() {
       renderSnapshot(await window.companion.removeTrackerSync());
       toast('Tracker summary removed', 'Overview is using BYAKUGAN’s collected Riot data again.');
     } catch (error) {
-      text('#trackerSyncStatus', error.message || 'The saved Tracker summary could not be removed.');
+      text('#trackerSyncStatus', trackerSyncError(error, 'The saved Tracker summary could not be removed.'));
     } finally {
       state.trackerSyncBusy = false; updateTrackerSyncButtons(state.snapshot);
     }

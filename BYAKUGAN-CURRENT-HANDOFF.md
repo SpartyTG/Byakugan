@@ -1,6 +1,14 @@
-# Beta.149 Experimental visible-page Tracker sync
+# Beta.150 Experimental visible-page Tracker sync
 
-Prepared cumulatively from beta.148 after Windows CI exposed that ZIP-based source
+Prepared cumulatively from beta.149. The first public-profile test reached Tracker
+but the parser rejected its card labels. Beta.150 accepts `Matches Played`,
+`Matches Won`, and `Matches Lost` in label-first or value-first order, reports the
+specific missing field if Tracker changes again, and strips Electron IPC boilerplate
+from visible errors. Beta.149 had already corrected the Windows ZIP-copy issue:
+removed manual-import paths contain inert compatibility stubs so source copying
+overwrites functional beta.145 copies.
+
+Beta.149 was prepared after Windows CI exposed that ZIP-based source
 copying cannot delete legacy files. Removed manual-import paths now contain inert
 compatibility stubs, ensuring they overwrite functional beta.145 copies instead of
 remaining active in Tyler's repository. Settings includes an explicitly temporary
@@ -20,11 +28,11 @@ Private, mismatched, wrong-Act, incomplete, and out-of-range pages fail closed. 
 visible-page early-tester experiment supersedes beta.147's decision to defer the
 entire link flow, but the blocked private Tracker API remains prohibited.
 
-The parser and persistence path pass generic fixtures, corrupt-cache cases, and
-refresh-precedence regressions. Tracker blocked the remote inspection browser, so
-the first real public-profile sync remains a Windows validation step; do not claim
-the current Tracker DOM is proven until that succeeds. Full verification passes
-with 234 tests and 10 Sensei Brain smoke checks.
+The first Windows test confirmed exact account/Act navigation but exposed the
+card-label and ordering mismatch corrected above. The parser and persistence path
+now pass both label-first and value-first fixtures, corrupt-cache cases, and
+refresh-precedence regressions. Live beta.150 validation remains required. Full
+verification passes with 235 tests and 10 Sensei Brain smoke checks.
 
 # Beta.147 Tracker-import removal
 
@@ -97,12 +105,12 @@ Do not claim a retention ceiling without the captured scan evidence. Next: relea
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.149`
+- Target: `v0.8.0-beta.150`
 - Previous published release: `v0.8.0-beta.145`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `234` automated tests and `10` Sensei Brain smoke checks
+- Verification: `235` automated tests and `10` Sensei Brain smoke checks
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.

@@ -96,7 +96,7 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.149
+## Included in version 0.8.0-beta.150
 
 - Live players on both teams show **Played before** when your saved records contain Competitive shared matches. Click their row for teammate/opponent counts and dated match recaps with both players' K/D/A.
 - Shared history survives Act changes and restarts. The existing dual-PC connection sends it to the streaming viewer; update both PCs. Hidden identities remain private and missing older rosters are not treated as proof that you never met.
