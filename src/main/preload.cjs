@@ -3,10 +3,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('companion', Object.freeze({
-  chooseActSummary: () => ipcRenderer.invoke('act-summary:choose'),
-  applyActSummary: (selection) => ipcRenderer.invoke('act-summary:apply', selection),
-  removeActSummary: () => ipcRenderer.invoke('act-summary:remove'),
-  exportActSummary: () => ipcRenderer.invoke('act-summary:export'),
+  openTrackerSyncProfile: () => ipcRenderer.invoke('tracker-sync:open'),
+  readTrackerSyncProfile: () => ipcRenderer.invoke('tracker-sync:read'),
+  removeTrackerSync: () => ipcRenderer.invoke('tracker-sync:remove'),
   bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   restartApp: () => ipcRenderer.invoke('app:restart'),
   connect: () => ipcRenderer.invoke('riot:connect'),

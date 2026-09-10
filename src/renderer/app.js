@@ -30,7 +30,8 @@ const state = {
   senseiVodTimer: null,
   senseiVodRequestActive: false,
   senseiVodActiveMatchId: '',
-  actStatsHydrationActive: false
+  actStatsHydrationActive: false,
+  trackerSyncBusy: false
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -227,16 +228,17 @@ function setConnection(connection) {
   text('#connectButton', remote ? 'Reconnect Host' : connected ? 'Reconnect Riot' : 'Connect Riot');
 }
 
-function renderStats(profile) {
-  const scope = profile.statsScope || 'ACT';
+function renderStats(profile, trackerSync = null) {
+  const source = trackerSync || profile;
+  const scope = trackerSync ? 'TRACKER SYNC · EXPERIMENTAL' : profile.statsScope || 'ACT';
   const detailedGames = Number(profile.actDetailedGames) || 0;
-  const detailScope = scope === 'ACT'
+  const detailScope = trackerSync ? scope : scope === 'ACT'
     ? 'ACT'
     : detailedGames ? `${detailedGames} DETAILED MATCHES` : scope;
   const values = [
-    ['WIN / LOSS / DRAW', `${Number(profile.wins) || 0} / ${Number(profile.losses) || 0} / ${Number(profile.draws) || 0}`, scope],
-    ['K/D RATIO', profile.kd, detailScope],
-    ['HEADSHOT %', `${profile.headshot}${typeof profile.headshot === 'number' ? '%' : ''}`, detailScope],
+    ['WIN / LOSS / DRAW', `${Number(source.wins) || 0} / ${Number(source.losses) || 0} / ${Number(source.draws) || 0}`, scope],
+    ['K/D RATIO', source.kd, detailScope],
+    ['HEADSHOT %', `${source.headshot}${typeof source.headshot === 'number' ? '%' : ''}`, detailScope],
     ['RANK RATING', `${profile.rr} RR`, 'CURRENT'],
     [
       'DODGE RR LOST',
@@ -248,6 +250,23 @@ function renderStats(profile) {
     ]
   ];
   $('#statsGrid').innerHTML = values.map(([label, value, note, tone = '']) => `<article class="stat-card ${tone}"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong><em>${escapeHtml(note)}</em></article>`).join('');
+}
+
+function updateTrackerSyncButtons(snapshot) {
+  const summary = snapshot?.trackerSync;
+  $('#trackerSyncOpen').disabled = state.trackerSyncBusy || !snapshot?.profile?.gameName;
+  $('#trackerSyncRead').disabled = state.trackerSyncBusy || !snapshot?.profile?.gameName;
+  $('#trackerSyncRemove').disabled = state.trackerSyncBusy || !summary;
+}
+
+function renderTrackerSync(snapshot) {
+  const summary = snapshot?.trackerSync;
+  const status = $('#trackerSyncStatus');
+  if (!status) return;
+  updateTrackerSyncButtons(snapshot);
+  status.textContent = summary
+    ? `Last synced ${new Date(summary.syncedAt).toLocaleString()} · ${summary.matches} matches · ${summary.wins}W / ${summary.losses}L / ${summary.draws}D · ${summary.kd} K/D · ${summary.headshot}% HS.`
+    : 'No Tracker summary is saved for this account and Act.';
 }
 
 function matchRow(match, compact = false, full = false) {
@@ -1067,8 +1086,8 @@ function renderSnapshot(snapshot) {
   }
   $('#rankProgress').style.width = `${Math.max(0, Math.min(100, Number(profile.rr) || 0))}%`;
   updateLive(live);
-  renderStats(profile);
-  window.actSummaryUi.render(snapshot);
+  renderStats(profile, snapshot.trackerSync);
+  renderTrackerSync(snapshot);
   renderMatches();
   renderFriends();
   renderLoadout();
@@ -2039,6 +2058,47 @@ function bindEvents() {
   });
   $('#senseiOfferVodCleanup').addEventListener('change', (event) => saveSettingsPatch({ senseiOfferVodCleanup: event.target.checked }, false));
   $('#checkSenseiSystem').addEventListener('click', refreshSenseiStatus);
+  $('#trackerSyncOpen').addEventListener('click', async () => {
+    if (state.trackerSyncBusy) return;
+    state.trackerSyncBusy = true; updateTrackerSyncButtons(state.snapshot);
+    try {
+      await window.companion.openTrackerSyncProfile();
+      text('#trackerSyncStatus', 'Tracker opened. Confirm the current Competitive Act is visible, then return here and select Sync visible stats.');
+    } catch (error) {
+      text('#trackerSyncStatus', error.message || 'Tracker could not be opened.');
+      toast('Tracker profile could not open', error.message || 'Try again.', 'error');
+    } finally {
+      state.trackerSyncBusy = false;
+      updateTrackerSyncButtons(state.snapshot);
+    }
+  });
+  $('#trackerSyncRead').addEventListener('click', async () => {
+    if (state.trackerSyncBusy) return;
+    state.trackerSyncBusy = true; updateTrackerSyncButtons(state.snapshot);
+    try {
+      const next = await window.companion.readTrackerSyncProfile();
+      renderSnapshot(next);
+      toast('Tracker stats synced', 'Overview is using the saved current-Act Competitive summary.');
+    } catch (error) {
+      text('#trackerSyncStatus', error.message || 'Tracker stats could not be read.');
+      toast('Tracker sync did not complete', error.message || 'Check the public profile and try again.', 'error');
+    } finally {
+      state.trackerSyncBusy = false; updateTrackerSyncButtons(state.snapshot);
+    }
+  });
+  $('#trackerSyncRemove').addEventListener('click', async () => {
+    if (state.trackerSyncBusy || !state.snapshot?.trackerSync) return;
+    if (!window.confirm('Remove the saved Tracker summary for this account and Act? BYAKUGAN’s Riot data will remain unchanged.')) return;
+    state.trackerSyncBusy = true; updateTrackerSyncButtons(state.snapshot);
+    try {
+      renderSnapshot(await window.companion.removeTrackerSync());
+      toast('Tracker summary removed', 'Overview is using BYAKUGAN’s collected Riot data again.');
+    } catch (error) {
+      text('#trackerSyncStatus', error.message || 'The saved Tracker summary could not be removed.');
+    } finally {
+      state.trackerSyncBusy = false; updateTrackerSyncButtons(state.snapshot);
+    }
+  });
   $('#pcRole').addEventListener('change', async (event) => {
     const role = event.target.value;
     await saveSettingsPatch({ pcRole: role }, false);
@@ -2344,7 +2404,7 @@ function bindEvents() {
         actDetailedDraws: progress.coverage?.detailedDraws ?? progress.stats.draws,
         actDetailedGames: progress.coverage?.detailedGames ?? loaded
       });
-      renderStats(state.snapshot.profile);
+      renderStats(state.snapshot.profile, state.snapshot.trackerSync);
     }
     if (wasLoading && !isLoading) {
       toast('Act stats updated', 'BYAKUGAN finished refreshing your current-act competitive history.');
@@ -2398,7 +2458,6 @@ async function updateSenseiMission(action) {
 
 async function initialize() {
   bindEvents();
-  window.actSummaryUi.mount(window.companion, renderSnapshot);
   try {
     const bootstrap = await window.companion.bootstrap();
     state.settings = bootstrap.settings;

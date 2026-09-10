@@ -96,17 +96,16 @@ of Riot Games or anyone officially involved in producing or managing Riot Games
 properties. Riot Games, and all associated properties are trademarks or
 registered trademarks of Riot Games, Inc.
 
-## Included in version 0.8.0-beta.145
+## Included in version 0.8.0-beta.148
 
-- Live players on both teams show **Played before** when your saved records contain shared matches. Click their row for teammate/opponent counts and dated match recaps with both players' K/D/A.
+- Live players on both teams show **Played before** when your saved records contain Competitive shared matches. Click their row for teammate/opponent counts and dated match recaps with both players' K/D/A.
 - Shared history survives Act changes and restarts. The existing dual-PC connection sends it to the streaming viewer; update both PCs. Hidden identities remain private and missing older rosters are not treated as proof that you never met.
 - Settings no longer includes HenrikDev controls. Previously collected and imported match records are retained.
-- Settings offers an optional import of your own Tracker Competitive Act summary. It appears separately in Overview and does not replace match records, coaching data, or current RR.
+- The manual Tracker Act-summary JSON importer has been removed. An explicitly experimental early-tester bridge can read the current Competitive Act overview from a public Tracker page opened visibly on the user's PC; it never calls Tracker's blocked private API.
 - The normal BYAKUGAN installer and beta updater retain the installed app's settings, cached data, and dual-PC configuration. This release uses the regular app profile.
 - Windows executable integrity checks run before release publication. Prior Act scanning, record-audit, and streaming cache improvements are included.
 
-See [shared match history](docs/shared-match-history.md) and
-[Act summary imports](docs/act-summary-import.md) for coverage and behavior.
+See [shared match history](docs/shared-match-history.md) for coverage and behavior.
 
 ### Earlier Act and streaming improvements
 

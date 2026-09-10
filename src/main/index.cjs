@@ -4,10 +4,9 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } = require('electron');
 const appMetadata = require('../../package.json');
-const { ActSummaryStore, prepareSummary, MAX_BYTES: SUMMARY_MAX_BYTES } = require('./act-summary-store.cjs');
-const { initializeImportPreview } = require('./import-preview-profile.cjs');
 const { checkHenrikHistory } = require('./services/henrik-history.cjs');
 const { SettingsStore } = require('./settings-store.cjs');
+const { TrackerSyncStore, trackerProfileUrl, parseTrackerPage } = require('./tracker-sync-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
 const { SenseiBrainStore } = require('./sensei-brain/store.cjs');
 const { applySenseiBrain, planSenseiBrain, applySenseiVod } = require('./sensei-brain/hook.cjs');
@@ -19,18 +18,14 @@ const { SenseiService, FULL_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_ANALYSIS_VERSION,
 const { SenseiSetupService } = require('./services/sensei-setup.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
-if (appMetadata.localImportPreview === true) {
-  app.setName('BYAKUGAN Import Preview');
-  app.setPath('userData', path.join(app.getPath('appData'), 'BYAKUGAN-Import-Preview'));
-}
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
 let mainWindow = null;
 let settings = null;
-let actSummaryStore = null;
-let pendingActSummary = null;
+let trackerSyncStore = null;
+let trackerWindow = null;
 let senseiStore = null;
 let senseiBrainStore = null;
 let senseiService = null;
@@ -50,6 +45,10 @@ let quitting = false;
 let lastTrayUpdateNotice = '';
 const senseiVodJobs = new Map();
 const migratedSenseiAccounts = new Set();
+
+function decorateSnapshot(nextSnapshot) {
+  return trackerSyncStore?.decorate(nextSnapshot) || nextSnapshot;
+}
 
 function legacySenseiAccountId() {
   const profile = snapshot?.profile || {};
@@ -296,7 +295,7 @@ function wireService(nextService) {
       rebuildTrayMenu();
     });
     service.on('snapshot', (nextSnapshot) => {
-      snapshot = actSummaryStore.decorate(nextSnapshot);
+      snapshot = decorateSnapshot(nextSnapshot);
       overlayServer?.publish();
       mainWindow?.webContents.send('riot:snapshot', snapshot);
       relayError = '';
@@ -358,7 +357,7 @@ async function connectDataSource() {
   if (remoteMode()) {
     if (!(service instanceof RemoteViewerClient)) createRemoteService();
   } else if (!(service instanceof RiotClientService)) createService();
-  snapshot = actSummaryStore.decorate(await service.connect());
+  snapshot = decorateSnapshot(await service.connect());
   overlayServer?.publish();
   return snapshot;
 }
@@ -366,7 +365,7 @@ async function connectDataSource() {
 async function reconnectDataSource() {
   if (remoteMode()) createRemoteService();
   else createService({ preserveSession: true });
-  snapshot = actSummaryStore.decorate(await service.connect());
+  snapshot = decorateSnapshot(await service.connect());
   overlayServer?.publish();
   return snapshot;
 }
@@ -374,14 +373,14 @@ async function reconnectDataSource() {
 async function refreshDataSource() {
   if (!service || (remoteMode() && !(service instanceof RemoteViewerClient))
     || (!remoteMode() && !(service instanceof RiotClientService))) return connectDataSource();
-  snapshot = actSummaryStore.decorate(await service.refresh());
+  snapshot = decorateSnapshot(await service.refresh());
   overlayServer?.publish();
   return snapshot;
 }
 
 async function updateSessionDataSource(selection) {
   if (!service?.updateSession) throw new Error('Session recovery is unavailable for this data source.');
-  snapshot = actSummaryStore.decorate(await service.updateSession(selection || {}));
+  snapshot = decorateSnapshot(await service.updateSession(selection || {}));
   overlayServer?.publish();
   mainWindow?.webContents.send('riot:snapshot', snapshot);
   rebuildTrayMenu();
@@ -412,45 +411,64 @@ async function importHostHistory(selection) {
 }
 
 let henrikCheckRunning = false;
+
+async function openTrackerProfile() {
+  const url = trackerProfileUrl(snapshot?.profile);
+  if (trackerWindow && !trackerWindow.isDestroyed()) {
+    trackerWindow.show();
+    trackerWindow.focus();
+    if (trackerWindow.webContents.getURL() !== url) await trackerWindow.loadURL(url);
+    return { opened: true, url };
+  }
+  trackerWindow = new BrowserWindow({
+    width: 1280,
+    height: 850,
+    minWidth: 900,
+    minHeight: 650,
+    title: 'BYAKUGAN — Experimental Tracker Sync',
+    parent: mainWindow || undefined,
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      partition: 'persist:byakugan-tracker-sync'
+    }
+  });
+  trackerWindow.setMenuBarVisibility(false);
+  trackerWindow.webContents.setWindowOpenHandler(({ url: nextUrl }) => {
+    shell.openExternal(nextUrl).catch(() => {});
+    return { action: 'deny' };
+  });
+  trackerWindow.once('ready-to-show', () => trackerWindow?.show());
+  trackerWindow.on('closed', () => { trackerWindow = null; });
+  try { await trackerWindow.loadURL(url); }
+  catch (error) {
+    trackerWindow?.show();
+    throw new Error(`Tracker could not open: ${error.message}`);
+  }
+  return { opened: true, url };
+}
+
 function registerIpc() {
-  ipcMain.handle('act-summary:choose', async () => {
-    pendingActSummary = null;
-    const selected = await dialog.showOpenDialog(mainWindow, {
-      title: 'Choose a Tracker Act summary', properties: ['openFile'],
-      filters: [{ name: 'BYAKUGAN summary', extensions: ['json'] }]
-    });
-    if (selected.canceled || !selected.filePaths[0]) return null;
-    const file = selected.filePaths[0];
-    if (fs.statSync(file).size > SUMMARY_MAX_BYTES) throw new Error('Summary file is too large (maximum 64 KB).');
-    const input = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
-    pendingActSummary = prepareSummary(input, snapshot?.profile);
-    return pendingActSummary;
-  });
-  ipcMain.handle('act-summary:apply', (_event, selection = {}) => {
-    if (!pendingActSummary || selection.digest !== pendingActSummary.digest) throw new Error('Preview the summary first.');
-    actSummaryStore.import(pendingActSummary, snapshot?.profile, selection.actConfirmed === true);
-    pendingActSummary = null;
-    snapshot = actSummaryStore.decorate(snapshot);
+  ipcMain.handle('tracker-sync:open', openTrackerProfile);
+  ipcMain.handle('tracker-sync:read', async () => {
+    if (!trackerWindow || trackerWindow.isDestroyed()) throw new Error('Open your Tracker profile from BYAKUGAN first.');
+    const page = await trackerWindow.webContents.executeJavaScript(`({
+      text: document.body?.innerText || '',
+      url: location.href
+    })`, true);
+    const summary = parseTrackerPage(page, snapshot?.profile);
+    trackerSyncStore.save(summary, snapshot.profile);
+    snapshot = decorateSnapshot(snapshot);
     mainWindow?.webContents.send('riot:snapshot', snapshot);
     return snapshot;
   });
-  ipcMain.handle('act-summary:remove', () => {
-    actSummaryStore.remove(snapshot?.profile);
-    pendingActSummary = null;
-    snapshot = actSummaryStore.decorate(snapshot);
+  ipcMain.handle('tracker-sync:remove', () => {
+    trackerSyncStore.remove(snapshot?.profile);
+    snapshot = decorateSnapshot(snapshot);
     mainWindow?.webContents.send('riot:snapshot', snapshot);
     return snapshot;
-  });
-  ipcMain.handle('act-summary:export', async () => {
-    const entry = actSummaryStore.get(snapshot?.profile);
-    if (!entry) throw new Error('There is no imported summary for this account and Act.');
-    const selected = await dialog.showSaveDialog(mainWindow, {
-      title: 'Export Tracker summary', defaultPath: 'BYAKUGAN-Tracker-summary.json',
-      filters: [{ name: 'BYAKUGAN summary', extensions: ['json'] }]
-    });
-    if (selected.canceled || !selected.filePath) return { saved: false };
-    fs.writeFileSync(selected.filePath, JSON.stringify(entry.summary, null, 2));
-    return { saved: true };
   });
   ipcMain.handle('history:import-henrik', async (_event, key) => {
     if (henrikCheckRunning) throw new Error('A history request is already running.');
@@ -998,9 +1016,8 @@ async function startRelayMode() {
 
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
-  if (appMetadata.localImportPreview === true) initializeImportPreview(app.getPath('appData'), app.getPath('userData'));
   settings = new SettingsStore(app.getPath('userData'));
-  actSummaryStore = new ActSummaryStore(app.getPath('userData'));
+  trackerSyncStore = new TrackerSyncStore(app.getPath('userData'));
   senseiStore = new SenseiStore(app.getPath('userData'));
   senseiBrainStore = new SenseiBrainStore(app.getPath('userData'));
   senseiStore.recoverInterruptedVodAnalyses();
@@ -1057,6 +1074,7 @@ app.on('window-all-closed', () => {
   overlayServer?.stop();
   updateService?.stop();
   overlayPreviewWindow = null;
+  trackerWindow = null;
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -1068,4 +1086,6 @@ app.on('before-quit', () => {
   clearRelayRefresh();
   service?.disconnect?.();
   updateService?.stop();
+  trackerWindow?.destroy();
+  trackerWindow = null;
 });

@@ -7,7 +7,6 @@
   <title>BYAKUGAN</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="sensei-setup.css">
-  <link rel="stylesheet" href="act-summary.css">
   <link rel="stylesheet" href="encounters.css">
 </head>
 <body>
@@ -128,7 +127,6 @@
         </div>
 
         <div class="stats-grid" id="statsGrid"></div>
-        <article class="glass imported-act-card" id="importedActCard" hidden aria-label="Imported Competitive Act summary"></article>
 
         <div class="overview-intel-grid">
           <article class="glass insight-feature" id="primaryInsight">
@@ -486,17 +484,22 @@
             </div></details>
           </article>
 
-          <article class="glass settings-card act-import-settings">
-            <div class="settings-heading"><div><h2>Import your Tracker Act summary</h2><p>Add a saved Competitive overview from your own Tracker stats. Review the account and Act before saving.</p></div></div>
-            <p class="act-import-help">Summary imports appear separately in Overview. They do not add individual matches, change coaching results, or update automatically as you play.</p>
-            <div class="act-import-actions">
-              <button id="actSummaryChoose" class="primary-button">Choose summary JSON</button>
-              <button id="actSummaryExport" class="ghost-button" disabled>Export saved summary</button>
-              <button id="actSummaryRemove" class="ghost-button" disabled>Remove saved summary</button>
+          <article class="glass settings-card tracker-sync-settings">
+            <div class="settings-heading"><div><p class="eyebrow">TEMPORARY DATA BRIDGE</p><h2>Experimental Tracker Sync</h2><p>Use your public Valorant Tracker overview to fill BYAKUGAN's current-Act Competitive summary while BYAKUGAN awaits Riot approval.</p></div><span class="tracker-sync-badge">EXPERIMENTAL</span></div>
+            <p class="tracker-sync-copy">This is a temporary beta feature for early testers. After Riot approves BYAKUGAN, supported Riot access is intended to replace it so BYAKUGAN can retrieve accurate stats independently. It does not use Tracker's private API and does not run automatically.</p>
+            <ol class="tracker-sync-steps">
+              <li>Make your Valorant Tracker profile public.</li>
+              <li>Open the profile below and wait for the current Competitive Act overview to finish loading.</li>
+              <li>Return to BYAKUGAN and select <strong>Sync visible stats</strong>.</li>
+            </ol>
+            <div class="tracker-sync-actions">
+              <button id="trackerSyncOpen" class="primary-button">Open my Tracker profile</button>
+              <button id="trackerSyncRead" class="ghost-button">Sync visible stats</button>
+              <button id="trackerSyncRemove" class="ghost-button" disabled>Remove synced stats</button>
             </div>
-            <div id="actSummaryPreview" hidden></div>
-            <p id="actSummaryStatus" role="status" aria-live="polite">Works on this PC, including a streaming PC with saved gaming-host data.</p>
+            <p id="trackerSyncStatus" class="tracker-sync-status" role="status" aria-live="polite">No Tracker summary is saved for this account and Act.</p>
           </article>
+
           <article class="glass settings-card about-card">
             <div class="brand-mark large"><span></span></div>
             <h2>BYAKUGAN</h2>
@@ -578,7 +581,6 @@
   </div>
 </div>
 
-  <script src="act-summary-ui.js"></script>
   <script src="encounters-ui.js"></script>
   <script src="app.js"></script>
   <script src="sensei-setup-ui.js"></script>

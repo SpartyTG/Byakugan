@@ -1143,3 +1143,11 @@ body::after { content: ""; position: fixed; z-index: -1; inset: 0; pointer-event
   font-size: 12px;
   line-height: 1.45;
 }
+
+.tracker-sync-settings { border-color: rgba(255,196,92,.25); background: linear-gradient(135deg,rgba(255,196,92,.045),rgba(123,103,246,.035)); }
+.tracker-sync-badge { align-self: flex-start; padding: 7px 10px; border: 1px solid rgba(255,196,92,.35); border-radius: 999px; color: var(--amber); background: rgba(255,196,92,.08); font-size: 9px; font-weight: 850; letter-spacing: .1em; }
+.tracker-sync-copy, .tracker-sync-status { color: var(--muted); font-size: 11px; line-height: 1.65; }
+.tracker-sync-steps { margin: 14px 0; padding-left: 20px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.tracker-sync-steps strong { color: var(--text); }
+.tracker-sync-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 15px 0 10px; }
+.tracker-sync-status { min-height: 18px; margin: 0; color: var(--violet-light); }

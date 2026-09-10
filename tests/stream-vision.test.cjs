@@ -102,9 +102,11 @@ test('routine snapshots stay silent and act completion notifies only after real 
   assert.match(app, /finished refreshing your current-act competitive history/);
 });
 
-test('Overview reads every indexed result as wins, losses, and draws', () => {
+test('Overview shows W/L/D from the active summary source and retains Riot detail fallback', () => {
   assert.match(app, /\['WIN \/ LOSS \/ DRAW'/);
-  assert.match(app, /profile\.draws/);
+  assert.match(app, /const source = trackerSync \|\| profile/);
+  assert.match(app, /source\.draws/);
+  assert.match(app, /const detailedGames = Number\(profile\.actDetailedGames\)/);
   assert.match(app, /DETAILED MATCHES/);
 });
 

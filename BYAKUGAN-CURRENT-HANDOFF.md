@@ -1,3 +1,40 @@
+# Beta.148 Experimental visible-page Tracker sync
+
+Prepared cumulatively from beta.147. Settings now includes an explicitly temporary
+Experimental Tracker Sync card for early testers while Riot approval is pending.
+BYAKUGAN constructs the connected account's public Tracker URL with current Act and
+Competitive filters, opens it in a visible sandboxed local Electron window, and
+reads the rendered overview only after the user selects Sync visible stats. It does
+not call `api.tracker.gg`. The parser requires the exact Riot ID, season query,
+Competitive playlist, Matches, Wins, Losses, K/D Ratio, and Headshot %. Draws are
+the nonnegative remainder of matches minus wins and losses. Valid summaries persist
+per pseudonymous account and Act in `tracker-sync.json`.
+
+Overview presents the cached Tracker W/L/D, K/D, and HS% with an experimental source
+label; current RR and all underlying Riot matches/analytics remain untouched. Users
+can remove the cached summary to return immediately to Riot-collected display data.
+Private, mismatched, wrong-Act, incomplete, and out-of-range pages fail closed. This
+visible-page early-tester experiment supersedes beta.147's decision to defer the
+entire link flow, but the blocked private Tracker API remains prohibited.
+
+The parser and persistence path pass generic fixtures, corrupt-cache cases, and
+refresh-precedence regressions. Tracker blocked the remote inspection browser, so
+the first real public-profile sync remains a Windows validation step; do not claim
+the current Tracker DOM is proven until that succeeds. Full verification passes
+with 233 tests and 10 Sensei Brain smoke checks.
+
+# Beta.147 Tracker-import removal
+
+Prepared cumulatively from beta.146. The manual Tracker Act-summary JSON importer,
+Settings card, Overview card, renderer bridge, IPC handlers, preview tooling, and
+feature-specific documentation/tests were removed. Existing
+`act-summary-imports.json` files are deliberately left untouched on user PCs. Do
+not describe a pasted Tracker profile URL as synchronization: Tracker's supported
+developer catalog does not currently expose a VALORANT API for this use, and
+scraping its webpage is not an approved reliability boundary. A future link flow
+requires supported Riot or Tracker access. Full verification passes with 227 tests
+and 10 Sensei Brain smoke checks.
+
 # Beta.146 Competitive-only shared history
 
 Prepared from the published beta.145 source. Played before counts and shared-match
@@ -57,12 +94,12 @@ Do not claim a retention ceiling without the captured scan evidence. Next: relea
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.137`
-- Previous release: `v0.8.0-beta.133`
+- Target: `v0.8.0-beta.148`
+- Previous published release: `v0.8.0-beta.145`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `199` automated tests, `10` Sensei Brain smoke checks, complete JavaScript syntax and Brain-pack JSON validation
+- Verification: `233` automated tests and `10` Sensei Brain smoke checks
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
@@ -71,7 +108,7 @@ and a green GitHub Actions release all match.
 
 ### Fast Act-boundary pagination without a guessed game total
 
-- Riot's seasonal `NumberOfWins` remains the authoritative completeness guard. Tyler's current value is 128 wins.
+- Riot's seasonal `NumberOfWins` is read per connected account and is never represented by a hardcoded user-specific target.
 - Overview counts every indexed current-Act result and reads Wins, Losses, and Draws separately.
 - General match history loads six supported 20-record pages concurrently and honors corrected short-page cursors. Riot's declared `Total` never stops the scan; pages continue until the previous-Act boundary or a truly empty response.
 - Discovered details hydrate at concurrency 20 only while outside Agent Select and active matches, restoring fast menu loading without competing with live gameplay polling.
