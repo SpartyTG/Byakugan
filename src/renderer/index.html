@@ -7,6 +7,8 @@
   <title>BYAKUGAN</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="sensei-setup.css">
+  <link rel="stylesheet" href="act-summary.css">
+  <link rel="stylesheet" href="encounters.css">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -126,6 +128,7 @@
         </div>
 
         <div class="stats-grid" id="statsGrid"></div>
+        <article class="glass imported-act-card" id="importedActCard" hidden aria-label="Imported Competitive Act summary"></article>
 
         <div class="overview-intel-grid">
           <article class="glass insight-feature" id="primaryInsight">
@@ -483,13 +486,16 @@
             </div></details>
           </article>
 
-          <article class="glass settings-card">
-            <div class="settings-heading"><div><h2>HenrikDev history check</h2><p>Compare stored current-Act matches with your gaming PC cache. Sends your Riot ID to HenrikDev. Check availability or import missing matches into your gaming PC cache.</p></div></div>
-            <label for="henrikKey">HenrikDev API key</label>
-            <input id="henrikKey" type="password" autocomplete="off" spellcheck="false" placeholder="Used for this check only">
-            <button id="henrikCheck" class="ghost-button">Check current-Act history</button>
-            <button id="henrikImport" class="ghost-button">Import missing Act matches</button>
-            <p id="henrikResult" role="status" aria-live="polite">Your key is not saved or included in snapshots or reports.</p>
+          <article class="glass settings-card act-import-settings">
+            <div class="settings-heading"><div><h2>Import your Tracker Act summary</h2><p>Add a saved Competitive overview from your own Tracker stats. Review the account and Act before saving.</p></div></div>
+            <p class="act-import-help">Summary imports appear separately in Overview. They do not add individual matches, change coaching results, or update automatically as you play.</p>
+            <div class="act-import-actions">
+              <button id="actSummaryChoose" class="primary-button">Choose summary JSON</button>
+              <button id="actSummaryExport" class="ghost-button" disabled>Export saved summary</button>
+              <button id="actSummaryRemove" class="ghost-button" disabled>Remove saved summary</button>
+            </div>
+            <div id="actSummaryPreview" hidden></div>
+            <p id="actSummaryStatus" role="status" aria-live="polite">Works on this PC, including a streaming PC with saved gaming-host data.</p>
           </article>
           <article class="glass settings-card about-card">
             <div class="brand-mark large"><span></span></div>
@@ -572,6 +578,8 @@
   </div>
 </div>
 
+  <script src="act-summary-ui.js"></script>
+  <script src="encounters-ui.js"></script>
   <script src="app.js"></script>
   <script src="sensei-setup-ui.js"></script>
 </body>

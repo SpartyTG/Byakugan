@@ -249,13 +249,14 @@ function buildOverlayPayload(snapshot = {}, settings = {}, requestedProfile = 'l
 }
 
 class OverlayServer {
-  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, updateSession, importHistory, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
+  constructor({ getSnapshot, getSettings, getHost, inspectPlayer, getPlayerEncounters, updateSession, importHistory, assetDirectory, host = LOOPBACK_HOST, port = DEFAULT_PORT } = {}) {
     this.getSnapshot = getSnapshot || (() => ({}));
     this.getSettings = getSettings || (() => ({}));
     this.assetDirectory = assetDirectory || path.join(__dirname, '..', '..', 'overlay');
     this.host = host;
     this.getHost = getHost || (() => host);
     this.inspectPlayer = inspectPlayer || null;
+    this.getPlayerEncounters = getPlayerEncounters || null;
     this.updateSession = updateSession || null;
     this.importHistory = importHistory || null;
     this.port = port;
@@ -408,6 +409,16 @@ class OverlayServer {
 
   async handle(request, response) {
     const url = new URL(request.url || '/', `http://${this.host}`);
+
+    if (request.method === 'POST' && url.pathname.startsWith('/remote-encounters/')) {
+      const token = url.pathname.slice('/remote-encounters/'.length);
+      if (!this.authorizeRemote(url, token) || !this.getPlayerEncounters) return this.notFound(response);
+      const body = await this.readJson(request);
+      return this.sendJson(response, { version: 1, history: await this.getPlayerEncounters({
+        encounterId: String(body.encounterId || '').slice(0, 100),
+        matchId: String(body.matchId || '').slice(0, 100), offset: body.offset ?? 0
+      }) });
+    }
 
     if (request.method === 'POST' && url.pathname.startsWith('/remote-inspect/')) {
       let token = '';

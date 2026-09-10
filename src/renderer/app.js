@@ -947,15 +947,17 @@ function livePlayerRow(player) {
     : unresolvedIdentity
       ? `RIOT NAME UNAVAILABLE${player.locked ? ' • LOCKED' : ''}`
     : `${escapeHtml(player.agent)}${player.side === 'enemy' ? ' • ENEMY' : player.partyMember ? ' • PARTY' : player.friend ? ' • RIOT FRIEND' : ''}${player.locked ? ' • LOCKED' : ''}`;
-  return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${player.inspectable ? 'inspectable' : ''}" ${player.inspectable ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0"` : ''}>
+  const clickable = player.encounterId || player.inspectable;
+  return `<div class="live-player-row ${player.isSelf ? 'self' : ''} ${player.hidden ? 'hidden-name' : ''} ${clickable ? 'inspectable' : ''}" ${clickable ? `data-player-id="${escapeHtml(player.id)}" ${player.encounterId ? `data-encounter-id="${escapeHtml(player.encounterId)}"` : ''} role="button" tabindex="0"` : ''}>
     <div class="live-agent" style="--player-color:${escapeHtml(player.agentColor || '#7b67f6')}">${agentImage ? `<img src="${agentImage}" alt="${escapeHtml(player.agent)}">` : `<span>${escapeHtml(initials(player.agent))}</span>`}</div>
-    <div class="live-player-identity"><div class="live-player-heading">${identityTitle}<span class="live-player-level ${levelIsHidden ? 'hidden' : ''}">${escapeHtml(levelLabel)}</span>${partyBadge}${blockedBadge}</div><small>${identityDetail}</small></div>
+    <div class="live-player-identity"><div class="live-player-heading">${identityTitle}<span class="live-player-level ${levelIsHidden ? 'hidden' : ''}">${escapeHtml(levelLabel)}</span>${partyBadge}${blockedBadge}</div><small>${identityDetail}</small>${window.encounterUi.badge(player)}</div>
     <div class="live-rank">${rankImage ? `<img src="${rankImage}" alt="">` : '<i></i>'}<span><small>CURRENT</small><strong>${escapeHtml(player.rank)}</strong><em>${escapeHtml(peakLabel)}</em><b>${escapeHtml(peakContext || 'EPISODE / ACT UNAVAILABLE')}</b></span></div>
   </div>`;
 }
 
 async function openPlayerProfile(playerId) {
   if (!playerId) return;
+  window.encounterUi.close();
   state.openPlayerId = playerId;
   $('#playerProfileContent').innerHTML = '<div class="player-profile-loading"><div><span class="loading-ring"></span><p>Reading visible player profile…</p></div></div>';
   $('#playerModal').hidden = false;
@@ -974,11 +976,13 @@ async function openPlayerProfile(playerId) {
     const rankLabel = profile.rr !== null && profile.rr !== undefined ? `${profile.rank} • ${profile.rr} RR` : profile.rank;
     $('#playerProfileContent').innerHTML = `<div class="player-profile-hero"><div class="player-profile-avatar">${escapeHtml(initials(profile.gameName))}</div><div><p class="eyebrow">${profile.isSelf ? 'YOUR PROFILE' : 'VISIBLE ALLY PROFILE'}</p><h1 id="playerProfileTitle">${escapeHtml(profile.gameName)} <em>${profile.tagLine ? `#${escapeHtml(profile.tagLine)}` : ''}</em></h1><p>Account level ${escapeHtml(profile.level || '—')} • ${escapeHtml(stats.scope || 'AVAILABLE COMPETITIVE')}</p></div><div class="player-rank-stack">${rankImage ? `<img src="${rankImage}" alt="${escapeHtml(profile.rank)}">` : ''}<span><small>CURRENT RANK</small><strong>${escapeHtml(rankLabel)}</strong><em>${escapeHtml(profile.peakRank)} all-time peak • ${escapeHtml([profile.peakEpisode, profile.peakAct].filter(Boolean).join(' • '))}</em></span></div></div><div class="player-profile-body"><div class="player-stat-grid"><span><small>${escapeHtml(matchesLabel)}</small><strong>${escapeHtml(matchesValue)}</strong></span><span><small>W / L</small><strong>${statsAvailable ? `${escapeHtml(stats.wins || 0)} / ${escapeHtml(stats.losses || 0)}` : unavailable}</strong></span><span><small>WIN RATE</small><strong>${statsAvailable && stats.games ? `${escapeHtml(((Number(stats.wins || 0) / Number(stats.games)) * 100).toFixed(1))}%` : unavailable}</strong></span><span><small>K/D</small><strong>${statsAvailable ? escapeHtml(stats.kd ?? unavailable) : unavailable}</strong></span><span><small>HEADSHOT</small><strong>${statsAvailable ? `${escapeHtml(stats.headshot ?? 0)}%` : unavailable}</strong></span></div><div class="player-profile-section-title"><p class="eyebrow">EQUIPPED COLLECTION</p><h2>Current skins</h2></div><div class="player-loadout-grid">${loadout.map((item) => `<div class="player-loadout-item">${safeImage(item.image) ? `<img src="${safeImage(item.image)}" alt="">` : ''}<small>${escapeHtml(item.slot)}</small><strong>${escapeHtml(item.skin)}</strong></div>`).join('') || '<div class="empty-state">Riot keeps this player’s current equipped loadout private.</div>'}</div><p class="player-privacy-note">◉ ${escapeHtml(profile.privacy || 'Private and opponent profiles remain unavailable.')}</p></div>`;
   } catch (error) {
+    if (state.openPlayerId !== playerId) return;
     $('#playerProfileContent').innerHTML = `<div class="player-profile-loading"><div><strong>Profile unavailable</strong><p>${escapeHtml(error.message)}</p></div></div>`;
   }
 }
 
 function closePlayerProfile() {
+  window.encounterUi.close();
   $('#playerModal').hidden = true;
   state.openPlayerId = '';
 }
@@ -1064,6 +1068,7 @@ function renderSnapshot(snapshot) {
   $('#rankProgress').style.width = `${Math.max(0, Math.min(100, Number(profile.rr) || 0))}%`;
   updateLive(live);
   renderStats(profile);
+  window.actSummaryUi.render(snapshot);
   renderMatches();
   renderFriends();
   renderLoadout();
@@ -1082,6 +1087,7 @@ function renderSnapshot(snapshot) {
 
 function updateLive(live) {
   if (!state.snapshot) return;
+  window.encounterUi.updateLive(live);
   state.snapshot.live = live;
   text('#liveState', formatState(live.state));
   text('#liveMap', live.map);
@@ -1866,32 +1872,6 @@ function bindEvents() {
     if (event.target.closest('[data-sensei-overview-open]')) navigate('sensei');
     if (event.target.closest('[data-sensei-hub-settings]')) navigate('settings');
   });
-  $('#henrikImport').addEventListener('click', async () => {
-    $('#henrikImport').disabled = true;
-    $('#henrikCheck').disabled = true;
-    text('#henrikResult', 'Fetching and importing missing Act matches… Keep both PCs connected.');
-    const pending = window.companion.importHenrikHistory($('#henrikKey').value);
-    $('#henrikKey').value = '';
-    try {
-      const report = await pending;
-      const { imported, rejected, stats } = report.imported;
-      text('#henrikResult', `Saved ${imported} recovered matches on the gaming PC; ${rejected} records rejected. Combined: ${stats.wins} W / ${stats.losses} L / ${stats.draws} D, ${stats.kd} K/D, ${stats.headshot}% HS — ${stats.scope}. Report: henrik-history-import.json in this PC's BYAKUGAN app-data folder.`);
-    } catch (error) { text('#henrikResult', error.message || 'Import failed.'); }
-    finally { $('#henrikImport').disabled = false; $('#henrikCheck').disabled = false; }
-  });
-  $('#henrikCheck').addEventListener('click', async () => {
-    const button = $('#henrikCheck');
-    button.disabled = true;
-    $('#henrikImport').disabled = true;
-    text('#henrikResult', 'Checking stored matches… This may take a few minutes.');
-    const pending = window.companion.checkHenrikHistory($('#henrikKey').value);
-    $('#henrikKey').value = '';
-    try {
-      const report = await pending;
-      text('#henrikResult', `${report.matches} usable current-Act matches found; ${report.missing} are absent from your completed-match cache. ${report.invalid} entries could not be verified. ${report.exhausted ? 'Stored list checked.' : 'Page limit reached; check incomplete.'} Report saved as henrik-history-check.json in your BYAKUGAN app-data folder. No stats imported.`);
-    } catch (error) { text('#henrikResult', error.message || 'History check failed.'); }
-    finally { button.disabled = false; $('#henrikImport').disabled = false; }
-  });
   $('#sidebarRefresh').addEventListener('click', () => refresh(true));
   $('#connectButton').addEventListener('click', () => reconnect(true));
   $('#privacyButton').addEventListener('click', () => saveSettingsPatch({ privacyMode: !state.settings.privacyMode }, false));
@@ -1983,14 +1963,21 @@ function bindEvents() {
     const input = event.target.closest('[data-sensei-chat] input[name="question"]');
     if (input && state.senseiSelectedMatchId) state.senseiChatDrafts[state.senseiSelectedMatchId] = input.value;
   });
-  $('#allyRoster').addEventListener('click', (event) => {
-    const row = event.target.closest('[data-player-id]');
-    if (row) openPlayerProfile(row.dataset.playerId);
-  });
-  $('#allyRoster').addEventListener('keydown', (event) => {
-    if (!['Enter', ' '].includes(event.key)) return;
-    const row = event.target.closest('[data-player-id]');
-    if (row) { event.preventDefault(); openPlayerProfile(row.dataset.playerId); }
+  ['#allyRoster', '#enemyRoster'].forEach(selector => {
+    const open = event => {
+      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+      const row = event.target.closest('[data-player-id]');
+      if (!row) return;
+      event.preventDefault();
+      const live = state.snapshot?.live;
+      const player = live?.players?.find(player => player.encounterId && player.encounterId === row.dataset.encounterId);
+      if (player) {
+        state.openPlayerId = player.encounterId;
+        window.encounterUi.open(player, live, window.companion, openPlayerProfile);
+      } else openPlayerProfile(row.dataset.playerId);
+    };
+    $(selector).addEventListener('click', open);
+    $(selector).addEventListener('keydown', open);
   });
   $('#closePlayerProfile').addEventListener('click', closePlayerProfile);
   $('#playerModal').addEventListener('click', (event) => { if (event.target === $('#playerModal')) closePlayerProfile(); });
@@ -2411,6 +2398,7 @@ async function updateSenseiMission(action) {
 
 async function initialize() {
   bindEvents();
+  window.actSummaryUi.mount(window.companion, renderSnapshot);
   try {
     const bootstrap = await window.companion.bootstrap();
     state.settings = bootstrap.settings;

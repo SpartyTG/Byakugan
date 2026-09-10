@@ -2,6 +2,7 @@
 
 const { buildActRecordAudit } = require('./act-record-audit.cjs');
 const { normalizeHenrikMatch } = require('./henrik-history.cjs');
+const { EncounterStore, recordFromDetail, recordFromLegacy, accountKeyFor } = require('../encounter-store.cjs');
 const { EventEmitter } = require('node:events');
 const { createHash, randomUUID } = require('node:crypto');
 const fs = require('node:fs');
@@ -1501,6 +1502,12 @@ class RiotClientService extends EventEmitter {
     this.rankCache = new Map();
     this.levelCache = new Map();
     this.matchDetailCache = new Map();
+    this.encounterStore = new EncounterStore(options.cacheDirectory);
+    this.encounterTargets = new Map();
+    this.encounterHandles = new Map();
+    this.encounterContext = '';
+    this.encounterBackfillPromise = null;
+    this.encounterAttempts = new Map();
     this.actStatsCacheFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-cache.json') : '';
     this.actStatsArchiveFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'act-stats-archive.json') : '';
     this.partyHistoryFile = options.cacheDirectory ? path.join(options.cacheDirectory, 'party-history.json') : '';
@@ -2145,6 +2152,53 @@ class RiotClientService extends EventEmitter {
     });
   }
 
+  decorateEncounterRoster(rawPlayers, roster, matchId, active) {
+    const owner = this.identity?.puuid;
+    const context = owner && active && matchId ? `${owner}:${matchId}` : '';
+    if (context !== this.encounterContext) this.encounterHandles.clear();
+    this.encounterContext = context;
+    this.encounterTargets.clear();
+    return roster.map((player, index) => {
+      const subject = rawPlayers[index]?.Subject || rawPlayers[index]?.subject || rawPlayers[index]?.puuid;
+      if (!context || player.isSelf || !subject) return player;
+      if (player.hidden || player.identityUnavailable) return { ...player, encounters: { available: false, reason: 'identity-unavailable' } };
+      if (!this.encounterHandles.has(subject)) this.encounterHandles.set(subject, `encounter-${randomUUID()}`);
+      const encounterId = this.encounterHandles.get(subject);
+      this.encounterTargets.set(encounterId, { subject, owner, matchId });
+      return { ...player, encounterId, encounters: this.encounterStore.page(owner, subject, { excludeMatchId: matchId }) };
+    });
+  }
+
+  getPlayerEncounters(selection = {}) {
+    const target = this.encounterTargets.get(String(selection.encounterId || ''));
+    if (!target || target.owner !== this.identity?.puuid || target.matchId !== selection.matchId) {
+      throw new Error('The live roster changed or this player’s identity is private. Reopen their profile.');
+    }
+    if (!Number.isSafeInteger(selection.offset ?? 0) || (selection.offset ?? 0) < 0) throw new Error('Invalid history page.');
+    return this.encounterStore.page(target.owner, target.subject, { excludeMatchId: target.matchId, offset: selection.offset ?? 0 });
+  }
+
+  startEncounterBackfill() {
+    if (this.encounterBackfillPromise || !this.identity?.puuid || !this.metadata) return;
+    const owner = this.identity.puuid;
+    this.encounterStore.useAccount(accountKeyFor(owner));
+    const missing = (this.actStatsCache?.data?.matches || []).filter(row => row.id
+      && ['VICTORY', 'DEFEAT', 'DRAW'].includes(row.result)
+      && !this.encounterStore.records.get(row.id)?.completeRoster
+      && (this.encounterAttempts.get(row.id) || 0) < Date.now()).slice(0, 5);
+    if (!missing.length) return;
+    // Reuse the existing detail cache and limit recovery to five saved games per refresh.
+    const pending = mapWithConcurrency(missing, 2, async row => {
+      if (this.identity?.puuid !== owner) return;
+      this.encounterAttempts.set(row.id, Date.now() + 30 * 60_000);
+      await this.fetchMatchDetail(row.id);
+    }).catch(() => {}).finally(() => {
+      this.encounterStore.flush();
+      if (this.encounterBackfillPromise === pending) this.encounterBackfillPromise = null;
+    });
+    this.encounterBackfillPromise = pending;
+  }
+
   async fetchLiveState() {
     if (this.liveStatePromise) return this.liveStatePromise;
     const pending = this.fetchLiveStateOnce();
@@ -2163,6 +2217,9 @@ class RiotClientService extends EventEmitter {
     if (!session) {
       this.lastLivePollFailed = this.diagnostics.length > diagnosticsBefore;
       this.inspectablePlayers.clear();
+      this.encounterTargets.clear();
+      this.encounterHandles.clear();
+      this.encounterContext = '';
       this.liveRoundPulse = null;
       return { state: 'MENUS', queue: 'Not queued', map: '—', partySize: 1, matchId: '', elapsed: '—', players: [] };
     }
@@ -2225,13 +2282,14 @@ class RiotClientService extends EventEmitter {
       BYAKUGANAccountLevel: leveledPlayers[index]?.BYAKUGANAccountLevel ?? null,
       BYAKUGANLevelHidden: leveledPlayers[index]?.BYAKUGANLevelHidden === true
     }));
-    const roster = normalizeLivePlayers(
+    const normalizedRoster = normalizeLivePlayers(
       hydratedPlayers,
       puuid,
       this.metadata || { agents: new Map(), tiers: new Map() },
       names,
       activeMatch ? this.partyHistory : []
     );
+    const roster = this.decorateEncounterRoster(hydratedPlayers, normalizedRoster, matchId, activeMatch);
     const likelyPartyGroups = new Set(roster.filter((player) => player.partyLabel && player.likelyParty).map((player) => player.partyLabel)).size;
     const confirmedOtherGroups = new Set(roster.filter((player) => player.partyLabel && !player.ownParty && !player.likelyParty).map((player) => player.partyLabel)).size;
     this.rememberInspectablePlayers(hydratedPlayers, roster, names);
@@ -2327,14 +2385,18 @@ class RiotClientService extends EventEmitter {
 
   async fetchMatchDetail(matchId) {
     if (!matchId) return null;
-    if (this.matchDetailCache.has(matchId)) return this.matchDetailCache.get(matchId);
-    const pending = this.safeRemote(`/match-details/v1/matches/${matchId}`, 'pd', {
+    const owner = this.identity?.puuid;
+    const pending = this.matchDetailCache.get(matchId) || this.safeRemote(`/match-details/v1/matches/${matchId}`, 'pd', {
       retries: 2,
       retryDelayMs: 300
     });
     this.matchDetailCache.set(matchId, pending);
     const detail = await pending;
     if (!detail) this.matchDetailCache.delete(matchId);
+    if (detail && owner && this.identity?.puuid === owner && this.metadata) {
+      const record = recordFromDetail(detail, owner, this.metadata);
+      if (record && record.id === String(matchId)) this.encounterStore.remember(accountKeyFor(owner), record);
+    }
     return detail;
   }
 
@@ -2364,6 +2426,10 @@ class RiotClientService extends EventEmitter {
         && cached.data?.stats && Array.isArray(cached.data?.matches)
         && cached.data.matches.length <= 1000);
       if (validCandidates.length) {
+        for (const entry of validCandidates) for (const match of entry.data.matches) {
+          const record = recordFromLegacy(match, this.identity.puuid, entry.seasonId);
+          if (record) this.encounterStore.remember(accountKeyFor(this.identity.puuid), record);
+        }
         const cached = validCandidates.at(-1);
         const mergedMatches = mergeSessionMatches(...validCandidates.map((entry) => entry.data.matches));
         const mergedObserved = mergeObservedProfiles(...validCandidates.map((entry) => entry.data.observedProfiles));
@@ -2885,6 +2951,7 @@ class RiotClientService extends EventEmitter {
     };
     this.loadPersistedActStats(activeSeasonId);
     const selectedActCacheState = selectActCacheState(this.actStatsCache, activeSeasonId, newestMatchId);
+    this.startEncounterBackfill();
     const actCacheState = {
       ...selectedActCacheState,
       current: selectedActCacheState.current && actDataCoversRecord(selectedActCacheState.data, authoritativeRecord)
@@ -2973,6 +3040,11 @@ class RiotClientService extends EventEmitter {
         // never included in renderer or Dual PC snapshots.
         ...resolvedCareer,
         activeSeasonId,
+        activeActLabel: (() => {
+          const act = this.metadata.seasons?.get(String(activeSeasonId).toLowerCase());
+          const episode = this.metadata.seasons?.get(String(act?.parentId || '').toLowerCase());
+          return [episode?.name, act?.name].filter(Boolean).join(' • ');
+        })(),
         historyCheckContext: {
           accountKey: currentSenseiAccountKey, seasonId: activeSeasonId,
           matchHashes: (actData?.matches || []).filter((match) => ['VICTORY', 'DEFEAT', 'DRAW'].includes(match.result))
@@ -3222,6 +3294,11 @@ class RiotClientService extends EventEmitter {
 
   disconnect() {
     this.stopPolling();
+    this.encounterStore.flush();
+    this.encounterTargets.clear();
+    this.encounterHandles.clear();
+    this.encounterContext = '';
+    this.encounterAttempts.clear();
     this.lockfile = null;
     this.tokens = null;
     this.identity = null;

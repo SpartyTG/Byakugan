@@ -3,8 +3,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('companion', Object.freeze({
-  importHenrikHistory: (key) => ipcRenderer.invoke('history:import-henrik', key),
-  checkHenrikHistory: (key) => ipcRenderer.invoke('history:check-henrik', key),
+  chooseActSummary: () => ipcRenderer.invoke('act-summary:choose'),
+  applyActSummary: (selection) => ipcRenderer.invoke('act-summary:apply', selection),
+  removeActSummary: () => ipcRenderer.invoke('act-summary:remove'),
+  exportActSummary: () => ipcRenderer.invoke('act-summary:export'),
   bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   restartApp: () => ipcRenderer.invoke('app:restart'),
   connect: () => ipcRenderer.invoke('riot:connect'),
@@ -12,6 +14,7 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
   disconnect: () => ipcRenderer.invoke('riot:disconnect'),
   refresh: () => ipcRenderer.invoke('riot:refresh'),
   inspectPlayer: (playerId) => ipcRenderer.invoke('riot:inspect-player', playerId),
+  getPlayerEncounters: (selection) => ipcRenderer.invoke('riot:player-encounters', selection),
   updateSession: (selection) => ipcRenderer.invoke('session:update', selection),
   getSenseiStatus: () => ipcRenderer.invoke('sensei:status'),
   senseiSetupStatus: () => ipcRenderer.invoke('sensei:setup-status'),

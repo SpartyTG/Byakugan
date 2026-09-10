@@ -216,6 +216,20 @@ class RemoteViewerClient extends EventEmitter {
     return payload.profile;
   }
 
+  async getPlayerEncounters(selection = {}) {
+    const { url, token } = this.parsed();
+    const response = await this.fetchImpl(new URL(`/remote-encounters/${token}`, url.origin).href, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ encounterId: selection.encounterId, matchId: selection.matchId, offset: selection.offset ?? 0 }),
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000)
+    });
+    if (!response.ok) throw new Error(response.status === 404
+      ? 'Update the gaming PC to use shared-match history.' : 'Shared-match history is unavailable. Reopen the player from the current roster.');
+    const payload = await response.json();
+    if (payload?.version !== 1 || payload.history?.available !== true || !Array.isArray(payload.history.matches)) throw new Error('Invalid shared-match history response.');
+    return payload.history;
+  }
+
   async updateSession(selection = {}) {
     const { url, token } = this.parsed();
     const endpoint = new URL(`/remote-session/${token}`, url.origin);

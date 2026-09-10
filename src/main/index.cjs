@@ -4,6 +4,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } = require('electron');
 const appMetadata = require('../../package.json');
+const { ActSummaryStore, prepareSummary, MAX_BYTES: SUMMARY_MAX_BYTES } = require('./act-summary-store.cjs');
+const { initializeImportPreview } = require('./import-preview-profile.cjs');
 const { checkHenrikHistory } = require('./services/henrik-history.cjs');
 const { SettingsStore } = require('./settings-store.cjs');
 const { SenseiStore } = require('./sensei-store.cjs');
@@ -17,12 +19,18 @@ const { SenseiService, FULL_VOD_ANALYSIS_VERSION, ADAPTIVE_VOD_ANALYSIS_VERSION,
 const { SenseiSetupService } = require('./services/sensei-setup.cjs');
 const { uiScaleFactor } = require('./ui-scale.cjs');
 
+if (appMetadata.localImportPreview === true) {
+  app.setName('BYAKUGAN Import Preview');
+  app.setPath('userData', path.join(app.getPath('appData'), 'BYAKUGAN-Import-Preview'));
+}
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
 let mainWindow = null;
 let settings = null;
+let actSummaryStore = null;
+let pendingActSummary = null;
 let senseiStore = null;
 let senseiBrainStore = null;
 let senseiService = null;
@@ -288,9 +296,9 @@ function wireService(nextService) {
       rebuildTrayMenu();
     });
     service.on('snapshot', (nextSnapshot) => {
-      snapshot = nextSnapshot;
+      snapshot = actSummaryStore.decorate(nextSnapshot);
       overlayServer?.publish();
-      mainWindow?.webContents.send('riot:snapshot', nextSnapshot);
+      mainWindow?.webContents.send('riot:snapshot', snapshot);
       relayError = '';
       rebuildTrayMenu();
     });
@@ -350,7 +358,7 @@ async function connectDataSource() {
   if (remoteMode()) {
     if (!(service instanceof RemoteViewerClient)) createRemoteService();
   } else if (!(service instanceof RiotClientService)) createService();
-  snapshot = await service.connect();
+  snapshot = actSummaryStore.decorate(await service.connect());
   overlayServer?.publish();
   return snapshot;
 }
@@ -358,7 +366,7 @@ async function connectDataSource() {
 async function reconnectDataSource() {
   if (remoteMode()) createRemoteService();
   else createService({ preserveSession: true });
-  snapshot = await service.connect();
+  snapshot = actSummaryStore.decorate(await service.connect());
   overlayServer?.publish();
   return snapshot;
 }
@@ -366,14 +374,14 @@ async function reconnectDataSource() {
 async function refreshDataSource() {
   if (!service || (remoteMode() && !(service instanceof RemoteViewerClient))
     || (!remoteMode() && !(service instanceof RiotClientService))) return connectDataSource();
-  snapshot = await service.refresh();
+  snapshot = actSummaryStore.decorate(await service.refresh());
   overlayServer?.publish();
   return snapshot;
 }
 
 async function updateSessionDataSource(selection) {
   if (!service?.updateSession) throw new Error('Session recovery is unavailable for this data source.');
-  snapshot = await service.updateSession(selection || {});
+  snapshot = actSummaryStore.decorate(await service.updateSession(selection || {}));
   overlayServer?.publish();
   mainWindow?.webContents.send('riot:snapshot', snapshot);
   rebuildTrayMenu();
@@ -405,6 +413,45 @@ async function importHostHistory(selection) {
 
 let henrikCheckRunning = false;
 function registerIpc() {
+  ipcMain.handle('act-summary:choose', async () => {
+    pendingActSummary = null;
+    const selected = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose a Tracker Act summary', properties: ['openFile'],
+      filters: [{ name: 'BYAKUGAN summary', extensions: ['json'] }]
+    });
+    if (selected.canceled || !selected.filePaths[0]) return null;
+    const file = selected.filePaths[0];
+    if (fs.statSync(file).size > SUMMARY_MAX_BYTES) throw new Error('Summary file is too large (maximum 64 KB).');
+    const input = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+    pendingActSummary = prepareSummary(input, snapshot?.profile);
+    return pendingActSummary;
+  });
+  ipcMain.handle('act-summary:apply', (_event, selection = {}) => {
+    if (!pendingActSummary || selection.digest !== pendingActSummary.digest) throw new Error('Preview the summary first.');
+    actSummaryStore.import(pendingActSummary, snapshot?.profile, selection.actConfirmed === true);
+    pendingActSummary = null;
+    snapshot = actSummaryStore.decorate(snapshot);
+    mainWindow?.webContents.send('riot:snapshot', snapshot);
+    return snapshot;
+  });
+  ipcMain.handle('act-summary:remove', () => {
+    actSummaryStore.remove(snapshot?.profile);
+    pendingActSummary = null;
+    snapshot = actSummaryStore.decorate(snapshot);
+    mainWindow?.webContents.send('riot:snapshot', snapshot);
+    return snapshot;
+  });
+  ipcMain.handle('act-summary:export', async () => {
+    const entry = actSummaryStore.get(snapshot?.profile);
+    if (!entry) throw new Error('There is no imported summary for this account and Act.');
+    const selected = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Tracker summary', defaultPath: 'BYAKUGAN-Tracker-summary.json',
+      filters: [{ name: 'BYAKUGAN summary', extensions: ['json'] }]
+    });
+    if (selected.canceled || !selected.filePath) return { saved: false };
+    fs.writeFileSync(selected.filePath, JSON.stringify(entry.summary, null, 2));
+    return { saved: true };
+  });
   ipcMain.handle('history:import-henrik', async (_event, key) => {
     if (henrikCheckRunning) throw new Error('A history request is already running.');
     henrikCheckRunning = true;
@@ -459,6 +506,10 @@ function registerIpc() {
   ipcMain.handle('riot:inspect-player', (_event, playerId) => {
     if (!service?.inspectPlayer) throw new Error('Player inspection is unavailable for this data source.');
     return service.inspectPlayer(String(playerId || ''));
+  });
+  ipcMain.handle('riot:player-encounters', (_event, selection) => {
+    if (!service?.getPlayerEncounters) throw new Error('Shared-match history is unavailable for this connection.');
+    return service.getPlayerEncounters(selection);
   });
   ipcMain.handle('session:update', (_event, selection) => updateSessionDataSource(selection));
 
@@ -947,7 +998,9 @@ async function startRelayMode() {
 
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
+  if (appMetadata.localImportPreview === true) initializeImportPreview(app.getPath('appData'), app.getPath('userData'));
   settings = new SettingsStore(app.getPath('userData'));
+  actSummaryStore = new ActSummaryStore(app.getPath('userData'));
   senseiStore = new SenseiStore(app.getPath('userData'));
   senseiBrainStore = new SenseiBrainStore(app.getPath('userData'));
   senseiStore.recoverInterruptedVodAnalyses();
@@ -971,6 +1024,7 @@ app.whenReady().then(async () => {
         : LOOPBACK_HOST;
     },
     inspectPlayer: (playerId) => service?.inspectPlayer?.(playerId),
+    getPlayerEncounters: (selection) => service?.getPlayerEncounters?.(selection),
     updateSession: (selection) => updateSessionDataSource(selection),
     importHistory: (selection) => importHostHistory(selection),
     assetDirectory: path.join(__dirname, '..', 'overlay')

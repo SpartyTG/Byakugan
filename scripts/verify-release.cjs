@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const project = require('../package.json');
+const { verifyWindowsExecutable } = require('./windows-executable.cjs');
 
 const requireFeed = process.argv.includes('--require-feed');
 const releaseDirectory = path.join(__dirname, '..', 'release');
@@ -18,6 +19,13 @@ if (!files.includes(expectedInstaller)) {
   const signature = fs.readFileSync(installer).subarray(0, 2).toString('ascii');
   if (signature !== 'MZ') errors.push(`Invalid Windows executable header: ${expectedInstaller}`);
   if (size < 10 * 1024 * 1024) errors.push(`Incomplete installer (${size} bytes): ${expectedInstaller}`);
+  try { verifyWindowsExecutable(installer); }
+  catch (error) { errors.push(`${expectedInstaller}: ${error.message}`); }
+}
+const application = path.join(releaseDirectory, 'win-unpacked', 'BYAKUGAN.exe');
+if (fs.existsSync(application)) {
+  try { verifyWindowsExecutable(application, { expectedMachine: 0x8664 }); }
+  catch (error) { errors.push(`BYAKUGAN.exe: ${error.message}`); }
 }
 if (requireFeed && !files.includes('beta.yml')) errors.push('Missing beta.yml update manifest.');
 if (requireFeed && !files.some((name) => name.endsWith('.exe.blockmap'))) errors.push('Missing installer blockmap.');
