@@ -1,4 +1,4 @@
-# BYAKUGAN v0.8.0-beta.148
+# BYAKUGAN v0.8.0-beta.149
 
 ## What's updated
 
@@ -13,4 +13,5 @@
 - Imports only the visible Matches, Wins, Losses, K/D Ratio, and Headshot %, derives draws from the verified result total, and caches the result per Riot account and Act.
 - Shows Tracker-synced W/L/D, K/D, and headshot percentage on Overview with an experimental source label while keeping Riot RR and BYAKUGAN's underlying match cache unchanged.
 - Supports removing the cached Tracker summary at any time and immediately returning to BYAKUGAN's collected Riot stats.
+- Overwrites legacy manual-import files with inert compatibility stubs so copying the full source over an existing repository cannot accidentally retain the removed importer or fail Windows CI.
 - Updates the existing BYAKUGAN installation through the normal beta updater while preserving settings, caches, overlay configuration, and dual-PC roles.

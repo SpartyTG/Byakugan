@@ -18,8 +18,15 @@ test('manual Tracker summary import is absent from the shipped interface and pro
     assert.doesNotMatch(source, /actSummary|act-summary|importedActSummary/);
   }
   assert.doesNotMatch(html, /Import your Tracker Act summary|Choose summary JSON/);
-  assert.equal(fs.existsSync(path.join(root, 'src/main/act-summary-store.cjs')), false);
-  assert.equal(fs.existsSync(path.join(root, 'src/renderer/act-summary-ui.js')), false);
+  for (const legacyFile of [
+    'src/main/act-summary-store.cjs',
+    'src/main/import-preview-profile.cjs',
+    'src/renderer/act-summary-ui.js',
+    'src/renderer/act-summary.css',
+    'tests/act-summary.test.cjs'
+  ]) {
+    assert.match(read(legacyFile), /Legacy manual Tracker JSON import|Legacy manual-import preview/);
+  }
 });
 
 test('replacement does not restore JSON import or call Tracker private APIs', () => {

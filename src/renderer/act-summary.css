@@ -1,24 +1,2 @@
-.imported-act-card { padding: 24px; margin: 0 0 20px; border-radius: var(--radius); border-color: rgba(164, 139, 255, .3); }
-.imported-act-card[hidden], #actSummaryPreview[hidden] { display: none; }
-.act-summary-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: start; }
-.act-summary-heading h2 { margin: 6px 0; font-size: 20px; }
-.act-summary-heading small { color: var(--purple-light, #b8a7ff); font-weight: 800; letter-spacing: .12em; }
-.act-summary-tag { font-size: 11px; padding: 7px 10px; background: rgba(157, 130, 255, .12); border-radius: 20px; color: #c7baff; }
-.act-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 18px 0; }
-.act-summary-grid div { padding: 14px; border: 1px solid rgba(165, 162, 192, .14); border-radius: 12px; background: rgba(13, 14, 27, .35); }
-.act-summary-grid dt { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
-.act-summary-grid dd { font-size: 23px; font-weight: 750; margin: 0; }
-.act-summary-copy, .act-import-help, #actSummaryStatus { font-size: 12px; color: var(--muted); line-height: 1.7; }
-.act-summary-copy strong { color: var(--text, #eeeafc); }
-.act-summary-details { margin-top: 16px; }
-.act-summary-details summary { cursor: pointer; color: #c7baff; font-size: 12px; }
-.act-summary-table-wrap { overflow-x: auto; }
-.act-summary-details table { width: 100%; border-collapse: collapse; margin-top: 12px; white-space: nowrap; font-size: 12px; }
-.act-summary-details th, .act-summary-details td { padding: 10px 14px 10px 0; border-bottom: 1px solid rgba(165, 162, 192, .12); text-align: left; }
-.act-summary-details th { color: var(--muted); font-weight: 500; }
-.act-import-settings { grid-column: 1 / -1; }
-.act-import-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
-#actSummaryPreview { padding: 20px; margin-top: 18px; border: 1px solid rgba(164, 139, 255, .3); border-radius: 14px; }
-.act-summary-confirm { display: flex; align-items: start; gap: 10px; font-size: 13px; line-height: 1.6; margin: 16px 0; }
-.act-summary-confirm input { flex: 0 0 auto; margin-top: 5px; accent-color: #9874ff; }
-.privacy .act-summary-identity { filter: blur(6px); user-select: none; }
+/* Legacy manual Tracker JSON import styles removed in beta.147.
+   Kept inert so ZIP-based source updates overwrite older functional copies. */

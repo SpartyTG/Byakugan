@@ -1,6 +1,9 @@
-# Beta.148 Experimental visible-page Tracker sync
+# Beta.149 Experimental visible-page Tracker sync
 
-Prepared cumulatively from beta.147. Settings now includes an explicitly temporary
+Prepared cumulatively from beta.148 after Windows CI exposed that ZIP-based source
+copying cannot delete legacy files. Removed manual-import paths now contain inert
+compatibility stubs, ensuring they overwrite functional beta.145 copies instead of
+remaining active in Tyler's repository. Settings includes an explicitly temporary
 Experimental Tracker Sync card for early testers while Riot approval is pending.
 BYAKUGAN constructs the connected account's public Tracker URL with current Act and
 Competitive filters, opens it in a visible sandboxed local Electron window, and
@@ -21,7 +24,7 @@ The parser and persistence path pass generic fixtures, corrupt-cache cases, and
 refresh-precedence regressions. Tracker blocked the remote inspection browser, so
 the first real public-profile sync remains a Windows validation step; do not claim
 the current Tracker DOM is proven until that succeeds. Full verification passes
-with 233 tests and 10 Sensei Brain smoke checks.
+with 234 tests and 10 Sensei Brain smoke checks.
 
 # Beta.147 Tracker-import removal
 
@@ -94,12 +97,12 @@ Do not claim a retention ceiling without the captured scan evidence. Next: relea
 
 ## Canonical release
 
-- Target: `v0.8.0-beta.148`
+- Target: `v0.8.0-beta.149`
 - Previous published release: `v0.8.0-beta.145`
 - Branch: `main`
 - Repository: `https://github.com/SpartyTG/Byakugan`
 - Local source of truth on Tyler's PC: `C:\Users\Tyler\Documents\GitHub\Byakugan`
-- Verification: `233` automated tests and `10` Sensei Brain smoke checks
+- Verification: `234` automated tests and `10` Sensei Brain smoke checks
 
 The installed application changes only after `package.json`, the pushed Git tag,
 and a green GitHub Actions release all match.
